@@ -1,0 +1,19 @@
+add_definitions(-DHAVE_CONFIG_H)
+
+set ( SOURCES
+    gstvideolevels.c )
+    
+set ( HEADERS
+    gstvideolevels.h )
+    
+include_directories(AFTER
+  . )
+
+
+add_library ( libgstvision MODULE
+  ${SOURCES}
+  ${HEADERS} )
+  
+target_link_libraries ( libgstvision
+  general ${GLIB2_LIBRARIES}
+  general ${GSTREAMER_LIBRARIES} )
