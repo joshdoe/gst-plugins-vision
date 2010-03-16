@@ -155,7 +155,7 @@ gst_videolevels_base_init (gpointer g_class)
 {
   GstElementClass *element_class = GST_ELEMENT_CLASS (g_class);
 
-  GST_CAT_INFO(videolevels_debug, "gst_videolevels_base_init");
+  GST_CAT_INFO(GST_CAT_DEFAULT, "gst_videolevels_base_init");
   
   gst_element_class_set_details (element_class, &videolevels_details);
 
@@ -170,7 +170,7 @@ gst_videolevels_finalize (GObject *object)
 {
   GstVideoLevels *videolevels;
 
-  GST_CAT_INFO (videolevels_debug, "gst_videolevels_finalize");
+  GST_CAT_INFO (GST_CAT_DEFAULT, "gst_videolevels_finalize");
   
   g_return_if_fail (GST_IS_VIDEOLEVELS (object));
   videolevels = GST_VIDEOLEVELS (object);
@@ -186,8 +186,11 @@ gst_videolevels_class_init (GstVideoLevelsClass * g_class)
 {
   GObjectClass *gobject_class;
   GstBaseTransformClass *trans_class;
-  
-  GST_CAT_INFO (videolevels_debug, "gst_videolevels_class_init");
+
+  GST_DEBUG_CATEGORY_INIT (videolevels_debug, "videolevels", 0,
+      "Video Levels Filter");
+
+  GST_CAT_INFO (GST_CAT_DEFAULT, "gst_videolevels_class_init");
   
   gobject_class = G_OBJECT_CLASS (g_class);
   trans_class = GST_BASE_TRANSFORM_CLASS (g_class);
@@ -351,10 +354,10 @@ gst_videolevels_transform_caps (GstBaseTransform * trans,
 	  gst_structure_get_value (structure, "framerate"));
 
   if (direction == GST_PAD_SRC) {
-	  GST_CAT_INFO(videolevels_debug, "direction=SRC");
+	  GST_CAT_INFO(GST_CAT_DEFAULT, "direction=SRC");
 	  bpp = 16;
   } else {
-	  GST_CAT_INFO(videolevels_debug, "direction=SINK");
+	  GST_CAT_INFO(GST_CAT_DEFAULT, "direction=SINK");
 	  bpp = 8;
   }
 
@@ -383,7 +386,7 @@ static gboolean gst_videolevels_get_unit_size (GstBaseTransform * base,
 		gst_structure_get_int (structure, "height", &height) &&
 		gst_structure_get_int (structure, "bpp", &pixsize)) {
 			*size = width * height * (pixsize/8);
-			GST_CAT_DEBUG(videolevels_debug, "Get unit size width=%d,height=%d,size=%d",width,height,*size);
+			GST_CAT_DEBUG(GST_CAT_DEFAULT, "Get unit size width=%d,height=%d,size=%d",width,height,*size);
 			return TRUE;
 	}
 	GST_ELEMENT_ERROR (base, CORE, NEGOTIATION, (NULL),
@@ -468,22 +471,3 @@ do_levels (GstVideoLevels * videolevels, guint16 * indata, guint8* outdata, gint
     *dst++ = videolevels->levels_table[*src++];
   }
 }
-
-static gboolean
-plugin_init (GstPlugin * plugin)
-{
-  GST_DEBUG_CATEGORY_INIT (videolevels_debug, "videolevels", 0, "videolevels");
-  GST_CAT_INFO(videolevels_debug, "plugin_init");
-  return gst_element_register (plugin, "videolevels", GST_RANK_NONE, GST_TYPE_VIDEOLEVELS);
-}
-
-GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-    GST_VERSION_MINOR,
-    "videolevels",
-    "Changes videolevels on video images",
-    plugin_init,
-	VERSION,
-	GST_LICENSE,
-	GST_PACKAGE_NAME,
-	GST_PACKAGE_ORIGIN
-);

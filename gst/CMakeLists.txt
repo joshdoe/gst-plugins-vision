@@ -1,6 +1,7 @@
 add_definitions(-DHAVE_CONFIG_H)
 
 set ( SOURCES
+	main.c
     gstvideolevels.c )
     
 set ( HEADERS
