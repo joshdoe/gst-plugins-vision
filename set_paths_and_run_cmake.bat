@@ -1,8 +1,8 @@
 rem ########################################################################
-set GSTREAMER_DIR=C:\Users\joshua.doe\Apps\gstreamer
-set LIBXML2_DIR=C:\Users\joshua.doe\Apps\gstreamer
-set LIBICONV_DIR=C:\Users\joshua.doe\Apps\gstreamer
-set GLIB2_DIR=C:\Users\joshua.doe\Apps\gstreamer
+set GSTREAMER_DIR=C:\gstreamer
+set LIBXML2_DIR=%GSTREAMER_DIR%
+set LIBICONV_DIR=%GSTREAMER_DIR%
+set GLIB2_DIR=%GSTREAMER_DIR%
 set NIIMAQ_DIR=C:\Program Files\National Instruments
 
 rem cd mingw32
