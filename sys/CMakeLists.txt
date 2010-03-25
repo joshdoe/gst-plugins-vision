@@ -17,4 +17,5 @@ add_library ( libgstimaq MODULE
 target_link_libraries ( libgstimaq
   general ${GLIB2_LIBRARIES}
   general ${GSTREAMER_LIBRARIES}
-  general ${NIIMAQ_LIBRARY} )
+  general ${GSTREAMER_BASE_LIBRARY}
+  general ${NIIMAQ_LIBRARIES} )
