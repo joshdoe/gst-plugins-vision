@@ -3,6 +3,7 @@
  * Copyright (C) <2003> David Schleef <ds@schleef.org>
  * Copyright (C) 2003 Arwed v. Merkatz <v.merkatz@gmx.net>
  * Copyright (C) 2006 Mark Nauwelaerts <manauw@skynet.be>
+ * Copyright (C) 2010 United States Government, Joshua M. Doe <oss@nvl.army.mil>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -57,6 +58,7 @@ struct _GstVideoLevels
   gint bpp;
   gint depth;
   gint size;
+  gboolean is_signed_in;
 
   /* properties */
   guint16 lower_input;
