@@ -353,28 +353,6 @@ gst_videolevels_transform_caps (GstBaseTransform * base,
 
   GST_DEBUG_OBJECT (caps, "transforming caps (from)");
 
-  /* copy static pad caps to get bpp/depth/endianess */
-  //if (direction == GST_PAD_SINK) {
-  //  static_caps = gst_static_pad_template_get_caps (&gst_videolevels_sink_template);
-  //}
-  //else {
-  //  static_caps = gst_static_pad_template_get_caps (&gst_videolevels_src_template);
-  //}
-  //structure = gst_caps_get_structure (static_caps, 0);
-  //gst_structure_get_value()
-  //newcaps = gst_caps_copy (caps);
-  //gst_caps_unref (static_caps);
-
-  ///* get width and height from proposed caps */
-  //structure = gst_caps_get_structure (caps, 0);
-  //width = gst_structure_get_value (structure, "width"); 
-  //height = gst_structure_get_value (structure, "height");
-  //
-  ///* set width and height to new caps */
-  //structure = gst_caps_get_structure (newcaps, 0);
-  //gst_structure_set_value (structure, "width", width);
-  //gst_structure_set_value (structure, "height", height);
-
   newcaps = gst_caps_copy (caps);
 
   /* finish settings caps of the opposite pad */
@@ -386,6 +364,7 @@ gst_videolevels_transform_caps (GstBaseTransform * base,
         NULL);
     structure = gst_caps_get_structure (newcaps, 0);
     gst_structure_remove_field (structure, "endianness");
+    gst_structure_remove_field (structure, "signed");
   }
   else {
     GValue endianness = {0};
@@ -395,9 +374,9 @@ gst_videolevels_transform_caps (GstBaseTransform * base,
     GST_DEBUG ("Pad direction is src");
 
     gst_caps_set_simple (newcaps,
-      "bpp", G_TYPE_INT, 16,
-      "depth", G_TYPE_INT, 16,
-      NULL);
+        "bpp", G_TYPE_INT, 16,
+        "depth", G_TYPE_INT, 16,
+        NULL);
     structure = gst_caps_get_structure (newcaps, 0);
 
     /* add BIG/LITTLE endianness to caps */
@@ -460,24 +439,23 @@ gst_videolevels_set_caps (GstBaseTransform * base, GstCaps * incaps,
   if (!res)
     return FALSE;
 
+	/* retrieve input caps sign, or set to false if field doesn't exist */ 
   if (!gst_structure_get (structure,
       "signed", G_TYPE_BOOLEAN, &levels->is_signed_in))
       levels->is_signed_in = FALSE;
 
-  /* retrieve src caps bpp/depth/endianness */
-  structure = gst_caps_get_structure (incaps, 0);
+  /* retrieve output bpp and depth */
+  structure = gst_caps_get_structure (outcaps, 0);
   res = gst_structure_get (structure,
-    "width", G_TYPE_INT, &levels->width,
-    "height", G_TYPE_INT, &levels->height,
-    "bpp", G_TYPE_INT, &levels->bpp_in,
-    "depth", G_TYPE_INT, &levels->depth_in,
-    "endianness", G_TYPE_INT, &levels->endianness_in,
+    "bpp", G_TYPE_INT, &levels->bpp_out,
+    "depth", G_TYPE_INT, &levels->depth_out,
     NULL);
   if (!res)
     return FALSE;
 
   levels->stride_in = GST_ROUND_UP_4 (levels->width * levels->depth_in/8);
   levels->stride_out = GST_ROUND_UP_4 (levels->width * levels->depth_out/8);
+
 
   gst_videolevels_calculate_tables (levels);
 
