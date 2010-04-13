@@ -22,13 +22,12 @@
 /**
  * SECTION:element-niimaqsrc
  *
- * Source for IIDC (Instrumentation & Industrial Digital Camera) firewire
- * cameras.
+ * Source for National Instruments IMAQ frame grabber (Camera Link and analog cameras)
  * 
  * <refsect2>
  * <title>Example launch line</title>
  * |[
- * gst-launch -v niimaqsrc camera-number=0 ! xvimagesink
+ * gst-launch -v niimaqsrc ! ffmpegcolorspace ! autovideosink
  * ]|
  * </refsect2>
  */
@@ -48,8 +47,8 @@ GST_DEBUG_CATEGORY (niimaq_debug);
 static GstElementDetails niimaq_details =
 GST_ELEMENT_DETAILS ("NI-IMAQ Video Source",
     "Source/Video",
-    "National Instruments based source, supports CameraLink cameras",
-    "Josh Doe <oss@nvl.army.mil>");
+    "National Instruments based source, supports Camera Link and analog cameras",
+    "Joshua Doe <oss@nvl.army.mil>");
 
 enum
 {
