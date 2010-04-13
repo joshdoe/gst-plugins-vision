@@ -648,16 +648,15 @@ gst_videolevels_do_levels (GstVideoLevels * videolevels, gpointer indata,
       for (r = 0; r < videolevels->height; r++) {
         for (c = 0; c < videolevels->width; c++) {
           dst[c+r*videolevels->stride_out] =
-              lut[src[c+r*videolevels->stride_in] >> 8];
+              lut[src[c+r*videolevels->stride_in/2] >> 8];
         }
-        GST_DEBUG ("Row %d", r);
       }
     }
     else {
       for (r = 0; r < videolevels->height; r++) {
         for (c = 0; c < videolevels->width; c++) {
           dst[c+r*videolevels->stride_out] =
-            lut[GUINT16_FROM_BE(src[c+r*videolevels->stride_in]) >> 8];
+            lut[GUINT16_FROM_BE(src[c+r*videolevels->stride_in/2]) >> 8];
         }
       }
     }
@@ -667,7 +666,7 @@ gst_videolevels_do_levels (GstVideoLevels * videolevels, gpointer indata,
       for (r = 0; r < videolevels->height; r++) {
         for (c = 0; c < videolevels->width; c++) {
           dst[c+r*videolevels->stride_out] =
-            lut[(src[c+r*videolevels->stride_in]+32767) >> 8];
+            lut[(src[c+r*videolevels->stride_in/2]+32767) >> 8];
         }
         GST_DEBUG ("Row %d", r);
       }
@@ -676,7 +675,7 @@ gst_videolevels_do_levels (GstVideoLevels * videolevels, gpointer indata,
       for (r = 0; r < videolevels->height; r++) {
         for (c = 0; c < videolevels->width; c++) {
           dst[c+r*videolevels->stride_out] =
-            lut[(GUINT16_FROM_BE(src[c+r*videolevels->stride_in])+32767) >> 8];
+            lut[(GUINT16_FROM_BE(src[c+r*videolevels->stride_in/2])+32767) >> 8];
         }
       }
     }
