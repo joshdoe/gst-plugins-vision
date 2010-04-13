@@ -1,6 +1,7 @@
 /* GStreamer
  * Copyright (C) <2006> Eric Jonas <jonas@mit.edu>
  * Copyright (C) <2006> Antoine Tremblay <hexa00@gmail.com>
+ * Copyright (C) 2010 United States Government, Joshua M. Doe <oss@nvl.army.mil>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
