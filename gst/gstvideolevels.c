@@ -228,16 +228,16 @@ gst_videolevels_class_init (GstVideoLevelsClass * object)
   /* Install GObject properties */
   g_object_class_install_property (obj_class, PROP_LOWIN,
       g_param_spec_double ("low_in", "Lower Input Level", "Lower Input Level",
-      G_MINDOUBLE, G_MAXDOUBLE, DEFAULT_PROP_LOWIN, G_PARAM_READWRITE));
+      -G_MINDOUBLE, G_MAXDOUBLE, DEFAULT_PROP_LOWIN, G_PARAM_READWRITE));
   g_object_class_install_property (obj_class, PROP_HIGHIN,
       g_param_spec_double ("upper_in", "Upper Input Level", "Upper Input Level",
-      G_MINDOUBLE, G_MAXDOUBLE, DEFAULT_PROP_HIGHIN, G_PARAM_READWRITE));
+      -G_MINDOUBLE, G_MAXDOUBLE, DEFAULT_PROP_HIGHIN, G_PARAM_READWRITE));
   g_object_class_install_property (obj_class, PROP_LOWOUT,
       g_param_spec_double ("low_out", "Lower Output Level", "Lower Output Level",
-      G_MINDOUBLE, G_MAXDOUBLE, DEFAULT_PROP_LOWOUT, G_PARAM_READWRITE));
+      -G_MINDOUBLE, G_MAXDOUBLE, DEFAULT_PROP_LOWOUT, G_PARAM_READWRITE));
   g_object_class_install_property (obj_class, PROP_HIGHOUT,
       g_param_spec_double ("upper_out", "Upper Output Level", "Upper Output Level",
-      G_MINDOUBLE, G_MAXDOUBLE, DEFAULT_PROP_HIGHOUT, G_PARAM_READWRITE));
+      -G_MINDOUBLE, G_MAXDOUBLE, DEFAULT_PROP_HIGHOUT, G_PARAM_READWRITE));
   g_object_class_install_property (obj_class, PROP_AUTO,
       g_param_spec_int ("auto", "Auto Adjust", "Auto adjust contrast (0): off, (1): single-shot, (2): continuous",
       0, 2, DEFAULT_PROP_AUTO, G_PARAM_READWRITE));
