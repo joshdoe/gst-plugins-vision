@@ -68,6 +68,13 @@ struct _GstVideoLevels
 
   /* tables */
   guint8* levels_table;
+
+  gint auto_adjust;
+  guint64 interval;
+  gfloat lower_pix_sat;
+  gfloat upper_pix_sat;
+  gint nbins;
+  gint * histogram;
 };
 
 struct _GstVideoLevelsClass
