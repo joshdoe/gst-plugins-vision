@@ -75,6 +75,8 @@ struct _GstVideoLevels
   gfloat upper_pix_sat;
   gint nbins;
   gint * histogram;
+
+  guint64 last_auto_timestamp;
 };
 
 struct _GstVideoLevelsClass

@@ -228,16 +228,16 @@ gst_videolevels_class_init (GstVideoLevelsClass * object)
   /* Install GObject properties */
   g_object_class_install_property (obj_class, PROP_LOWIN,
       g_param_spec_double ("low_in", "Lower Input Level", "Lower Input Level",
-      0.0, G_MAXUINT16, DEFAULT_PROP_LOWIN, G_PARAM_READWRITE));
+      G_MINDOUBLE, G_MAXDOUBLE, DEFAULT_PROP_LOWIN, G_PARAM_READWRITE));
   g_object_class_install_property (obj_class, PROP_HIGHIN,
       g_param_spec_double ("upper_in", "Upper Input Level", "Upper Input Level",
-      0.0, G_MAXUINT16, DEFAULT_PROP_HIGHIN, G_PARAM_READWRITE));
+      G_MINDOUBLE, G_MAXDOUBLE, DEFAULT_PROP_HIGHIN, G_PARAM_READWRITE));
   g_object_class_install_property (obj_class, PROP_LOWOUT,
       g_param_spec_double ("low_out", "Lower Output Level", "Lower Output Level",
-      0.0, G_MAXUINT16, DEFAULT_PROP_LOWOUT, G_PARAM_READWRITE));
+      G_MINDOUBLE, G_MAXDOUBLE, DEFAULT_PROP_LOWOUT, G_PARAM_READWRITE));
   g_object_class_install_property (obj_class, PROP_HIGHOUT,
       g_param_spec_double ("upper_out", "Upper Output Level", "Upper Output Level",
-      0.0, G_MAXUINT16, DEFAULT_PROP_HIGHOUT, G_PARAM_READWRITE));
+      G_MINDOUBLE, G_MAXDOUBLE, DEFAULT_PROP_HIGHOUT, G_PARAM_READWRITE));
   g_object_class_install_property (obj_class, PROP_AUTO,
       g_param_spec_int ("auto", "Auto Adjust", "Auto adjust contrast (0): off, (1): single-shot, (2): continuous",
       0, 2, DEFAULT_PROP_AUTO, G_PARAM_READWRITE));
@@ -311,6 +311,7 @@ gst_videolevels_set_property (GObject * object, guint prop_id,
       break;
     case PROP_INTERVAL:
       videolevels->interval = g_value_get_uint64 (value);
+      videolevels->last_auto_timestamp = 0;
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -555,13 +556,10 @@ gst_videolevels_transform (GstBaseTransform * base, GstBuffer * inbuf,
   gpointer input;
   gpointer output;
   gboolean ret;
+  guint64 elapsed;
 
-  /*
-  * We need to lock our videolevels params to prevent changing
-  * caps in the middle of a transformation (nice way to get
-  * segfaults)
-  */
-  GST_OBJECT_LOCK (videolevels);
+  /* We need to lock our videolevels params to prevent segfaults */
+  GST_BASE_TRANSFORM_LOCK (videolevels);
 
   input = GST_BUFFER_DATA (inbuf);
   output = GST_BUFFER_DATA (outbuf);
@@ -571,12 +569,16 @@ gst_videolevels_transform (GstBaseTransform * base, GstBuffer * inbuf,
     videolevels->auto_adjust = 0;
   }
   else if (videolevels->auto_adjust == 2) {
-    gst_videolevels_auto_adjust (videolevels, input);
+    elapsed = GST_BUFFER_TIMESTAMP (inbuf) - videolevels->last_auto_timestamp;
+    if (elapsed >= videolevels->interval) {
+      gst_videolevels_auto_adjust (videolevels, input);
+      videolevels->last_auto_timestamp = GST_BUFFER_TIMESTAMP (inbuf);
+    }
   }
 
   ret = gst_videolevels_do_levels (videolevels, input, output);
 
-  GST_OBJECT_UNLOCK (videolevels);
+  GST_BASE_TRANSFORM_UNLOCK (videolevels);
 
   if (ret)
     return GST_FLOW_OK;
@@ -626,6 +628,7 @@ static void gst_videolevels_reset(GstVideoLevels* videolevels)
 
   videolevels->auto_adjust = DEFAULT_PROP_AUTO;
   videolevels->interval = DEFAULT_PROP_INTERVAL;
+  videolevels->last_auto_timestamp = 0;
 
   videolevels->lower_pix_sat = 0.01f;
   videolevels->upper_pix_sat = 0.01f;
