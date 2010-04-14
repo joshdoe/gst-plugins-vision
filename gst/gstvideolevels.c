@@ -570,7 +570,8 @@ gst_videolevels_transform (GstBaseTransform * base, GstBuffer * inbuf,
   }
   else if (videolevels->auto_adjust == 2) {
     elapsed = GST_BUFFER_TIMESTAMP (inbuf) - videolevels->last_auto_timestamp;
-    if (elapsed >= videolevels->interval) {
+    if (elapsed >= videolevels->interval ||
+        videolevels->last_auto_timestamp == GST_CLOCK_TIME_NONE) {
       gst_videolevels_auto_adjust (videolevels, input);
       videolevels->last_auto_timestamp = GST_BUFFER_TIMESTAMP (inbuf);
     }
@@ -628,7 +629,7 @@ static void gst_videolevels_reset(GstVideoLevels* videolevels)
 
   videolevels->auto_adjust = DEFAULT_PROP_AUTO;
   videolevels->interval = DEFAULT_PROP_INTERVAL;
-  videolevels->last_auto_timestamp = 0;
+  videolevels->last_auto_timestamp = GST_CLOCK_TIME_NONE;
 
   videolevels->lower_pix_sat = 0.01f;
   videolevels->upper_pix_sat = 0.01f;
