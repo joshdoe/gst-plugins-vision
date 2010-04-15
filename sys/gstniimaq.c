@@ -61,7 +61,7 @@ enum
       /* FILL ME */
 };
 
-#define DEFAULT_PROP_INTERFACE "img0::0"
+#define DEFAULT_PROP_INTERFACE "img0"
 #define DEFAULT_PROP_TIMESTAMP_OFFSET  0
 #define DEFAULT_PROP_BUFSIZE  10
 
@@ -151,6 +151,8 @@ gst_niimaq_class_probe_interfaces (GstNiImaqClass * klass, gboolean check)
       g_free (iface);
     }
 
+    GST_DEBUG_OBJECT (klass, "About to probe for IMAQ interfaces");
+
     /* enumerate interfaces, limiting ourselves to the first 64 */
     for (n = 0; n < 64; n++) {
       guint32 iid;
@@ -184,6 +186,8 @@ gst_niimaq_class_probe_interfaces (GstNiImaqClass * klass, gboolean check)
 
         /* TODO: should check to see if a camera is actually attached */
         interfaces = g_list_append (interfaces, iname);
+
+        GST_DEBUG_OBJECT (klass, "Adding interface '%s' to list", iname);
       }
     }
 
@@ -793,7 +797,7 @@ gst_niimaq_start (GstBaseSrc * src)
 
   if (rval) {
 	  GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to open camera interface"),
-		  ("Failed to open camera interface %d", filter->iid));
+		  ("Failed to open camera interface %s", filter->interface_name));
 	  goto error;
   }
 
@@ -892,7 +896,7 @@ gboolean gst_niimaq_stop( GstBaseSrc * src )
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-	GST_DEBUG_CATEGORY_INIT (niimaq_debug, "niimaq", 0, "NI-IMAQ interface");
+	GST_DEBUG_CATEGORY_INIT (niimaq_debug, "niimaqsrc", 0, "NI-IMAQ interface");
 
 	return gst_element_register (plugin, "niimaqsrc", GST_RANK_NONE,
 		GST_TYPE_NIIMAQ);
