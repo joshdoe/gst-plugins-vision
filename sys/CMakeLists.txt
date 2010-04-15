@@ -18,4 +18,8 @@ target_link_libraries ( libgstimaq
   general ${GLIB2_LIBRARIES}
   general ${GSTREAMER_LIBRARIES}
   general ${GSTREAMER_BASE_LIBRARY}
+  general ${GSTREAMER_INTERFACE_LIBRARY}
   general ${NIIMAQ_LIBRARIES} )
+  
+install (TARGETS libgstimaq
+  LIBRARY DESTINATION lib/gstreamer-0.10)
