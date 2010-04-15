@@ -36,8 +36,10 @@
 #include "config.h"
 #endif
 
+#include "gst/interfaces/propertyprobe.h"
+
 #include "gstniimaq.h"
-//#include <sys/time.h>
+
 #include <time.h>
 #include <string.h>
 
@@ -53,15 +55,20 @@ GST_ELEMENT_DETAILS ("NI-IMAQ Video Source",
 enum
 {
   PROP_0,
+  PROP_INTERFACE,
   PROP_TIMESTAMP_OFFSET,
   PROP_BUFSIZE
       /* FILL ME */
 };
 
+#define DEFAULT_PROP_INTERFACE "img0::0"
 #define DEFAULT_PROP_TIMESTAMP_OFFSET  0
 #define DEFAULT_PROP_BUFSIZE  10
 
-GST_BOILERPLATE (GstNiImaq, gst_niimaq, GstPushSrc, GST_TYPE_PUSH_SRC);
+static void gst_niimaq_init_interfaces (GType type);
+
+GST_BOILERPLATE_FULL (GstNiImaq, gst_niimaq, GstPushSrc,
+    GST_TYPE_PUSH_SRC, gst_niimaq_init_interfaces);
 
 /* GObject virtual methods */
 static void gst_niimaq_dispose (GObject * object);
@@ -97,6 +104,248 @@ static GstCaps *gst_niimaq_get_cam_caps (GstNiImaq * src);
 
 static void _____BEGIN_FUNCTIONS_____();
 
+/**
+* gst_niimaq_probe_get_properties:
+* @probe: #GstPropertyProbe
+*
+* Gets list of properties that can be probed
+*
+* Returns: #GList of properties that can be probed
+*/
+static const GList *
+gst_niimaq_probe_get_properties (GstPropertyProbe * probe)
+{
+  GObjectClass *klass = G_OBJECT_GET_CLASS (probe);
+  static GList *list = NULL;
+
+  if (!list) {
+    list = g_list_append (NULL, g_object_class_find_property (klass, "interface"));
+  }
+
+  return list;
+}
+
+static gboolean init = FALSE;
+static GList *interfaces = NULL;
+
+/**
+* gst_niimaq_class_probe_interfaces:
+* @klass: #GstNiImaqClass
+* @check: whether to enumerate interfaces
+*
+* Probes NI-IMAQ driver for available interfaces
+*
+* Returns: TRUE always
+*/
+static gboolean
+gst_niimaq_class_probe_interfaces (GstNiImaqClass * klass, gboolean check)
+{
+  if (!check) {
+    guint32 n;
+    gchar name[256];
+
+    /* clear interface list */
+    while (interfaces) {
+      gchar *iface = interfaces->data;
+      interfaces = g_list_remove (interfaces, iface);
+      g_free (iface);
+    }
+
+    /* enumerate interfaces, limiting ourselves to the first 64 */
+    for (n = 0; n < 64; n++) {
+      guint32 iid;
+      guint32 nports;
+      guint32 port;
+      gchar * iname;
+
+      /* get interface names until there are no more */
+      if (imgInterfaceQueryNames (n, name) != 0)
+        break;
+
+      /* ignore NICFGen */
+      if (g_strcmp0 (name, "NICFGen.iid") == 0)
+        continue;
+
+      /* try and open the interface */
+      if (imgInterfaceOpen (name, &iid) != 0)
+        continue;
+
+      /* find how many ports the interface provides */
+      imgGetAttribute (iid, IMG_ATTR_NUM_PORTS, &nports);
+      imgClose (iid, TRUE);
+
+      /* iterate over all the available ports */
+      for (port=0; port < nports; port++) {
+        /* if the there are multiple ports append the port number */
+        if (nports > 1)
+          iname = g_strdup_printf ("%s::%d", name, port);
+        else
+          iname = g_strdup (name);
+
+        /* TODO: should check to see if a camera is actually attached */
+        interfaces = g_list_append (interfaces, iname);
+      }
+    }
+
+    init = TRUE;
+  }
+
+  klass->interfaces = interfaces;
+
+  return init;
+}
+
+/**
+* gst_niimaq_probe_probe_property:
+* @probe: #GstPropertyProbe
+* @prop_id: Property id
+* @pspec: #GParamSpec
+*
+* GstPropertyProbe _probe_proprty vmethod implementation that probes a
+*   property for possible values
+*/
+static void
+gst_niimaq_probe_probe_property (GstPropertyProbe * probe,
+    guint prop_id, const GParamSpec * pspec)
+{
+  GstNiImaqClass *klass = GST_NIIMAQ_GET_CLASS (probe);
+
+  switch (prop_id) {
+    case PROP_INTERFACE:
+      gst_niimaq_class_probe_interfaces (klass, FALSE);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (probe, prop_id, pspec);
+      break;
+  }
+}
+
+/**
+* gst_niimaq_probe_needs_probe:
+* @probe: #GstPropertyProbe
+* @prop_id: Property id
+* @pspec: #GParamSpec
+*
+* GstPropertyProbe _needs_probe vmethod implementation that indicates if
+*   a property needs to be updated
+*
+* Returns: TRUE if a property needs to be updated
+*/
+static gboolean
+gst_niimaq_probe_needs_probe (GstPropertyProbe * probe,
+                           guint prop_id, const GParamSpec * pspec)
+{
+  GstNiImaqClass *klass = GST_NIIMAQ_GET_CLASS (probe);
+  gboolean ret = FALSE;
+
+  switch (prop_id) {
+    case PROP_INTERFACE:
+      ret = !gst_niimaq_class_probe_interfaces (klass, TRUE);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (probe, prop_id, pspec);
+      break;
+  }
+
+  return ret;
+}
+
+/**
+* gst_niimaq_class_list_interfaces:
+* @klass: #GstNiImaqClass
+*
+* Returns: #GValueArray of interface names
+*/
+static GValueArray *
+gst_niimaq_class_list_interfaces (GstNiImaqClass * klass)
+{
+  GValueArray *array;
+  GValue value = { 0 };
+  GList *item;
+
+  if (!klass->interfaces)
+    return NULL;
+
+  array = g_value_array_new (g_list_length (klass->interfaces));
+  item = klass->interfaces;
+  g_value_init (&value, G_TYPE_STRING);
+  while (item) {
+    gchar *iface = item->data;
+
+    g_value_set_string (&value, iface);
+    g_value_array_append (array, &value);
+
+    item = item->next;
+  }
+  g_value_unset (&value);
+
+  return array;
+}
+
+/**
+* gst_niimaq_probe_get_values:
+* @probe: #GstPropertyProbe
+* @prop_id: Property id
+* @pspec: #GParamSpec
+*
+* GstPropertyProbe _get_values vmethod implementation that gets possible
+*   values for a property
+*
+* Returns: #GValueArray containing possible values for requested property
+*/
+static GValueArray *
+gst_niimaq_probe_get_values (GstPropertyProbe * probe,
+                          guint prop_id, const GParamSpec * pspec)
+{
+  GstNiImaqClass *klass = GST_NIIMAQ_GET_CLASS (probe);
+  GValueArray *array = NULL;
+
+  switch (prop_id) {
+    case PROP_INTERFACE:
+      array = gst_niimaq_class_list_interfaces (klass);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (probe, prop_id, pspec);
+      break;
+  }
+
+  return array;
+}
+
+/**
+* gst_v4l_property_probe_interface_init:
+* @iface: #GstPropertyProbeInterface
+*
+* Install property probe interfaces functions
+*/
+static void
+gst_niimaq_property_probe_interface_init (GstPropertyProbeInterface * iface)
+{
+  iface->get_properties = gst_niimaq_probe_get_properties;
+  iface->probe_property = gst_niimaq_probe_probe_property;
+  iface->needs_probe = gst_niimaq_probe_needs_probe;
+  iface->get_values = gst_niimaq_probe_get_values;
+}
+
+/**
+* gst_niimaq_init_interfaces:
+* @type: #GType
+*
+* Initialize all interfaces
+*/
+static void
+gst_niimaq_init_interfaces (GType type)
+{
+  static const GInterfaceInfo niimaq_propertyprobe_info = {
+    (GInterfaceInitFunc) gst_niimaq_property_probe_interface_init,
+    NULL,
+    NULL,
+  };
+
+  g_type_add_interface_static (type,
+    GST_TYPE_PROPERTY_PROBE, &niimaq_propertyprobe_info);
+}
+
 static void
 gst_niimaq_base_init (gpointer g_class)
 {
@@ -126,6 +375,11 @@ gst_niimaq_class_init (GstNiImaqClass * klass)
   gobject_class->dispose = gst_niimaq_dispose;
   gobject_class->set_property = gst_niimaq_set_property;
   gobject_class->get_property = gst_niimaq_get_property;
+
+  g_object_class_install_property (G_OBJECT_CLASS (klass),
+      PROP_INTERFACE, g_param_spec_string ("interface",
+        "Interface",
+        "NI-IMAQ interface to open", DEFAULT_PROP_INTERFACE, G_PARAM_READWRITE));
 
   g_object_class_install_property (G_OBJECT_CLASS (klass),
       PROP_TIMESTAMP_OFFSET, g_param_spec_int64 ("timestamp-offset",
@@ -165,7 +419,8 @@ gst_niimaq_init (GstNiImaq * src, GstNiImaqClass * g_class)
   src->buflist = 0;
   src->sid = 0;
   src->iid = 0;
-  src->device_name = g_strdup_printf ("img2");
+  src->camera_name = g_strdup (DEFAULT_PROP_INTERFACE);
+  src->interface_name = g_strdup (DEFAULT_PROP_INTERFACE);
 
 }
 
@@ -174,8 +429,11 @@ gst_niimaq_dispose (GObject * object)
 {
 	GstNiImaq *src = GST_NIIMAQ (object);
 
-	g_free (src->device_name);
-	src->device_name = NULL;
+  g_free (src->camera_name);
+  src->camera_name = NULL;
+
+	g_free (src->interface_name);
+	src->interface_name = NULL;
 
 	G_OBJECT_CLASS (parent_class)->dispose (object);
 }
@@ -187,6 +445,15 @@ gst_niimaq_set_property (GObject * object, guint prop_id,
   GstNiImaq *src = GST_NIIMAQ (object);
 
   switch (prop_id) {
+    case PROP_INTERFACE:
+      if (src->interface_name)
+        g_free (src->interface_name);
+      src->interface_name = g_strdup (g_value_get_string (value));
+
+      if (src->camera_name)
+        g_free (src->camera_name);
+      src->camera_name = g_strdup (g_value_get_string (value));
+      break;
     case PROP_TIMESTAMP_OFFSET:
       src->timestamp_offset = g_value_get_int64 (value);
       break;
@@ -204,6 +471,9 @@ gst_niimaq_get_property (GObject * object, guint prop_id, GValue * value,
   GstNiImaq *src = GST_NIIMAQ (object);
 
   switch (prop_id) {
+    case PROP_INTERFACE:
+      g_value_set_string (value, src->interface_name);
+      break;
     case PROP_TIMESTAMP_OFFSET:
       g_value_set_int64 (value, src->timestamp_offset);
       break;
@@ -514,12 +784,12 @@ gst_niimaq_start (GstBaseSrc * src)
   Int32 rval;
   int i;
 
-  GST_LOG_OBJECT (filter, "Opening camera interface: %s", filter->device_name);
+  GST_LOG_OBJECT (filter, "Opening camera interface: %s", filter->interface_name);
 
   filter->iid = 0;
   filter->sid = 0;
 
-  rval=imgInterfaceOpen(filter->device_name,&(filter->iid));
+  rval=imgInterfaceOpen(filter->interface_name,&(filter->iid));
 
   if (rval) {
 	  GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to open camera interface"),
@@ -527,7 +797,7 @@ gst_niimaq_start (GstBaseSrc * src)
 	  goto error;
   }
 
-  GST_LOG_OBJECT (filter, "Opening camera session: %s", filter->device_name);
+  GST_LOG_OBJECT (filter, "Opening camera session: %s", filter->interface_name);
 
   rval=imgSessionOpen(filter->iid, &(filter->sid));
   if (rval) {
@@ -634,27 +904,3 @@ GST_VERSION_MINOR,
 				   "niimaq",
 				   "NI-IMAQ Video Source",
 				   plugin_init, VERSION, GST_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)
-
-
-
-// Enumerate cams
-//	rval=imgInterfaceQueryNames(idx, name);
-//if(rval)
-//break;
-//
-//rval=imgInterfaceOpen(name, &iid);
-//if(rval)
-//continue;
-//
-//imgGetAttribute(iid, IMG_ATTR_NUM_PORTS, &nPorts);
-//imgClose(iid, TRUE);
-//for(j=0;j<nPorts;j++) {
-//	if(nPorts>1) {
-//		char num[33];
-//		itoa(j,num,10);
-//		strcat(name,"::"); //FIXME: this is probably not safe
-//		strcat(name,num); //FIXME: this is probably not safe
-//	}
-//	rval=imgInterfaceOpen(name, &iid);
-//	if(rval)
-//		continue;

@@ -33,11 +33,13 @@ G_BEGIN_DECLS
 #define GST_NIIMAQ(obj) \
   (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_NIIMAQ,GstNiImaq))
 #define GST_NIIMAQ_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_NIIMAQ,GstNiImaq))
+  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_NIIMAQ,GstNiImaqClass))
 #define GST_IS_NIIMAQ(obj) \
   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_NIIMAQ))
 #define GST_IS_NIIMAQ_CLASS(obj) \
   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_NIIMAQ))
+#define GST_NIIMAQ_GET_CLASS(klass) \
+  (G_TYPE_INSTANCE_GET_CLASS ((klass), GST_TYPE_NIIMAQ, GstNiImaqClass))
 
 typedef struct _GstNiImaq GstNiImaq;
 typedef struct _GstNiImaqClass GstNiImaqClass;
@@ -65,7 +67,8 @@ struct _GstNiImaq {
   gint bufsize; 
   guint32** buflist;
 
-  gchar *device_name;
+  gchar *camera_name;
+  gchar *interface_name;
   INTERFACE_ID iid;
   SESSION_ID sid;
 
@@ -74,6 +77,9 @@ struct _GstNiImaq {
 
 struct _GstNiImaqClass {
   GstPushSrcClass parent_class;
+
+  /* probed interfaces */
+  GList *interfaces;
 };
 
 GType gst_niimaq_get_type (void);
