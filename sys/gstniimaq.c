@@ -91,9 +91,7 @@ static GstFlowReturn gst_niimaq_create (GstPushSrc * psrc, GstBuffer ** buffer);
 
 /* GstNiImaq methods */
 static gboolean gst_niimaq_parse_caps (const GstCaps * caps,
-    gint * width,
-    gint * height,
-    gint * rate_numerator, gint * rate_denominator, gint * depth, gint * bpp);
+    gint * width, gint * height, gint * depth, gint * bpp);
 
 static gboolean gst_niimaq_set_caps_color (GstStructure * gs, int bpp, int depth);
 static gboolean gst_niimaq_set_caps_framesize (GstStructure * gs, gint width,
@@ -509,10 +507,12 @@ gst_niimaq_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 
   gboolean res = TRUE;
   GstNiImaq *niimaq;
-  gint width, height, rate_denominator, rate_numerator;
+  gint width, height;
   gint bpp, depth;
 
   niimaq = GST_NIIMAQ (bsrc);
+
+  GST_DEBUG_OBJECT (caps, "are the caps being set");
 
   if (niimaq->caps) {
     gst_caps_unref (niimaq->caps);
@@ -520,15 +520,12 @@ gst_niimaq_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 
   niimaq->caps = gst_niimaq_get_cam_caps(niimaq);
 
-  res = gst_niimaq_parse_caps (niimaq->caps, &width, &height,
-      &rate_numerator, &rate_denominator, &depth, &bpp);
+  res = gst_niimaq_parse_caps (niimaq->caps, &width, &height, &depth, &bpp);
 
   if (res) {
     /* looks ok here */
     niimaq->width = width;
     niimaq->height = height;
-    niimaq->rate_numerator = rate_numerator;
-    niimaq->rate_denominator = rate_denominator;
     niimaq->depth = depth;
     niimaq->bpp = bpp;
     niimaq->framesize = width * height * (depth/8);
@@ -647,14 +644,11 @@ error:
 * Returns: TRUE on success
 */
 static gboolean
-gst_niimaq_parse_caps (const GstCaps * caps,
-    gint * width,
-    gint * height,
-    gint * rate_numerator, gint * rate_denominator, gint * depth, gint * bpp)
+gst_niimaq_parse_caps (const GstCaps * caps, gint * width, gint * height,
+    gint * depth, gint * bpp)
 {
   const GstStructure *structure;
-  GstPadLinkReturn ret;
-  const GValue *framerate;
+  gboolean ret;
 
   if (gst_caps_get_size (caps) < 1)
     return FALSE;
@@ -664,20 +658,16 @@ gst_niimaq_parse_caps (const GstCaps * caps,
   ret = gst_structure_get (structure,
       "width", G_TYPE_INT, width,
       "height", G_TYPE_INT, height,
-      "framerate", G_TYPE_VALUE, framerate,
       "depth", G_TYPE_INT, depth,
       "bpp", G_TYPE_INT, bpp,
       NULL);
 
-  if (framerate) {
-    *rate_numerator = gst_value_get_fraction_numerator (framerate);
-    *rate_denominator = gst_value_get_fraction_denominator (framerate);
-  }
-  else {
-    ret = FALSE;
+  if (!ret) {
+    GST_DEBUG ("Failed to retrieve width, height, depth, or bpp");
+    return FALSE;
   }
 
-  return ret;
+  return TRUE;
 }
 
 /* Set color on caps */
@@ -784,8 +774,6 @@ gst_niimaq_get_cam_caps (GstNiImaq * src)
   rval &= imgGetAttribute(src->iid, IMG_ATTR_ROI_HEIGHT, &val);
   height = val;
 
-  GST_DEBUG_OBJECT (src, "width=%d, height=%d", width, height);
-
   if (rval) {
     GST_ELEMENT_ERROR (src, STREAM, FAILED,
         ("attempt to read attributes failed"),
@@ -805,6 +793,8 @@ gst_niimaq_get_cam_caps (GstNiImaq * src)
   gst_structure_set(gs, "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1, NULL);
 
   gst_caps_append_structure (gcaps, gs);
+
+  GST_DEBUG_OBJECT (gcaps, "are the camera caps");
 
   return gcaps;
 
@@ -912,9 +902,11 @@ gboolean gst_niimaq_stop( GstBaseSrc * src )
 
   rval=imgSessionStopAcquisition(filter->sid);
   if (rval) {
-    GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Unable to stop transmision"),
-        ("Unable to stop transmision"));
+    GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Unable to stop acquisition"),
+        ("Unable to stop acquisition"));
   }
+
+  GST_DEBUG_OBJECT (filter, "Acquisition stopped");
 
   if(filter->sid)
     imgClose(filter->sid,TRUE);
@@ -923,7 +915,7 @@ gboolean gst_niimaq_stop( GstBaseSrc * src )
     imgClose(filter->iid,TRUE);
   filter->iid = 0;
 
-  GST_DEBUG_OBJECT (filter, "Capture stoped");
+  GST_DEBUG_OBJECT (filter, "IMAQ interface closed");
 
   return TRUE;
 }

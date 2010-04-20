@@ -54,9 +54,6 @@ struct _GstNiImaq {
   gint bpp;
   gint framesize;
 
-  gint rate_numerator;
-  gint rate_denominator;
-
   /* private */
   gint64 timestamp_offset;    /* base offset */
   GstClockTime running_time;    /* total running time */
