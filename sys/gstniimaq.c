@@ -575,7 +575,8 @@ gst_niimaq_create (GstPushSrc * psrc, GstBuffer ** buffer)
 
   data = g_malloc(src->framesize);
 
-  GST_INFO_OBJECT(src, "Examining buffer %d", src->cumbufnum);
+  GST_DEBUG_OBJECT(src, "Requesting to examine IMAQ buffer %d", src->cumbufnum);
+
   rval=imgSessionExamineBuffer2(src->sid, src->cumbufnum, &newval, &bufaddr);
   if (rval) {
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
@@ -583,17 +584,22 @@ gst_niimaq_create (GstPushSrc * psrc, GstBuffer ** buffer)
     goto error;
   }
 
+  GST_DEBUG_OBJECT (src, "Examining IMAQ buffer %d", newval);
+
+  /* TODO if rows aren't aligned then copy by row */
   memcpy (data, (guchar *) bufaddr,
       src->framesize);
 
   imgSessionReleaseBuffer(src->sid);
-  GST_INFO_OBJECT(src, "Releasing buffer %d", newval);
+
+  GST_DEBUG_OBJECT (src, "Releasing buffer %d", newval);
 
   *buffer = gst_buffer_new ();
   GST_BUFFER_DATA (*buffer) = data;
   GST_BUFFER_MALLOCDATA (*buffer) = data;
   GST_BUFFER_SIZE (*buffer) = src->framesize;
 
+  /* set caps of src pad to buffer */
   caps = gst_pad_get_caps (GST_BASE_SRC_PAD (psrc));
   gst_buffer_set_caps (*buffer, caps);
   gst_caps_unref (caps);
@@ -605,13 +611,15 @@ gst_niimaq_create (GstPushSrc * psrc, GstBuffer ** buffer)
   //}
 
   dropped = newval - src->cumbufnum;
-  if(dropped) {
+  if (dropped > 0) {
     src->n_dropped_frames += dropped;
-    GST_WARNING_OBJECT(src, "Dropped %d frames (%d total)",dropped,src->n_dropped_frames);
+    GST_WARNING_OBJECT (src, "Dropped %d frames (%d total)", dropped, src->n_dropped_frames);
   }
 
+  /* set cumulative buffer number to get next frame */
   src->cumbufnum = newval + 1;
   src->n_frames++;
+
   //if (src->rate_numerator != 0) {
   //  src->running_time = gst_util_uint64_scale_int (src->n_frames * GST_SECOND,
   //      src->rate_denominator, src->rate_numerator);
@@ -625,7 +633,19 @@ error:
   }
 }
 
-
+/**
+* gst_niimaq_parse_caps:
+* caps: #GstCaps
+* width:
+* height:
+* rate_numerator:
+* depth:
+* bpp:
+*
+* Parses a given caps and sets critical values
+*
+* Returns: TRUE on success
+*/
 static gboolean
 gst_niimaq_parse_caps (const GstCaps * caps,
     gint * width,
@@ -641,20 +661,19 @@ gst_niimaq_parse_caps (const GstCaps * caps,
 
   structure = gst_caps_get_structure (caps, 0);
 
-  ret = gst_structure_get_int (structure, "width", width);
-  ret &= gst_structure_get_int (structure, "height", height);
-
-  framerate = gst_structure_get_value (structure, "framerate");
-
-  ret &= gst_structure_get_int (structure, "depth", depth);
-
-  ret &= gst_structure_get_int (structure, "bpp", bpp);
-
+  ret = gst_structure_get (structure,
+      "width", G_TYPE_INT, width,
+      "height", G_TYPE_INT, height,
+      "framerate", G_TYPE_VALUE, framerate,
+      "depth", G_TYPE_INT, depth,
+      "bpp", G_TYPE_INT, bpp,
+      NULL);
 
   if (framerate) {
     *rate_numerator = gst_value_get_fraction_numerator (framerate);
     *rate_denominator = gst_value_get_fraction_denominator (framerate);
-  } else {
+  }
+  else {
     ret = FALSE;
   }
 
@@ -671,18 +690,33 @@ gst_niimaq_set_caps_color (GstStructure * gs, int bpp, int depth)
   gst_structure_set (gs,
       "bpp", G_TYPE_INT, bpp,
       "depth", G_TYPE_INT, depth, NULL);
-  if(depth>8)
-    gst_structure_set(gs, "endianness", G_TYPE_INT, G_LITTLE_ENDIAN,NULL);
+  if (depth > 8) {
+    gst_structure_set(gs,
+    "endianness", G_TYPE_INT, G_LITTLE_ENDIAN,
+    NULL);
+  }
 
   return ret;
 }
 
-
+/**
+* gst_niimaq_set_caps_framesize:
+* gs: #GstStructure
+* width: width to set
+* height: height to set
+*
+* Sets the given width and height to the given #GstStructure
+*
+* Returns: TRUE on success
+*/
 static gboolean
 gst_niimaq_set_caps_framesize (GstStructure * gs, gint width, gint height)
 {
   gst_structure_set (gs,
-      "width", G_TYPE_INT, width, "height", G_TYPE_INT, height, NULL);
+      "width", G_TYPE_INT, width,
+    "height", G_TYPE_INT, height,
+    NULL);
+
   return TRUE;
 }
 
@@ -750,6 +784,8 @@ gst_niimaq_get_cam_caps (GstNiImaq * src)
   rval &= imgGetAttribute(src->iid, IMG_ATTR_ROI_HEIGHT, &val);
   height = val;
 
+  GST_DEBUG_OBJECT (src, "width=%d, height=%d", width, height);
+
   if (rval) {
     GST_ELEMENT_ERROR (src, STREAM, FAILED,
         ("attempt to read attributes failed"),
@@ -788,7 +824,7 @@ gst_niimaq_start (GstBaseSrc * src)
   Int32 rval;
   int i;
 
-  GST_LOG_OBJECT (filter, "Opening camera interface: %s", filter->interface_name);
+  GST_LOG_OBJECT (filter, "Opening IMAQ interface: %s", filter->interface_name);
 
   filter->iid = 0;
   filter->sid = 0;
@@ -796,16 +832,16 @@ gst_niimaq_start (GstBaseSrc * src)
   rval=imgInterfaceOpen(filter->interface_name,&(filter->iid));
 
   if (rval) {
-    GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to open camera interface"),
+    GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to open IMAQ interface"),
         ("Failed to open camera interface %s", filter->interface_name));
     goto error;
   }
 
-  GST_LOG_OBJECT (filter, "Opening camera session: %s", filter->interface_name);
+  GST_LOG_OBJECT (filter, "Opening IMAQ session: %s", filter->interface_name);
 
   rval=imgSessionOpen(filter->iid, &(filter->sid));
   if (rval) {
-    GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to open camera session"),
+    GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to open IMAQ session"),
         ("Failed to open camera session %d", filter->sid));
     goto error;
   }
@@ -823,18 +859,17 @@ gst_niimaq_start (GstBaseSrc * src)
     goto error;
   }
 
-  //GST_LOG_OBJECT (filter, "Registering callback functions");
-  //rval=imgSessionWaitSignalAsync2(filter->sid, IMG_SIGNAL_STATUS, IMG_BUF_COMPLETE, IMG_SIGNAL_STATE_RISING, Imaq_BUF_COMPLETE, filter);
-  //if(rval) {
+  /*GST_LOG_OBJECT (filter, "Registering callback functions");
+  rval=imgSessionWaitSignalAsync2(filter->sid, IMG_SIGNAL_STATUS, IMG_BUF_COMPLETE, IMG_SIGNAL_STATE_RISING, Imaq_BUF_COMPLETE, filter);
+  if(rval) {
    // GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to register BUF_COMPLETE callback"),
       //  ("Failed to register BUF_COMPLETE callback"));
    // goto error;
-  //}
-
-  GST_LOG_OBJECT (filter, "Starting acquisition");
+  }*/
 
   rval=imgSessionStartAcquisition(filter->sid);
 
+  /* Try to open the camera several times */
   i = 0;
   while (rval != 0 && i++ < 5) {
     g_usleep (50000);
@@ -852,7 +887,7 @@ gst_niimaq_start (GstBaseSrc * src)
     goto error;
   }
 
-  GST_LOG_OBJECT (src, "got transmision status ON");
+  GST_LOG_OBJECT (filter, "Starting acquisition");
 
   return TRUE;
 
