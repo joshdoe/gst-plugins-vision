@@ -352,7 +352,7 @@ gst_niimaq_property_probe_interface_init (GstPropertyProbeInterface * iface)
 * gst_niimaq_init_interfaces:
 * @type: #GType
 *
-* Initialize all interfaces
+* Initialize all GStreamer interfaces
 */
 static void
 gst_niimaq_init_interfaces (GType type)
@@ -367,6 +367,12 @@ gst_niimaq_init_interfaces (GType type)
     GST_TYPE_PROPERTY_PROBE, &niimaq_propertyprobe_info);
 }
 
+/**
+* gst_niimaq_base_init:
+* g_class:
+*
+* Base GObject initialization
+*/
 static void
 gst_niimaq_base_init (gpointer g_class)
 {
@@ -378,56 +384,72 @@ gst_niimaq_base_init (gpointer g_class)
     gst_static_pad_template_get (&src_factory));
 }
 
+/**
+* gst_niimaq_class_init:
+* klass: #GstNiImaqClass to initialize
+*
+* Initialize #GstNiImaqClass, which occurs only once no matter how many
+* instances of the class there are
+*/
 static void
 gst_niimaq_class_init (GstNiImaqClass * klass)
 {
-  GObjectClass *gobject_class;
-  GstBaseSrcClass *gstbasesrc_class;
-  GstPushSrcClass *gstpushsrc_class;
-  GstElementClass *gstelement_class;
+  /* get pointers to base classes */
+  GObjectClass *gobject_class = (GObjectClass *) klass;
+  GstBaseSrcClass *gstbasesrc_class = (GstBaseSrcClass *) klass;
+  GstPushSrcClass *gstpushsrc_class = (GstPushSrcClass *) klass;
 
-  gobject_class = (GObjectClass *) klass;
-  gstbasesrc_class = (GstBaseSrcClass *) klass;
-  gstpushsrc_class = (GstPushSrcClass *) klass;
-  gstelement_class = (GstElementClass *) klass;
-
+  /* install GObject vmethod implementations */
   gobject_class->dispose = gst_niimaq_dispose;
   gobject_class->set_property = gst_niimaq_set_property;
   gobject_class->get_property = gst_niimaq_get_property;
 
+  /* install GObject properties */
   g_object_class_install_property (G_OBJECT_CLASS (klass),
       PROP_INTERFACE, g_param_spec_string ("interface",
         "Interface",
         "NI-IMAQ interface to open", DEFAULT_PROP_INTERFACE, G_PARAM_READWRITE));
-
   g_object_class_install_property (G_OBJECT_CLASS (klass),
       PROP_TIMESTAMP_OFFSET, g_param_spec_int64 ("timestamp-offset",
           "Timestamp offset",
           "An offset added to timestamps set on buffers (in ns)", G_MININT64,
           G_MAXINT64, DEFAULT_PROP_TIMESTAMP_OFFSET, G_PARAM_READWRITE));
-
   g_object_class_install_property (G_OBJECT_CLASS (klass),
       PROP_BUFSIZE, g_param_spec_int ("buffer-size",
-          "The number of frames in the dma ringbuffer",
-          "The number of frames in the dma ringbuffer", 1,
+          "Number of frames in the IMAQ ringbuffer",
+          "The number of frames in the IMAQ ringbuffer", 1,
           G_MAXINT, DEFAULT_PROP_BUFSIZE, G_PARAM_READWRITE));
 
+  /* install GstBaseSrc vmethod implementations */
   gstbasesrc_class->get_caps = gst_niimaq_get_caps;
   gstbasesrc_class->set_caps = gst_niimaq_set_caps;
   gstbasesrc_class->get_times = gst_niimaq_get_times;
-  gstpushsrc_class->create = gst_niimaq_create;
   gstbasesrc_class->start = gst_niimaq_start;
   gstbasesrc_class->stop = gst_niimaq_stop;
+
+  /* install GstPushSrc vmethod implementations */
+  gstpushsrc_class->create = gst_niimaq_create;
 }
 
+/**
+* gst_niimaq_init:
+* src: the #GstNiImaq instance to initialize
+* g_class: #GstNiImaqClass
+*
+* Initialize this instance of #GstNiImaq
+*/
 static void
 gst_niimaq_init (GstNiImaq * src, GstNiImaqClass * g_class)
 {
   GstPad *srcpad = GST_BASE_SRC_PAD (src);
 
+  /* set source as live (no preroll) */
   gst_base_src_set_live (GST_BASE_SRC (src), TRUE);
+
+  /* force pad to only accept fixed caps */
   gst_pad_use_fixed_caps (srcpad);
 
+  /* initialize member variables */
   src->timestamp_offset = 0;
   src->caps = NULL;
   src->bufsize = 10;
@@ -442,17 +464,24 @@ gst_niimaq_init (GstNiImaq * src, GstNiImaqClass * g_class)
 
 }
 
+/**
+* gst_niimaq_dispose:
+* object: #GObject to dispose
+*
+* Disposes of the #GObject as part of object destruction
+*/
 static void
 gst_niimaq_dispose (GObject * object)
 {
   GstNiImaq *src = GST_NIIMAQ (object);
 
+  /* free memory allocated */
   g_free (src->camera_name);
   src->camera_name = NULL;
-
   g_free (src->interface_name);
   src->interface_name = NULL;
 
+  /* chain dispose fuction of parent class */
   G_OBJECT_CLASS (parent_class)->dispose (object);
 }
 
@@ -618,11 +647,11 @@ gst_niimaq_create (GstPushSrc * psrc, GstBuffer ** buffer)
   gst_buffer_set_caps (*buffer, caps);
   gst_caps_unref (caps);
 
-  //GST_BUFFER_TIMESTAMP (outbuf) = src->timestamp_offset + src->running_time;
-  //if (src->rate_numerator != 0) {
-  //  GST_BUFFER_DURATION (outbuf) = gst_util_uint64_scale_int (GST_SECOND,
-  //      src->rate_denominator, src->rate_numerator);
-  //}
+  /*GST_BUFFER_TIMESTAMP (outbuf) = src->timestamp_offset + src->running_time;
+  if (src->rate_numerator != 0) {
+    GST_BUFFER_DURATION (outbuf) = gst_util_uint64_scale_int (GST_SECOND,
+        src->rate_denominator, src->rate_numerator);
+  }*/
 
   dropped = newval - src->cumbufnum;
   if (dropped > 0) {
@@ -634,10 +663,10 @@ gst_niimaq_create (GstPushSrc * psrc, GstBuffer ** buffer)
   src->cumbufnum = newval + 1;
   src->n_frames++;
 
-  //if (src->rate_numerator != 0) {
-  //  src->running_time = gst_util_uint64_scale_int (src->n_frames * GST_SECOND,
-  //      src->rate_denominator, src->rate_numerator);
-  //}
+  /*if (src->rate_numerator != 0) {
+    src->running_time = gst_util_uint64_scale_int (src->n_frames * GST_SECOND,
+        src->rate_denominator, src->rate_numerator);
+  }*/
 
   return res;
 
@@ -649,14 +678,13 @@ error:
 
 /**
 * gst_niimaq_parse_caps:
-* caps: #GstCaps
+* caps: a #GstCaps to parse
 * width:
 * height:
-* rate_numerator:
 * depth:
 * bpp:
 *
-* Parses a given caps and sets critical values
+* Parses a given caps and sets critical values.
 *
 * Returns: TRUE on success
 */
@@ -664,7 +692,7 @@ static gboolean
 gst_niimaq_parse_caps (const GstCaps * caps, gint * width, gint * height,
     gint * depth, gint * bpp)
 {
-  const GstStructure *structure;
+  GstStructure *structure;
   gboolean ret;
 
   if (gst_caps_get_size (caps) < 1)
@@ -687,7 +715,16 @@ gst_niimaq_parse_caps (const GstCaps * caps, gint * width, gint * height,
   return TRUE;
 }
 
-/* Set color on caps */
+/**
+* gst_niimaq_set_caps_color:
+* gs: a #GstStructure to set the color of.
+* bpp: the bits per pixel to set.
+* depth: the depth to set.
+*
+* Sets the given bpp and depth to the given #GstStructure.
+*
+* Returns: TRUE on success
+*/
 static gboolean
 gst_niimaq_set_caps_color (GstStructure * gs, gint bpp, gint depth)
 {
@@ -729,7 +766,7 @@ gst_niimaq_set_caps_framesize (GstStructure * gs, gint width, gint height)
 
 /**
 * gst_niimaq_get_cam_caps:
-* src: #GstNiImaq
+* src: #GstNiImaq instance
 *
 * Get caps of camera attached to open IMAQ interface
 *
@@ -752,7 +789,8 @@ gst_niimaq_get_cam_caps (GstNiImaq * src)
     goto error;
   }
 
-  rval &= imgGetAttribute(src->iid, IMG_ATTR_BITSPERPIXEL, &val);
+  /* retrieve caps from IMAQ interface */
+  rval = imgGetAttribute(src->iid, IMG_ATTR_BITSPERPIXEL, &val);
   bpp = val;
   rval &= imgGetAttribute(src->iid, IMG_ATTR_BYTESPERPIXEL, &val);
   depth = val*8;
@@ -771,6 +809,7 @@ gst_niimaq_get_cam_caps (GstNiImaq * src)
     goto error;
   }
 
+  /* create new structure and set caps we got from IMAQ */
   gs = gst_structure_empty_new ("video");
   if (!gst_niimaq_set_caps_color(gs, bpp, depth) ||
       !gst_niimaq_set_caps_framesize(gs, width, height)) {
@@ -807,6 +846,14 @@ error:
   return NULL;
 }
 
+/**
+* gst_niimaq_start:
+* src: #GstBaseSrc instance
+*
+* Open necessary resources
+*
+* Returns: TRUE on success
+*/
 static gboolean
 gst_niimaq_start (GstBaseSrc * src)
 {
@@ -816,13 +863,13 @@ gst_niimaq_start (GstBaseSrc * src)
   gint i;
   GstPad * pad;
 
-  GST_LOG_OBJECT (filter, "Opening IMAQ interface: %s", filter->interface_name);
-
   filter->iid = 0;
   filter->sid = 0;
 
-  rval=imgInterfaceOpen(filter->interface_name,&(filter->iid));
+  GST_LOG_OBJECT (filter, "Opening IMAQ interface: %s", filter->interface_name);
 
+  /* open IMAQ interface */
+  rval=imgInterfaceOpen(filter->interface_name,&(filter->iid));
   if (rval) {
     GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to open IMAQ interface"),
         ("Failed to open camera interface %s", filter->interface_name));
@@ -831,6 +878,7 @@ gst_niimaq_start (GstBaseSrc * src)
 
   GST_LOG_OBJECT (filter, "Opening IMAQ session: %s", filter->interface_name);
 
+  /* open IMAQ session */
   rval=imgSessionOpen(filter->iid, &(filter->sid));
   if (rval) {
     GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to open IMAQ session"),
@@ -838,11 +886,12 @@ gst_niimaq_start (GstBaseSrc * src)
     goto error;
   }
 
-  /* get caps from camera and set to src pad*/
   if (filter->caps) {
     gst_caps_unref (filter->caps);
     filter->caps = NULL;
   }
+
+  /* get caps from camera and set to src pad */
   filter->caps = gst_niimaq_get_cam_caps (filter);
   if (filter->caps == NULL) {
     GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to get caps from IMAQ"),
@@ -860,12 +909,13 @@ gst_niimaq_start (GstBaseSrc * src)
 
   GST_LOG_OBJECT (filter, "Creating ring with %d buffers", filter->bufsize);
 
-  filter->buflist = g_new(guint32*, filter->bufsize);
-  for(i=0;i<filter->bufsize;i++) {
+  /* create array of pointers to give to IMAQ for creating internal buffers */
+  filter->buflist = g_new (guint32*, filter->bufsize);
+  for (i=0; i < filter->bufsize; i++) {
     filter->buflist[i] = 0;
   }
-  rval=imgRingSetup(filter->sid, filter->bufsize, (void**)(filter->buflist), 0, FALSE);
-  if(rval) {
+  rval=imgRingSetup (filter->sid, filter->bufsize, (void**)(filter->buflist), 0, FALSE);
+  if (rval) {
     GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to create ring buffer"),
         ("Failed to create ring buffer with %d buffers", filter->bufsize));
     goto error;
@@ -874,18 +924,20 @@ gst_niimaq_start (GstBaseSrc * src)
   /*GST_LOG_OBJECT (filter, "Registering callback functions");
   rval=imgSessionWaitSignalAsync2(filter->sid, IMG_SIGNAL_STATUS, IMG_BUF_COMPLETE, IMG_SIGNAL_STATE_RISING, Imaq_BUF_COMPLETE, filter);
   if(rval) {
-   // GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to register BUF_COMPLETE callback"),
-      //  ("Failed to register BUF_COMPLETE callback"));
-   // goto error;
+    GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to register BUF_COMPLETE callback"),
+      ("Failed to register BUF_COMPLETE callback"));
+    goto error;
   }*/
 
-  rval=imgSessionStartAcquisition(filter->sid);
+  /* start acquisition */
+  /* TODO: move this to create so we can retrieve frames immediately */
+  rval=imgSessionStartAcquisition (filter->sid);
 
   /* Try to open the camera several times */
   i = 0;
   while (rval != 0 && i++ < 5) {
     g_usleep (50000);
-    if (rval=imgSessionStartAcquisition(filter->sid)) {
+    if (rval=imgSessionStartAcquisition (filter->sid)) {
       if (rval != 0) {
         GST_LOG_OBJECT (src, "camera is still off , retrying");
       }
@@ -904,7 +956,7 @@ gst_niimaq_start (GstBaseSrc * src)
   return TRUE;
 
 error:
-
+  /* close IMAQ session and interface */
   if(filter->sid)
     imgClose(filter->sid,TRUE);
   filter->sid = 0;
@@ -916,12 +968,21 @@ error:
 
 }
 
-
-gboolean gst_niimaq_stop( GstBaseSrc * src )
+/**
+* gst_niimaq_stop:
+* src: #GstBaseSrc instance
+*
+* Close resources opened by gst_niimaq_start
+*
+* Returns: TRUE on success
+*/
+static gboolean
+gst_niimaq_stop (GstBaseSrc * src)
 {
   GstNiImaq* filter = GST_NIIMAQ(src);
   Int32 rval;
 
+  /* stop IMAQ session */
   rval=imgSessionStopAcquisition(filter->sid);
   if (rval) {
     GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Unable to stop acquisition"),
@@ -930,6 +991,7 @@ gboolean gst_niimaq_stop( GstBaseSrc * src )
 
   GST_DEBUG_OBJECT (filter, "Acquisition stopped");
 
+  /* close IMAQ session and interface */
   if(filter->sid)
     imgClose(filter->sid,TRUE);
   filter->sid = 0;
@@ -942,18 +1004,25 @@ gboolean gst_niimaq_stop( GstBaseSrc * src )
   return TRUE;
 }
 
+/**
+* plugin_init:
+* plugin: #GstPlugin
+*
+* Initialize plugin by registering elements
+*
+* Returns: TRUE on success
+*/
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
   GST_DEBUG_CATEGORY_INIT (niimaq_debug, "niimaqsrc", 0, "NI-IMAQ interface");
 
+  /* we only have one element in this plugin */
   return gst_element_register (plugin, "niimaqsrc", GST_RANK_NONE,
       GST_TYPE_NIIMAQ);
 
 }
 
-GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-GST_VERSION_MINOR,
-           "niimaq",
-           "NI-IMAQ Video Source",
-           plugin_init, VERSION, GST_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)
+GST_PLUGIN_DEFINE (GST_VERSION_MAJOR, GST_VERSION_MINOR, "niimaq",
+    "NI-IMAQ Video Source", plugin_init, VERSION, GST_LICENSE, GST_PACKAGE_NAME,
+    GST_PACKAGE_ORIGIN)
