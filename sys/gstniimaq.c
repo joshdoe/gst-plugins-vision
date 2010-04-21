@@ -65,6 +65,27 @@ enum
 #define DEFAULT_PROP_TIMESTAMP_OFFSET  0
 #define DEFAULT_PROP_BUFSIZE  10
 
+static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
+  GST_PAD_SRC,
+  GST_PAD_ALWAYS,
+  GST_STATIC_CAPS (
+      "video/x-raw-gray, "
+      "bpp = (int) 8, "
+      "depth = (int) 8, "
+      "width = (int) [ 1, max ], "
+      "height = (int) [ 1, max ], "
+      "framerate = (fraction) [ 0, max ]"
+      ";"
+      "video/x-raw-gray, "
+      "bpp = (int) {10, 12, 14, 16}, "
+      "depth = (int) 16, "
+      "endianness = (int) LITTLE_ENDIAN, "
+      "width = (int) [ 1, max ], "
+      "height = (int) [ 1, max ], "
+      "framerate = (fraction) [ 0, max ]"
+  )
+);
+
 static void gst_niimaq_init_interfaces (GType type);
 
 GST_BOILERPLATE_FULL (GstNiImaq, gst_niimaq, GstPushSrc,
@@ -80,7 +101,6 @@ static void gst_niimaq_get_property (GObject * object, guint prop_id,
 /* GstBaseSrc virtual methods */
 static GstCaps *gst_niimaq_get_caps (GstBaseSrc * bsrc);
 static gboolean gst_niimaq_set_caps (GstBaseSrc * bsrc, GstCaps * caps);
-static void gst_niimaq_src_fixate (GstPad * pad, GstCaps * caps);
 static void gst_niimaq_get_times (GstBaseSrc * basesrc,
     GstBuffer * buffer, GstClockTime * start, GstClockTime * end);
 static gboolean gst_niimaq_start (GstBaseSrc * src);
@@ -93,11 +113,10 @@ static GstFlowReturn gst_niimaq_create (GstPushSrc * psrc, GstBuffer ** buffer);
 static gboolean gst_niimaq_parse_caps (const GstCaps * caps,
     gint * width, gint * height, gint * depth, gint * bpp);
 
-static gboolean gst_niimaq_set_caps_color (GstStructure * gs, int bpp, int depth);
+static gboolean gst_niimaq_set_caps_color (GstStructure * gs, gint bpp, gint depth);
 static gboolean gst_niimaq_set_caps_framesize (GstStructure * gs, gint width,
     gint height);
 
-static GstCaps *gst_niimaq_get_all_niimaq_caps ();
 static GstCaps *gst_niimaq_get_cam_caps (GstNiImaq * src);
 
 static void _____BEGIN_FUNCTIONS_____();
@@ -356,9 +375,7 @@ gst_niimaq_base_init (gpointer g_class)
   gst_element_class_set_details (element_class, &niimaq_details);
 
   gst_element_class_add_pad_template (element_class,
-      gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS,
-          gst_niimaq_get_all_niimaq_caps ()));
-
+    gst_static_pad_template_get (&src_factory));
 }
 
 static void
@@ -397,7 +414,6 @@ gst_niimaq_class_init (GstNiImaqClass * klass)
 
   gstbasesrc_class->get_caps = gst_niimaq_get_caps;
   gstbasesrc_class->set_caps = gst_niimaq_set_caps;
-
   gstbasesrc_class->get_times = gst_niimaq_get_times;
   gstpushsrc_class->create = gst_niimaq_create;
   gstbasesrc_class->start = gst_niimaq_start;
@@ -413,7 +429,7 @@ gst_niimaq_init (GstNiImaq * src, GstNiImaqClass * g_class)
   gst_pad_use_fixed_caps (srcpad);
 
   src->timestamp_offset = 0;
-  src->caps = gst_niimaq_get_all_niimaq_caps ();
+  src->caps = NULL;
   src->bufsize = 10;
   src->n_frames = 0;
   src->cumbufnum = 0;
@@ -491,9 +507,9 @@ gst_niimaq_get_property (GObject * object, guint prop_id, GValue * value,
 static GstCaps *
 gst_niimaq_get_caps (GstBaseSrc * bsrc)
 {
-  GstNiImaq *gsrc;
+  GstNiImaq *gsrc = GST_NIIMAQ (bsrc);
 
-  gsrc = GST_NIIMAQ (bsrc);
+  GST_DEBUG_OBJECT (bsrc, "Entering function get_caps");
 
   g_return_val_if_fail (gsrc->caps, NULL);
 
@@ -512,13 +528,14 @@ gst_niimaq_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 
   niimaq = GST_NIIMAQ (bsrc);
 
+  GST_DEBUG_OBJECT (bsrc, "Entering function set_caps");
+
   GST_DEBUG_OBJECT (caps, "are the caps being set");
 
   if (niimaq->caps) {
     gst_caps_unref (niimaq->caps);
+    niimaq->caps = gst_caps_copy (caps);
   }
-
-  niimaq->caps = gst_niimaq_get_cam_caps(niimaq);
 
   res = gst_niimaq_parse_caps (niimaq->caps, &width, &height, &depth, &bpp);
 
@@ -672,7 +689,7 @@ gst_niimaq_parse_caps (const GstCaps * caps, gint * width, gint * height,
 
 /* Set color on caps */
 static gboolean
-gst_niimaq_set_caps_color (GstStructure * gs, int bpp, int depth)
+gst_niimaq_set_caps_color (GstStructure * gs, gint bpp, gint depth)
 {
   gboolean ret = TRUE;
 
@@ -682,8 +699,8 @@ gst_niimaq_set_caps_color (GstStructure * gs, int bpp, int depth)
       "depth", G_TYPE_INT, depth, NULL);
   if (depth > 8) {
     gst_structure_set(gs,
-    "endianness", G_TYPE_INT, G_LITTLE_ENDIAN,
-    NULL);
+        "endianness", G_TYPE_INT, G_LITTLE_ENDIAN,
+        NULL);
   }
 
   return ret;
@@ -704,57 +721,27 @@ gst_niimaq_set_caps_framesize (GstStructure * gs, gint width, gint height)
 {
   gst_structure_set (gs,
       "width", G_TYPE_INT, width,
-    "height", G_TYPE_INT, height,
-    NULL);
+      "height", G_TYPE_INT, height,
+      NULL);
 
   return TRUE;
 }
 
-GstCaps *
-gst_niimaq_get_all_niimaq_caps ()
-{
-  /* 
-     generate all possible caps
-
-   */
-
-  GstCaps *gcaps;
-  GstStructure *gs;
-  gint i = 0;
-
-  gcaps = gst_caps_new_empty ();
-
-  gs = gst_structure_empty_new ("video");
-  gst_structure_set_name (gs, "video/x-raw-gray");
-  gst_structure_set (gs,
-      "width", GST_TYPE_INT_RANGE, 1, G_MAXINT,
-      "height", GST_TYPE_INT_RANGE, 1, G_MAXINT,
-      "bpp", GST_TYPE_INT_RANGE, 10, 16,
-      "depth", G_TYPE_INT, 16,
-      "endianness", G_TYPE_INT, G_LITTLE_ENDIAN,
-      "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1, NULL);
-  gst_caps_append_structure (gcaps, gs);
-
-  gs = gst_structure_empty_new ("video");
-  gst_structure_set_name (gs, "video/x-raw-gray");
-  gst_structure_set (gs,
-      "width", GST_TYPE_INT_RANGE, 1, G_MAXINT,
-      "height", GST_TYPE_INT_RANGE, 1, G_MAXINT,
-      "bpp", G_TYPE_INT, 8,
-      "depth", G_TYPE_INT, 8,
-      "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1, NULL);
-  gst_caps_append_structure (gcaps, gs);
-
-  return gcaps;
-}
-
+/**
+* gst_niimaq_get_cam_caps:
+* src: #GstNiImaq
+*
+* Get caps of camera attached to open IMAQ interface
+*
+* Returns: the #GstCaps of the src pad. Unref the caps when you no longer need it.
+*/
 GstCaps *
 gst_niimaq_get_cam_caps (GstNiImaq * src)
 {
   GstCaps *gcaps = NULL;
   Int32 rval;
   uInt32 val;
-  int width, height, depth, bpp;
+  gint width, height, depth, bpp;
   GstStructure *gs;
 
   gcaps = gst_caps_new_empty ();
@@ -774,6 +761,9 @@ gst_niimaq_get_cam_caps (GstNiImaq * src)
   rval &= imgGetAttribute(src->iid, IMG_ATTR_ROI_HEIGHT, &val);
   height = val;
 
+  /* TODO: support both actual bpp and bpp=16 */
+  bpp = depth;
+
   if (rval) {
     GST_ELEMENT_ERROR (src, STREAM, FAILED,
         ("attempt to read attributes failed"),
@@ -790,9 +780,19 @@ gst_niimaq_get_cam_caps (GstNiImaq * src)
     goto error;
   }
 
-  gst_structure_set(gs, "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1, NULL);
+  /* hard code framerate to 30Hz as IMAQ doesn't tell us anything about it */
+  gst_structure_set(gs, "framerate", GST_TYPE_FRACTION, 30, 1, NULL);
 
-  gst_caps_append_structure (gcaps, gs);
+  gst_caps_append_structure (gcaps, gst_structure_copy (gs));
+
+  /* if (8 < bpp < 16), then append structure with bpp=16 so ffmpegcolorspace
+   * and other elements can work directly with this src */
+  /* TODO: support both actual bpp (10,12,14) and 16 */
+  /*if (bpp > 8) {
+    gst_niimaq_set_caps_color (gs, 16, 16);
+    gst_caps_append_structure (gcaps, gst_structure_copy (gs));
+  }*/
+  gst_object_unref (gs);
 
   GST_DEBUG_OBJECT (gcaps, "are the camera caps");
 
@@ -812,7 +812,9 @@ gst_niimaq_start (GstBaseSrc * src)
 {
   GstNiImaq* filter = GST_NIIMAQ(src);
   Int32 rval;
-  int i;
+  gboolean ret;
+  gint i;
+  GstPad * pad;
 
   GST_LOG_OBJECT (filter, "Opening IMAQ interface: %s", filter->interface_name);
 
@@ -833,6 +835,26 @@ gst_niimaq_start (GstBaseSrc * src)
   if (rval) {
     GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to open IMAQ session"),
         ("Failed to open camera session %d", filter->sid));
+    goto error;
+  }
+
+  /* get caps from camera and set to src pad*/
+  if (filter->caps) {
+    gst_caps_unref (filter->caps);
+    filter->caps = NULL;
+  }
+  filter->caps = gst_niimaq_get_cam_caps (filter);
+  if (filter->caps == NULL) {
+    GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to get caps from IMAQ"),
+      ("Failed to get caps from IMAQ"));
+    goto error;
+  }
+  pad = gst_element_get_static_pad (GST_ELEMENT (src), "src");
+  ret = gst_pad_set_caps (pad, gst_caps_copy (filter->caps));
+  gst_object_unref (pad);
+  if (!ret) {
+    GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed set caps to src pad"),
+      ("Failed set caps to src pad"));
     goto error;
   }
 
