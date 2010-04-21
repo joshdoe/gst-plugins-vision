@@ -610,7 +610,8 @@ gst_niimaq_create (GstPushSrc * psrc, GstBuffer ** buffer)
   gpointer data;
   GstCaps *caps;
   GstFlowReturn res = GST_FLOW_OK;
-  uInt32 newval, *bufaddr;
+  uInt32 copied_number;
+  uInt32 copied_index;
   Int32 rval;
   uInt32 dropped;
 
@@ -618,24 +619,16 @@ gst_niimaq_create (GstPushSrc * psrc, GstBuffer ** buffer)
 
   data = g_malloc(src->framesize);
 
-  GST_DEBUG_OBJECT(src, "Requesting to examine IMAQ buffer %d", src->cumbufnum);
+  GST_DEBUG_OBJECT(src, "Copying IMAQ buffer %d", src->cumbufnum);
 
-  rval=imgSessionExamineBuffer2(src->sid, src->cumbufnum, &newval, &bufaddr);
+  rval = imgSessionCopyBufferByNumber (src->sid, src->cumbufnum, data,
+      IMG_OVERWRITE_GET_OLDEST, &copied_number, &copied_index);
   if (rval) {
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-      ("failed to examine buffer %d", src->cumbufnum), ("failed to examine buffer %d", src->cumbufnum));
+        ("failed to copy buffer %d", src->cumbufnum),
+        ("failed to copy buffer %d", src->cumbufnum));
     goto error;
   }
-
-  GST_DEBUG_OBJECT (src, "Examining IMAQ buffer %d", newval);
-
-  /* TODO if rows aren't aligned then copy by row */
-  memcpy (data, (guchar *) bufaddr,
-      src->framesize);
-
-  imgSessionReleaseBuffer(src->sid);
-
-  GST_DEBUG_OBJECT (src, "Releasing buffer %d", newval);
 
   *buffer = gst_buffer_new ();
   GST_BUFFER_DATA (*buffer) = data;
@@ -653,14 +646,16 @@ gst_niimaq_create (GstPushSrc * psrc, GstBuffer ** buffer)
         src->rate_denominator, src->rate_numerator);
   }*/
 
-  dropped = newval - src->cumbufnum;
+  dropped = copied_number - src->cumbufnum;
   if (dropped > 0) {
     src->n_dropped_frames += dropped;
+    GST_WARNING_OBJECT (src, "Asked to copy buffer %d but was given %d",
+        src->cumbufnum, copied_number);
     GST_WARNING_OBJECT (src, "Dropped %d frames (%d total)", dropped, src->n_dropped_frames);
   }
 
   /* set cumulative buffer number to get next frame */
-  src->cumbufnum = newval + 1;
+  src->cumbufnum = copied_number + 1;
   src->n_frames++;
 
   /*if (src->rate_numerator != 0) {
