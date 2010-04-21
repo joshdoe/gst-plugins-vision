@@ -69,6 +69,8 @@ struct _GstNiImaq {
   INTERFACE_ID iid;
   SESSION_ID sid;
 
+  gboolean session_started;
+
   GstCaps *caps;
 };
 

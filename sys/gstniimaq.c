@@ -461,6 +461,7 @@ gst_niimaq_init (GstNiImaq * src, GstNiImaqClass * g_class)
   src->iid = 0;
   src->camera_name = g_strdup (DEFAULT_PROP_INTERFACE);
   src->interface_name = g_strdup (DEFAULT_PROP_INTERFACE);
+  src->session_started = FALSE;
 
 }
 
@@ -606,16 +607,51 @@ gst_niimaq_get_times (GstBaseSrc * basesrc, GstBuffer * buffer,
 static GstFlowReturn
 gst_niimaq_create (GstPushSrc * psrc, GstBuffer ** buffer)
 {
-  GstNiImaq *src;
+  GstNiImaq *src = GST_NIIMAQ (psrc);
   gpointer data;
   GstCaps *caps;
   GstFlowReturn res = GST_FLOW_OK;
+  guint i;
+
   uInt32 copied_number;
   uInt32 copied_index;
   Int32 rval;
   uInt32 dropped;
+  
+  /* start the IMAQ acquisition session if we haven't done so yet */
+  if (!src->session_started) {
+    GST_DEBUG_OBJECT (src, "Starting acquisition");
 
-  src = GST_NIIMAQ (psrc);
+    /* try to open the camera five times */
+    for (i = 0; i < 5; i++) {
+      rval = imgSessionStartAcquisition (src->sid);
+      if (rval == 0) {
+        break;
+      }
+      else {
+        GST_LOG_OBJECT (src, "camera is still off , wait 50ms and retry");
+        g_usleep (50000);
+      }
+    }
+
+    /* we tried five times and failed, so we error */
+    if (i >= 5) {
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+        ("Camera doesn't seem to want to turn on!"),
+        ("Camera doesn't seem to want to turn on!"));
+
+      if (src->sid)
+        imgClose (src->sid,TRUE);
+      src->sid = 0;
+
+      if (src->iid)
+        imgClose (src->iid,TRUE);
+      src->iid = 0;
+
+      return GST_FLOW_ERROR;
+    }
+    src->session_started = TRUE;
+  }
 
   data = g_malloc(src->framesize);
 
@@ -924,30 +960,6 @@ gst_niimaq_start (GstBaseSrc * src)
     goto error;
   }*/
 
-  /* start acquisition */
-  /* TODO: move this to create so we can retrieve frames immediately */
-  rval=imgSessionStartAcquisition (filter->sid);
-
-  /* Try to open the camera several times */
-  i = 0;
-  while (rval != 0 && i++ < 5) {
-    g_usleep (50000);
-    if (rval=imgSessionStartAcquisition (filter->sid)) {
-      if (rval != 0) {
-        GST_LOG_OBJECT (src, "camera is still off , retrying");
-      }
-    }
-  }
-
-  if (i >= 5) {
-    GST_ELEMENT_ERROR (filter, RESOURCE, FAILED,
-        ("Camera doesn't seem to want to turn on!"),
-        ("Camera doesn't seem to want to turn on!"));
-    goto error;
-  }
-
-  GST_LOG_OBJECT (filter, "Starting acquisition");
-
   return TRUE;
 
 error:
@@ -974,15 +986,16 @@ error:
 static gboolean
 gst_niimaq_stop (GstBaseSrc * src)
 {
-  GstNiImaq* filter = GST_NIIMAQ(src);
+  GstNiImaq* filter = GST_NIIMAQ (src);
   Int32 rval;
 
   /* stop IMAQ session */
-  rval=imgSessionStopAcquisition(filter->sid);
+  rval = imgSessionStopAcquisition (filter->sid);
   if (rval) {
     GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Unable to stop acquisition"),
         ("Unable to stop acquisition"));
   }
+  filter->session_started = FALSE;
 
   GST_DEBUG_OBJECT (filter, "Acquisition stopped");
 
