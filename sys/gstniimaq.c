@@ -446,9 +446,6 @@ gst_niimaqsrc_init (GstNiImaqSrc * src, GstNiImaqSrcClass * g_class)
   /* set source as live (no preroll) */
   gst_base_src_set_live (GST_BASE_SRC (src), TRUE);
 
-  /* force pad to only accept fixed caps */
-  gst_pad_use_fixed_caps (srcpad);
-
   /* initialize member variables */
   src->timestamp_offset = 0;
   src->caps = NULL;
@@ -821,17 +818,14 @@ gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * src)
   }
 
   /* retrieve caps from IMAQ interface */
-  rval = imgGetAttribute(src->iid, IMG_ATTR_BITSPERPIXEL, &val);
+  rval = imgGetAttribute (src->iid, IMG_ATTR_BITSPERPIXEL, &val);
   bpp = val;
-  rval &= imgGetAttribute(src->iid, IMG_ATTR_BYTESPERPIXEL, &val);
+  rval &= imgGetAttribute (src->iid, IMG_ATTR_BYTESPERPIXEL, &val);
   depth = val*8;
-  rval &= imgGetAttribute(src->iid, IMG_ATTR_ROI_WIDTH, &val);
+  rval &= imgGetAttribute (src->iid, IMG_ATTR_ROI_WIDTH, &val);
   width = val;
-  rval &= imgGetAttribute(src->iid, IMG_ATTR_ROI_HEIGHT, &val);
+  rval &= imgGetAttribute (src->iid, IMG_ATTR_ROI_HEIGHT, &val);
   height = val;
-
-  /* TODO: support both actual bpp and bpp=16 */
-  bpp = depth;
 
   if (rval) {
     GST_ELEMENT_ERROR (src, STREAM, FAILED,
@@ -842,26 +836,25 @@ gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * src)
 
   /* create new structure and set caps we got from IMAQ */
   gs = gst_structure_empty_new ("video");
-  if (!gst_niimaqsrc_set_caps_color(gs, bpp, depth) ||
-    !gst_niimaqsrc_set_caps_framesize(gs, width, height)) {
+  if (!gst_niimaqsrc_set_caps_color (gs, bpp, depth) ||
+    !gst_niimaqsrc_set_caps_framesize (gs, width, height)) {
     GST_ELEMENT_ERROR (src, STREAM, FAILED,
-        ("attempt to set caps %dx%dx%d (%d) failed", width,height,depth, bpp),
-        ("attempt to set caps %dx%dx%d (%d) failed", width,height,depth, bpp));
+        ("attempt to set caps %dx%dx%d (%d) failed", width, height, depth, bpp),
+        ("attempt to set caps %dx%dx%d (%d) failed", width, height, depth, bpp));
     goto error;
   }
 
   /* hard code framerate to 30Hz as IMAQ doesn't tell us anything about it */
-  gst_structure_set(gs, "framerate", GST_TYPE_FRACTION, 30, 1, NULL);
+  gst_structure_set (gs, "framerate", GST_TYPE_FRACTION, 30, 1, NULL);
 
   gst_caps_append_structure (gcaps, gst_structure_copy (gs));
 
   /* if (8 < bpp < 16), then append structure with bpp=16 so ffmpegcolorspace
    * and other elements can work directly with this src */
-  /* TODO: support both actual bpp (10,12,14) and 16 */
-  /*if (bpp > 8) {
+  if (bpp > 8 && bpp < 16) {
     gst_niimaqsrc_set_caps_color (gs, 16, 16);
     gst_caps_append_structure (gcaps, gst_structure_copy (gs));
-  }*/
+  }
   gst_object_unref (gs);
 
   GST_DEBUG_OBJECT (gcaps, "are the camera caps");
@@ -927,14 +920,6 @@ gst_niimaqsrc_start (GstBaseSrc * src)
   if (filter->caps == NULL) {
     GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to get caps from IMAQ"),
       ("Failed to get caps from IMAQ"));
-    goto error;
-  }
-  pad = gst_element_get_static_pad (GST_ELEMENT (src), "src");
-  ret = gst_pad_set_caps (pad, gst_caps_copy (filter->caps));
-  gst_object_unref (pad);
-  if (!ret) {
-    GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed set caps to src pad"),
-      ("Failed set caps to src pad"));
     goto error;
   }
 
