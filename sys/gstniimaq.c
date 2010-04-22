@@ -43,10 +43,10 @@
 #include <time.h>
 #include <string.h>
 
-GST_DEBUG_CATEGORY (niimaq_debug);
-#define GST_CAT_DEFAULT niimaq_debug
+GST_DEBUG_CATEGORY (niimaqsrc_debug);
+#define GST_CAT_DEFAULT niimaqsrc_debug
 
-static GstElementDetails niimaq_details =
+static GstElementDetails niimaqsrc_details =
 GST_ELEMENT_DETAILS ("NI-IMAQ Video Source",
     "Source/Video",
     "National Instruments based source, supports Camera Link and analog cameras",
@@ -86,43 +86,43 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
   )
 );
 
-static void gst_niimaq_init_interfaces (GType type);
+static void gst_niimaqsrc_init_interfaces (GType type);
 
-GST_BOILERPLATE_FULL (GstNiImaq, gst_niimaq, GstPushSrc,
-    GST_TYPE_PUSH_SRC, gst_niimaq_init_interfaces);
+GST_BOILERPLATE_FULL (GstNiImaqSrc, gst_niimaqsrc, GstPushSrc,
+    GST_TYPE_PUSH_SRC, gst_niimaqsrc_init_interfaces);
 
 /* GObject virtual methods */
-static void gst_niimaq_dispose (GObject * object);
-static void gst_niimaq_set_property (GObject * object, guint prop_id,
+static void gst_niimaqsrc_dispose (GObject * object);
+static void gst_niimaqsrc_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
-static void gst_niimaq_get_property (GObject * object, guint prop_id,
+static void gst_niimaqsrc_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 
 /* GstBaseSrc virtual methods */
-static GstCaps *gst_niimaq_get_caps (GstBaseSrc * bsrc);
-static gboolean gst_niimaq_set_caps (GstBaseSrc * bsrc, GstCaps * caps);
-static void gst_niimaq_get_times (GstBaseSrc * basesrc,
+static GstCaps *gst_niimaqsrc_get_caps (GstBaseSrc * bsrc);
+static gboolean gst_niimaqsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps);
+static void gst_niimaqsrc_get_times (GstBaseSrc * basesrc,
     GstBuffer * buffer, GstClockTime * start, GstClockTime * end);
-static gboolean gst_niimaq_start (GstBaseSrc * src);
-static gboolean gst_niimaq_stop (GstBaseSrc * src);
+static gboolean gst_niimaqsrc_start (GstBaseSrc * src);
+static gboolean gst_niimaqsrc_stop (GstBaseSrc * src);
 
 /* GstPushSrc virtual methods */
-static GstFlowReturn gst_niimaq_create (GstPushSrc * psrc, GstBuffer ** buffer);
+static GstFlowReturn gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer);
 
 /* GstNiImaq methods */
-static gboolean gst_niimaq_parse_caps (const GstCaps * caps,
+static gboolean gst_niimaqsrc_parse_caps (const GstCaps * caps,
     gint * width, gint * height, gint * depth, gint * bpp);
 
-static gboolean gst_niimaq_set_caps_color (GstStructure * gs, gint bpp, gint depth);
-static gboolean gst_niimaq_set_caps_framesize (GstStructure * gs, gint width,
+static gboolean gst_niimaqsrc_set_caps_color (GstStructure * gs, gint bpp, gint depth);
+static gboolean gst_niimaqsrc_set_caps_framesize (GstStructure * gs, gint width,
     gint height);
 
-static GstCaps *gst_niimaq_get_cam_caps (GstNiImaq * src);
+static GstCaps *gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * src);
 
 static void _____BEGIN_FUNCTIONS_____();
 
 /**
-* gst_niimaq_probe_get_properties:
+* gst_niimaqsrc_probe_get_properties:
 * @probe: #GstPropertyProbe
 *
 * Gets list of properties that can be probed
@@ -130,7 +130,7 @@ static void _____BEGIN_FUNCTIONS_____();
 * Returns: #GList of properties that can be probed
 */
 static const GList *
-gst_niimaq_probe_get_properties (GstPropertyProbe * probe)
+gst_niimaqsrc_probe_get_properties (GstPropertyProbe * probe)
 {
   GObjectClass *klass = G_OBJECT_GET_CLASS (probe);
   static GList *list = NULL;
@@ -146,7 +146,7 @@ static gboolean init = FALSE;
 static GList *interfaces = NULL;
 
 /**
-* gst_niimaq_class_probe_interfaces:
+* gst_niimaqsrc_class_probe_interfaces:
 * @klass: #GstNiImaqClass
 * @check: whether to enumerate interfaces
 *
@@ -155,7 +155,7 @@ static GList *interfaces = NULL;
 * Returns: TRUE always
 */
 static gboolean
-gst_niimaq_class_probe_interfaces (GstNiImaqClass * klass, gboolean check)
+gst_niimaqsrc_class_probe_interfaces (GstNiImaqSrcClass * klass, gboolean check)
 {
   if (!check) {
     guint32 n;
@@ -217,7 +217,7 @@ gst_niimaq_class_probe_interfaces (GstNiImaqClass * klass, gboolean check)
 }
 
 /**
-* gst_niimaq_probe_probe_property:
+* gst_niimaqsrc_probe_probe_property:
 * @probe: #GstPropertyProbe
 * @prop_id: Property id
 * @pspec: #GParamSpec
@@ -226,14 +226,14 @@ gst_niimaq_class_probe_interfaces (GstNiImaqClass * klass, gboolean check)
 *   property for possible values
 */
 static void
-gst_niimaq_probe_probe_property (GstPropertyProbe * probe,
+gst_niimaqsrc_probe_probe_property (GstPropertyProbe * probe,
     guint prop_id, const GParamSpec * pspec)
 {
-  GstNiImaqClass *klass = GST_NIIMAQ_GET_CLASS (probe);
+  GstNiImaqSrcClass *klass = GST_NIIMAQSRC_GET_CLASS (probe);
 
   switch (prop_id) {
     case PROP_INTERFACE:
-      gst_niimaq_class_probe_interfaces (klass, FALSE);
+      gst_niimaqsrc_class_probe_interfaces (klass, FALSE);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (probe, prop_id, pspec);
@@ -242,7 +242,7 @@ gst_niimaq_probe_probe_property (GstPropertyProbe * probe,
 }
 
 /**
-* gst_niimaq_probe_needs_probe:
+* gst_niimaqsrc_probe_needs_probe:
 * @probe: #GstPropertyProbe
 * @prop_id: Property id
 * @pspec: #GParamSpec
@@ -253,15 +253,15 @@ gst_niimaq_probe_probe_property (GstPropertyProbe * probe,
 * Returns: TRUE if a property needs to be updated
 */
 static gboolean
-gst_niimaq_probe_needs_probe (GstPropertyProbe * probe,
+gst_niimaqsrc_probe_needs_probe (GstPropertyProbe * probe,
                            guint prop_id, const GParamSpec * pspec)
 {
-  GstNiImaqClass *klass = GST_NIIMAQ_GET_CLASS (probe);
+  GstNiImaqSrcClass *klass = GST_NIIMAQSRC_GET_CLASS (probe);
   gboolean ret = FALSE;
 
   switch (prop_id) {
     case PROP_INTERFACE:
-      ret = !gst_niimaq_class_probe_interfaces (klass, TRUE);
+      ret = !gst_niimaqsrc_class_probe_interfaces (klass, TRUE);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (probe, prop_id, pspec);
@@ -272,13 +272,13 @@ gst_niimaq_probe_needs_probe (GstPropertyProbe * probe,
 }
 
 /**
-* gst_niimaq_class_list_interfaces:
+* gst_niimaqsrc_class_list_interfaces:
 * @klass: #GstNiImaqClass
 *
 * Returns: #GValueArray of interface names
 */
 static GValueArray *
-gst_niimaq_class_list_interfaces (GstNiImaqClass * klass)
+gst_niimaqsrc_class_list_interfaces (GstNiImaqSrcClass * klass)
 {
   GValueArray *array;
   GValue value = { 0 };
@@ -304,7 +304,7 @@ gst_niimaq_class_list_interfaces (GstNiImaqClass * klass)
 }
 
 /**
-* gst_niimaq_probe_get_values:
+* gst_niimaqsrc_probe_get_values:
 * @probe: #GstPropertyProbe
 * @prop_id: Property id
 * @pspec: #GParamSpec
@@ -315,15 +315,15 @@ gst_niimaq_class_list_interfaces (GstNiImaqClass * klass)
 * Returns: #GValueArray containing possible values for requested property
 */
 static GValueArray *
-gst_niimaq_probe_get_values (GstPropertyProbe * probe,
+gst_niimaqsrc_probe_get_values (GstPropertyProbe * probe,
                           guint prop_id, const GParamSpec * pspec)
 {
-  GstNiImaqClass *klass = GST_NIIMAQ_GET_CLASS (probe);
+  GstNiImaqSrcClass *klass = GST_NIIMAQSRC_GET_CLASS (probe);
   GValueArray *array = NULL;
 
   switch (prop_id) {
     case PROP_INTERFACE:
-      array = gst_niimaq_class_list_interfaces (klass);
+      array = gst_niimaqsrc_class_list_interfaces (klass);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (probe, prop_id, pspec);
@@ -340,25 +340,25 @@ gst_niimaq_probe_get_values (GstPropertyProbe * probe,
 * Install property probe interfaces functions
 */
 static void
-gst_niimaq_property_probe_interface_init (GstPropertyProbeInterface * iface)
+gst_niimaqsrc_property_probe_interface_init (GstPropertyProbeInterface * iface)
 {
-  iface->get_properties = gst_niimaq_probe_get_properties;
-  iface->probe_property = gst_niimaq_probe_probe_property;
-  iface->needs_probe = gst_niimaq_probe_needs_probe;
-  iface->get_values = gst_niimaq_probe_get_values;
+  iface->get_properties = gst_niimaqsrc_probe_get_properties;
+  iface->probe_property = gst_niimaqsrc_probe_probe_property;
+  iface->needs_probe = gst_niimaqsrc_probe_needs_probe;
+  iface->get_values = gst_niimaqsrc_probe_get_values;
 }
 
 /**
-* gst_niimaq_init_interfaces:
+* gst_niimaqsrc_init_interfaces:
 * @type: #GType
 *
 * Initialize all GStreamer interfaces
 */
 static void
-gst_niimaq_init_interfaces (GType type)
+gst_niimaqsrc_init_interfaces (GType type)
 {
   static const GInterfaceInfo niimaq_propertyprobe_info = {
-    (GInterfaceInitFunc) gst_niimaq_property_probe_interface_init,
+    (GInterfaceInitFunc) gst_niimaqsrc_property_probe_interface_init,
     NULL,
     NULL,
   };
@@ -368,31 +368,31 @@ gst_niimaq_init_interfaces (GType type)
 }
 
 /**
-* gst_niimaq_base_init:
+* gst_niimaqsrc_base_init:
 * g_class:
 *
 * Base GObject initialization
 */
 static void
-gst_niimaq_base_init (gpointer g_class)
+gst_niimaqsrc_base_init (gpointer g_class)
 {
   GstElementClass *element_class = GST_ELEMENT_CLASS (g_class);
 
-  gst_element_class_set_details (element_class, &niimaq_details);
+  gst_element_class_set_details (element_class, &niimaqsrc_details);
 
   gst_element_class_add_pad_template (element_class,
     gst_static_pad_template_get (&src_factory));
 }
 
 /**
-* gst_niimaq_class_init:
+* gst_niimaqsrc_class_init:
 * klass: #GstNiImaqClass to initialize
 *
 * Initialize #GstNiImaqClass, which occurs only once no matter how many
 * instances of the class there are
 */
 static void
-gst_niimaq_class_init (GstNiImaqClass * klass)
+gst_niimaqsrc_class_init (GstNiImaqSrcClass * klass)
 {
   /* get pointers to base classes */
   GObjectClass *gobject_class = (GObjectClass *) klass;
@@ -400,9 +400,9 @@ gst_niimaq_class_init (GstNiImaqClass * klass)
   GstPushSrcClass *gstpushsrc_class = (GstPushSrcClass *) klass;
 
   /* install GObject vmethod implementations */
-  gobject_class->dispose = gst_niimaq_dispose;
-  gobject_class->set_property = gst_niimaq_set_property;
-  gobject_class->get_property = gst_niimaq_get_property;
+  gobject_class->dispose = gst_niimaqsrc_dispose;
+  gobject_class->set_property = gst_niimaqsrc_set_property;
+  gobject_class->get_property = gst_niimaqsrc_get_property;
 
   /* install GObject properties */
   g_object_class_install_property (G_OBJECT_CLASS (klass),
@@ -421,25 +421,25 @@ gst_niimaq_class_init (GstNiImaqClass * klass)
           G_MAXINT, DEFAULT_PROP_BUFSIZE, G_PARAM_READWRITE));
 
   /* install GstBaseSrc vmethod implementations */
-  gstbasesrc_class->get_caps = gst_niimaq_get_caps;
-  gstbasesrc_class->set_caps = gst_niimaq_set_caps;
-  gstbasesrc_class->get_times = gst_niimaq_get_times;
-  gstbasesrc_class->start = gst_niimaq_start;
-  gstbasesrc_class->stop = gst_niimaq_stop;
+  gstbasesrc_class->get_caps = gst_niimaqsrc_get_caps;
+  gstbasesrc_class->set_caps = gst_niimaqsrc_set_caps;
+  gstbasesrc_class->get_times = gst_niimaqsrc_get_times;
+  gstbasesrc_class->start = gst_niimaqsrc_start;
+  gstbasesrc_class->stop = gst_niimaqsrc_stop;
 
   /* install GstPushSrc vmethod implementations */
-  gstpushsrc_class->create = gst_niimaq_create;
+  gstpushsrc_class->create = gst_niimaqsrc_create;
 }
 
 /**
-* gst_niimaq_init:
+* gst_niimaqsrc_init:
 * src: the #GstNiImaq instance to initialize
 * g_class: #GstNiImaqClass
 *
 * Initialize this instance of #GstNiImaq
 */
 static void
-gst_niimaq_init (GstNiImaq * src, GstNiImaqClass * g_class)
+gst_niimaqsrc_init (GstNiImaqSrc * src, GstNiImaqSrcClass * g_class)
 {
   GstPad *srcpad = GST_BASE_SRC_PAD (src);
 
@@ -466,15 +466,15 @@ gst_niimaq_init (GstNiImaq * src, GstNiImaqClass * g_class)
 }
 
 /**
-* gst_niimaq_dispose:
+* gst_niimaqsrc_dispose:
 * object: #GObject to dispose
 *
 * Disposes of the #GObject as part of object destruction
 */
 static void
-gst_niimaq_dispose (GObject * object)
+gst_niimaqsrc_dispose (GObject * object)
 {
-  GstNiImaq *src = GST_NIIMAQ (object);
+  GstNiImaqSrc *src = GST_NIIMAQSRC (object);
 
   /* free memory allocated */
   g_free (src->camera_name);
@@ -487,10 +487,10 @@ gst_niimaq_dispose (GObject * object)
 }
 
 static void
-gst_niimaq_set_property (GObject * object, guint prop_id,
+gst_niimaqsrc_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
-  GstNiImaq *src = GST_NIIMAQ (object);
+  GstNiImaqSrc *src = GST_NIIMAQSRC (object);
 
   switch (prop_id) {
     case PROP_INTERFACE:
@@ -513,10 +513,10 @@ gst_niimaq_set_property (GObject * object, guint prop_id,
 }
 
 static void
-gst_niimaq_get_property (GObject * object, guint prop_id, GValue * value,
+gst_niimaqsrc_get_property (GObject * object, guint prop_id, GValue * value,
     GParamSpec * pspec)
 {
-  GstNiImaq *src = GST_NIIMAQ (object);
+  GstNiImaqSrc *src = GST_NIIMAQSRC (object);
 
   switch (prop_id) {
     case PROP_INTERFACE:
@@ -535,9 +535,9 @@ gst_niimaq_get_property (GObject * object, guint prop_id, GValue * value,
 }
 
 static GstCaps *
-gst_niimaq_get_caps (GstBaseSrc * bsrc)
+gst_niimaqsrc_get_caps (GstBaseSrc * bsrc)
 {
-  GstNiImaq *gsrc = GST_NIIMAQ (bsrc);
+  GstNiImaqSrc *gsrc = GST_NIIMAQSRC (bsrc);
 
   GST_DEBUG_OBJECT (bsrc, "Entering function get_caps");
 
@@ -548,15 +548,15 @@ gst_niimaq_get_caps (GstBaseSrc * bsrc)
 
 
 static gboolean
-gst_niimaq_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
+gst_niimaqsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 {
 
   gboolean res = TRUE;
-  GstNiImaq *niimaq;
+  GstNiImaqSrc *niimaq;
   gint width, height;
   gint bpp, depth;
 
-  niimaq = GST_NIIMAQ (bsrc);
+  niimaq = GST_NIIMAQSRC (bsrc);
 
   GST_DEBUG_OBJECT (bsrc, "Entering function set_caps");
 
@@ -567,7 +567,7 @@ gst_niimaq_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
     niimaq->caps = gst_caps_copy (caps);
   }
 
-  res = gst_niimaq_parse_caps (niimaq->caps, &width, &height, &depth, &bpp);
+  res = gst_niimaqsrc_parse_caps (niimaq->caps, &width, &height, &depth, &bpp);
 
   if (res) {
     /* looks ok here */
@@ -582,7 +582,7 @@ gst_niimaq_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 }
 
 static void
-gst_niimaq_get_times (GstBaseSrc * basesrc, GstBuffer * buffer,
+gst_niimaqsrc_get_times (GstBaseSrc * basesrc, GstBuffer * buffer,
     GstClockTime * start, GstClockTime * end)
 {
   /* for live sources, sync on the timestamp of the buffer */
@@ -605,9 +605,9 @@ gst_niimaq_get_times (GstBaseSrc * basesrc, GstBuffer * buffer,
 }
 
 static GstFlowReturn
-gst_niimaq_create (GstPushSrc * psrc, GstBuffer ** buffer)
+gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
 {
-  GstNiImaq *src = GST_NIIMAQ (psrc);
+  GstNiImaqSrc *src = GST_NIIMAQSRC (psrc);
   gpointer data;
   GstCaps *caps;
   GstFlowReturn res = GST_FLOW_OK;
@@ -708,7 +708,7 @@ error:
 }
 
 /**
-* gst_niimaq_parse_caps:
+* gst_niimaqsrc_parse_caps:
 * caps: a #GstCaps to parse
 * width:
 * height:
@@ -720,7 +720,7 @@ error:
 * Returns: TRUE on success
 */
 static gboolean
-gst_niimaq_parse_caps (const GstCaps * caps, gint * width, gint * height,
+gst_niimaqsrc_parse_caps (const GstCaps * caps, gint * width, gint * height,
     gint * depth, gint * bpp)
 {
   GstStructure *structure;
@@ -747,7 +747,7 @@ gst_niimaq_parse_caps (const GstCaps * caps, gint * width, gint * height,
 }
 
 /**
-* gst_niimaq_set_caps_color:
+* gst_niimaqsrc_set_caps_color:
 * gs: a #GstStructure to set the color of.
 * bpp: the bits per pixel to set.
 * depth: the depth to set.
@@ -757,7 +757,7 @@ gst_niimaq_parse_caps (const GstCaps * caps, gint * width, gint * height,
 * Returns: TRUE on success
 */
 static gboolean
-gst_niimaq_set_caps_color (GstStructure * gs, gint bpp, gint depth)
+gst_niimaqsrc_set_caps_color (GstStructure * gs, gint bpp, gint depth)
 {
   gboolean ret = TRUE;
 
@@ -775,7 +775,7 @@ gst_niimaq_set_caps_color (GstStructure * gs, gint bpp, gint depth)
 }
 
 /**
-* gst_niimaq_set_caps_framesize:
+* gst_niimaqsrc_set_caps_framesize:
 * gs: #GstStructure
 * width: width to set
 * height: height to set
@@ -785,7 +785,7 @@ gst_niimaq_set_caps_color (GstStructure * gs, gint bpp, gint depth)
 * Returns: TRUE on success
 */
 static gboolean
-gst_niimaq_set_caps_framesize (GstStructure * gs, gint width, gint height)
+gst_niimaqsrc_set_caps_framesize (GstStructure * gs, gint width, gint height)
 {
   gst_structure_set (gs,
       "width", G_TYPE_INT, width,
@@ -796,7 +796,7 @@ gst_niimaq_set_caps_framesize (GstStructure * gs, gint width, gint height)
 }
 
 /**
-* gst_niimaq_get_cam_caps:
+* gst_niimaqsrc_get_cam_caps:
 * src: #GstNiImaq instance
 *
 * Get caps of camera attached to open IMAQ interface
@@ -804,7 +804,7 @@ gst_niimaq_set_caps_framesize (GstStructure * gs, gint width, gint height)
 * Returns: the #GstCaps of the src pad. Unref the caps when you no longer need it.
 */
 GstCaps *
-gst_niimaq_get_cam_caps (GstNiImaq * src)
+gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * src)
 {
   GstCaps *gcaps = NULL;
   Int32 rval;
@@ -842,8 +842,8 @@ gst_niimaq_get_cam_caps (GstNiImaq * src)
 
   /* create new structure and set caps we got from IMAQ */
   gs = gst_structure_empty_new ("video");
-  if (!gst_niimaq_set_caps_color(gs, bpp, depth) ||
-      !gst_niimaq_set_caps_framesize(gs, width, height)) {
+  if (!gst_niimaqsrc_set_caps_color(gs, bpp, depth) ||
+    !gst_niimaqsrc_set_caps_framesize(gs, width, height)) {
     GST_ELEMENT_ERROR (src, STREAM, FAILED,
         ("attempt to set caps %dx%dx%d (%d) failed", width,height,depth, bpp),
         ("attempt to set caps %dx%dx%d (%d) failed", width,height,depth, bpp));
@@ -859,7 +859,7 @@ gst_niimaq_get_cam_caps (GstNiImaq * src)
    * and other elements can work directly with this src */
   /* TODO: support both actual bpp (10,12,14) and 16 */
   /*if (bpp > 8) {
-    gst_niimaq_set_caps_color (gs, 16, 16);
+    gst_niimaqsrc_set_caps_color (gs, 16, 16);
     gst_caps_append_structure (gcaps, gst_structure_copy (gs));
   }*/
   gst_object_unref (gs);
@@ -878,7 +878,7 @@ error:
 }
 
 /**
-* gst_niimaq_start:
+* gst_niimaqsrc_start:
 * src: #GstBaseSrc instance
 *
 * Open necessary resources
@@ -886,9 +886,9 @@ error:
 * Returns: TRUE on success
 */
 static gboolean
-gst_niimaq_start (GstBaseSrc * src)
+gst_niimaqsrc_start (GstBaseSrc * src)
 {
-  GstNiImaq* filter = GST_NIIMAQ(src);
+  GstNiImaqSrc* filter = GST_NIIMAQSRC(src);
   Int32 rval;
   gboolean ret;
   gint i;
@@ -923,7 +923,7 @@ gst_niimaq_start (GstBaseSrc * src)
   }
 
   /* get caps from camera and set to src pad */
-  filter->caps = gst_niimaq_get_cam_caps (filter);
+  filter->caps = gst_niimaqsrc_get_cam_caps (filter);
   if (filter->caps == NULL) {
     GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to get caps from IMAQ"),
       ("Failed to get caps from IMAQ"));
@@ -976,17 +976,17 @@ error:
 }
 
 /**
-* gst_niimaq_stop:
+* gst_niimaqsrc_stop:
 * src: #GstBaseSrc instance
 *
-* Close resources opened by gst_niimaq_start
+* Close resources opened by gst_niimaqsrc_start
 *
 * Returns: TRUE on success
 */
 static gboolean
-gst_niimaq_stop (GstBaseSrc * src)
+gst_niimaqsrc_stop (GstBaseSrc * src)
 {
-  GstNiImaq* filter = GST_NIIMAQ (src);
+  GstNiImaqSrc* filter = GST_NIIMAQSRC (src);
   Int32 rval;
 
   /* stop IMAQ session */
@@ -1023,11 +1023,11 @@ gst_niimaq_stop (GstBaseSrc * src)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  GST_DEBUG_CATEGORY_INIT (niimaq_debug, "niimaqsrc", 0, "NI-IMAQ interface");
+  GST_DEBUG_CATEGORY_INIT (niimaqsrc_debug, "niimaqsrc", 0, "NI-IMAQ interface");
 
   /* we only have one element in this plugin */
   return gst_element_register (plugin, "niimaqsrc", GST_RANK_NONE,
-      GST_TYPE_NIIMAQ);
+    GST_TYPE_NIIMAQSRC);
 
 }
 

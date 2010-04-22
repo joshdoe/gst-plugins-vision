@@ -19,8 +19,8 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifndef __GST_NIIMAQ_H__
-#define __GST_NIIMAQ_H__
+#ifndef __GST_NIIMAQSRC_H__
+#define __GST_NIIMAQSRC_H__
 
 #include <gst/gst.h>
 #include <gst/base/gstpushsrc.h>
@@ -28,23 +28,23 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_NIIMAQ \
-  (gst_niimaq_get_type())
-#define GST_NIIMAQ(obj) \
-  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_NIIMAQ,GstNiImaq))
-#define GST_NIIMAQ_CLASS(klass) \
-  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_NIIMAQ,GstNiImaqClass))
-#define GST_IS_NIIMAQ(obj) \
-  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_NIIMAQ))
-#define GST_IS_NIIMAQ_CLASS(obj) \
-  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_NIIMAQ))
-#define GST_NIIMAQ_GET_CLASS(klass) \
-  (G_TYPE_INSTANCE_GET_CLASS ((klass), GST_TYPE_NIIMAQ, GstNiImaqClass))
+#define GST_TYPE_NIIMAQSRC \
+  (gst_niimaqsrc_get_type())
+#define GST_NIIMAQSRC(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_NIIMAQSRC,GstNiImaqSrc))
+#define GST_NIIMAQSRC_CLASS(klass) \
+  (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_NIIMAQSRC,GstNiImaqSrcClass))
+#define GST_IS_NIIMAQSRC(obj) \
+  (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_NIIMAQSRC))
+#define GST_IS_NIIMAQSRC_CLASS(obj) \
+  (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_NIIMAQSRC))
+#define GST_NIIMAQSRC_GET_CLASS(klass) \
+  (G_TYPE_INSTANCE_GET_CLASS ((klass), GST_TYPE_NIIMAQSRC, GstNiImaqSrcClass))
 
-typedef struct _GstNiImaq GstNiImaq;
-typedef struct _GstNiImaqClass GstNiImaqClass;
+typedef struct _GstNiImaqSrc GstNiImaqSrc;
+typedef struct _GstNiImaqSrcClass GstNiImaqSrcClass;
 
-struct _GstNiImaq {
+struct _GstNiImaqSrc {
   GstPushSrc element;
 
   /* video state */
@@ -74,15 +74,15 @@ struct _GstNiImaq {
   GstCaps *caps;
 };
 
-struct _GstNiImaqClass {
+struct _GstNiImaqSrcClass {
   GstPushSrcClass parent_class;
 
   /* probed interfaces */
   GList *interfaces;
 };
 
-GType gst_niimaq_get_type (void);
+GType gst_niimaqsrc_get_type (void);
 
 G_END_DECLS
 
-#endif /* __GST_NIIMAQ_H__ */
+#endif /* __GST_NIIMAQSRC_H__ */
