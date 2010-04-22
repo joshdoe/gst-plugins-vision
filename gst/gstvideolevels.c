@@ -93,7 +93,7 @@ GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (
       "video/x-raw-gray, "                                  \
-      "bpp = (int) 16, "                                    \
+      "bpp = (int) [1, 16], "                               \
       "depth = (int) 16, "                                  \
       "endianness = (int) {LITTLE_ENDIAN, BIG_ENDIAN}, "    \
       "width = " GST_VIDEO_SIZE_RANGE ", "                  \
@@ -101,7 +101,7 @@ GST_STATIC_PAD_TEMPLATE ("sink",
       "framerate = " GST_VIDEO_FPS_RANGE                    \
       ";"                                                   \
       "video/x-raw-gray, "                                  \
-      "bpp = (int) 16, "                                    \
+      "bpp = (int) [1, 16], "                                    \
       "depth = (int) 16, "                                  \
       "endianness = (int) {LITTLE_ENDIAN, BIG_ENDIAN}, "    \
       "signed = (bool) {true, false}, "                     \
@@ -407,7 +407,7 @@ gst_videolevels_transform_caps (GstBaseTransform * base,
     GST_DEBUG ("Pad direction is src");
 
     gst_caps_set_simple (newcaps,
-        "bpp", G_TYPE_INT, 16,
+        "bpp", GST_TYPE_INT_RANGE, 1, 16,
         "depth", G_TYPE_INT, 16,
         NULL);
     structure = gst_caps_get_structure (newcaps, 0);
@@ -423,9 +423,9 @@ gst_videolevels_transform_caps (GstBaseTransform * base,
 
     /* add signed/unsigned to caps */
     g_value_init (&signed_list, GST_TYPE_LIST);
-    g_value_set_int (&ival, TRUE);
-    gst_value_list_append_value (&signed_list, &ival);
     g_value_set_int (&ival, FALSE);
+    gst_value_list_append_value (&signed_list, &ival);
+    g_value_set_int (&ival, TRUE);
     gst_value_list_append_value (&signed_list, &ival);
     gst_structure_set_value (structure, "signed", &signed_list);
   }
@@ -714,8 +714,8 @@ gst_videolevels_convert_uint16le_to_uint8(GstVideoLevels * videolevels,
   const guint8 high = (guint8) videolevels->upper_output;
 
   GST_DEBUG ("Applying linear mapping (%.3f, %.3f) -> (%.3f, %.3f)",
-    videolevels->lower_input, videolevels->upper_input,
-    videolevels->lower_output, videolevels->upper_output);
+      videolevels->lower_input, videolevels->upper_input,
+      videolevels->lower_output, videolevels->upper_output);
 
   if (videolevels->lower_input == videolevels->upper_input)
     m = 0;
@@ -810,7 +810,9 @@ gst_videolevels_calculate_histogram (GstVideoLevels * videolevels, guint16 * dat
   gint nbins = videolevels->nbins;
   gint r;
   gint c;
-  gfloat factor = nbins/65536.0f;
+  gfloat factor;
+  
+  factor = nbins/(gfloat)(1 << videolevels->bpp_in);
 
   if (videolevels->histogram == NULL) {
     GST_DEBUG ("First call, allocate memory for histogram (%d bins)", nbins);
