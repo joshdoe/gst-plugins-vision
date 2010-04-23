@@ -72,6 +72,9 @@ struct _GstNiImaqSrc {
   gboolean session_started;
 
   GstCaps *caps;
+
+  GSList *timelist;
+  GMutex *frametime_mutex;
 };
 
 struct _GstNiImaqSrcClass {
