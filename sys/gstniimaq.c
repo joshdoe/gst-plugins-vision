@@ -555,7 +555,10 @@ gst_niimaqsrc_get_caps (GstBaseSrc * bsrc)
 
   GST_DEBUG_OBJECT (bsrc, "Entering function get_caps");
 
-  g_return_val_if_fail (gsrc->caps, NULL);
+  /* return template caps if we don't know the actual camera caps */
+  if (!gsrc->caps) {
+    return gst_caps_copy (gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD (gsrc)));
+  }
 
   return gst_caps_copy (gsrc->caps);
 }
@@ -1031,6 +1034,9 @@ gst_niimaqsrc_stop (GstBaseSrc * src)
   }
 
   GST_DEBUG_OBJECT (filter, "IMAQ interface closed");
+
+  gst_caps_unref (filter->caps);
+  filter->caps = NULL;
 
   return TRUE;
 }
