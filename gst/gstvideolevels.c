@@ -311,7 +311,7 @@ gst_videolevels_set_property (GObject * object, guint prop_id,
       break;
     case PROP_INTERVAL:
       videolevels->interval = g_value_get_uint64 (value);
-      videolevels->last_auto_timestamp = 0;
+      videolevels->last_auto_timestamp = GST_CLOCK_TIME_NONE;
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -556,7 +556,7 @@ gst_videolevels_transform (GstBaseTransform * base, GstBuffer * inbuf,
   gpointer input;
   gpointer output;
   gboolean ret;
-  guint64 elapsed;
+  GstClockTimeDiff elapsed;
 
   /* We need to lock our videolevels params to prevent segfaults */
   GST_BASE_TRANSFORM_LOCK (videolevels);
@@ -569,9 +569,10 @@ gst_videolevels_transform (GstBaseTransform * base, GstBuffer * inbuf,
     videolevels->auto_adjust = 0;
   }
   else if (videolevels->auto_adjust == 2) {
-    elapsed = GST_BUFFER_TIMESTAMP (inbuf) - videolevels->last_auto_timestamp;
-    if (elapsed >= videolevels->interval ||
-        videolevels->last_auto_timestamp == GST_CLOCK_TIME_NONE) {
+    elapsed = GST_CLOCK_DIFF (videolevels->last_auto_timestamp, inbuf->timestamp);
+    if (videolevels->last_auto_timestamp == GST_CLOCK_TIME_NONE ||
+        elapsed >= (GstClockTimeDiff)videolevels->interval ||
+        elapsed < 0) {
       gst_videolevels_auto_adjust (videolevels, input);
       videolevels->last_auto_timestamp = GST_BUFFER_TIMESTAMP (inbuf);
     }
