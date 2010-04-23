@@ -751,7 +751,6 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
     /* remove all old frametimes from the list */
     frametime = niimaqsrc->timelist->data;
     while (frametime->number < copied_number) {
-      GST_ERROR ("Deleting %d as it is less than %d", frametime->number, copied_number);
       niimaqsrc->timelist = g_slist_delete_link (niimaqsrc->timelist, niimaqsrc->timelist);
       frametime = niimaqsrc->timelist->data;
     }
