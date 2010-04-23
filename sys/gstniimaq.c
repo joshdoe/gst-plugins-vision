@@ -463,6 +463,9 @@ gst_niimaqsrc_init (GstNiImaqSrc * niimaqsrc, GstNiImaqSrcClass * g_class)
   /* set source as live (no preroll) */
   gst_base_src_set_live (GST_BASE_SRC (niimaqsrc), TRUE);
 
+  /* override default of BYTES to operate in time mode */
+  gst_base_src_set_format (GST_BASE_SRC (niimaqsrc), GST_FORMAT_TIME);
+
   /* initialize member variables */
   niimaqsrc->timestamp_offset = 0;
   niimaqsrc->caps = NULL;
@@ -626,9 +629,9 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
 {
   GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (psrc);
   gpointer data;
-  GstCaps *caps;
   GstFlowReturn res = GST_FLOW_OK;
   guint i;
+  GstClock *clock;
 
   uInt32 copied_number;
   uInt32 copied_index;
@@ -690,14 +693,24 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
   }
 
   *buffer = gst_buffer_new ();
+
   GST_BUFFER_DATA (*buffer) = data;
   GST_BUFFER_MALLOCDATA (*buffer) = data;
   GST_BUFFER_SIZE (*buffer) = niimaqsrc->framesize;
+  GST_BUFFER_OFFSET (*buffer) = niimaqsrc->cumbufnum;
+  GST_BUFFER_OFFSET_END (*buffer) = niimaqsrc->cumbufnum;
 
-  /* set caps of src pad to buffer */
-  caps = gst_pad_get_caps (GST_BASE_SRC_PAD (psrc));
-  gst_buffer_set_caps (*buffer, caps);
-  gst_caps_unref (caps);
+  /* use clock time to set buffer timestamp */
+  clock = gst_element_get_clock (GST_ELEMENT (niimaqsrc));
+  GST_BUFFER_TIMESTAMP (*buffer) =
+    GST_CLOCK_DIFF (gst_element_get_base_time (GST_ELEMENT (niimaqsrc)), gst_clock_get_time (clock));
+  gst_object_unref (clock);
+
+  /* make guess of duration from timestamp and cumulative buffer number */
+  GST_BUFFER_DURATION (*buffer) = GST_BUFFER_TIMESTAMP (*buffer) / (niimaqsrc->cumbufnum + 1);
+
+  /* the negotiate() method already set caps on the source pad */
+  gst_buffer_set_caps (*buffer, GST_PAD_CAPS (GST_BASE_SRC_PAD (niimaqsrc)));
 
   /*GST_BUFFER_TIMESTAMP (outbuf) = src->timestamp_offset + src->running_time;
   if (src->rate_numerator != 0) {
