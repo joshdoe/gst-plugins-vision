@@ -58,9 +58,9 @@ struct _GstNiImaq {
   gint rate_denominator;
 
   /* private */
-  gint64 timestamp_offset;		/* base offset */
-  GstClockTime running_time;		/* total running time */
-  gint64 n_frames;			/* total frames sent */
+  gint64 timestamp_offset;    /* base offset */
+  GstClockTime running_time;    /* total running time */
+  gint64 n_frames;      /* total frames sent */
   uInt32 cumbufnum;
   gint64 n_dropped_frames;
   gboolean segment;

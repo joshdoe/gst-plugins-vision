@@ -431,15 +431,15 @@ gst_niimaq_init (GstNiImaq * src, GstNiImaqClass * g_class)
 static void
 gst_niimaq_dispose (GObject * object)
 {
-	GstNiImaq *src = GST_NIIMAQ (object);
+  GstNiImaq *src = GST_NIIMAQ (object);
 
   g_free (src->camera_name);
   src->camera_name = NULL;
 
-	g_free (src->interface_name);
-	src->interface_name = NULL;
+  g_free (src->interface_name);
+  src->interface_name = NULL;
 
-	G_OBJECT_CLASS (parent_class)->dispose (object);
+  G_OBJECT_CLASS (parent_class)->dispose (object);
 }
 
 static void
@@ -529,9 +529,9 @@ gst_niimaq_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
     niimaq->height = height;
     niimaq->rate_numerator = rate_numerator;
     niimaq->rate_denominator = rate_denominator;
-	niimaq->depth = depth;
+    niimaq->depth = depth;
     niimaq->bpp = bpp;
-	niimaq->framesize = width * height * (depth/8);
+    niimaq->framesize = width * height * (depth/8);
   }
 
   return res;
@@ -578,9 +578,9 @@ gst_niimaq_create (GstPushSrc * psrc, GstBuffer ** buffer)
   GST_INFO_OBJECT(src, "Examining buffer %d", src->cumbufnum);
   rval=imgSessionExamineBuffer2(src->sid, src->cumbufnum, &newval, &bufaddr);
   if (rval) {
-	  GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-		  ("failed to examine buffer %d", src->cumbufnum), ("failed to examine buffer %d", src->cumbufnum));
-	  goto error;
+    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+      ("failed to examine buffer %d", src->cumbufnum), ("failed to examine buffer %d", src->cumbufnum));
+    goto error;
   }
 
   memcpy (data, (guchar *) bufaddr,
@@ -606,8 +606,8 @@ gst_niimaq_create (GstPushSrc * psrc, GstBuffer ** buffer)
 
   dropped = newval - src->cumbufnum;
   if(dropped) {
-	  src->n_dropped_frames += dropped;
-	  GST_WARNING_OBJECT(src, "Dropped %d frames (%d total)",dropped,src->n_dropped_frames);
+    src->n_dropped_frames += dropped;
+    GST_WARNING_OBJECT(src, "Dropped %d frames (%d total)",dropped,src->n_dropped_frames);
   }
 
   src->cumbufnum = newval + 1;
@@ -670,9 +670,9 @@ gst_niimaq_set_caps_color (GstStructure * gs, int bpp, int depth)
   gst_structure_set_name (gs, "video/x-raw-gray");
   gst_structure_set (gs,
       "bpp", G_TYPE_INT, bpp,
-	  "depth", G_TYPE_INT, depth, NULL);
+      "depth", G_TYPE_INT, depth, NULL);
   if(depth>8)
-	  gst_structure_set(gs, "endianness", G_TYPE_INT, G_LITTLE_ENDIAN,NULL);
+    gst_structure_set(gs, "endianness", G_TYPE_INT, G_LITTLE_ENDIAN,NULL);
 
   return ret;
 }
@@ -703,22 +703,22 @@ gst_niimaq_get_all_niimaq_caps ()
   gs = gst_structure_empty_new ("video");
   gst_structure_set_name (gs, "video/x-raw-gray");
   gst_structure_set (gs,
-	  "width", GST_TYPE_INT_RANGE, 1, G_MAXINT,
-	  "height", GST_TYPE_INT_RANGE, 1, G_MAXINT,
-	  "bpp", GST_TYPE_INT_RANGE, 10, 16,
-	  "depth", G_TYPE_INT, 16,
-	  "endianness", G_TYPE_INT, G_LITTLE_ENDIAN,
-	  "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1, NULL);
+      "width", GST_TYPE_INT_RANGE, 1, G_MAXINT,
+      "height", GST_TYPE_INT_RANGE, 1, G_MAXINT,
+      "bpp", GST_TYPE_INT_RANGE, 10, 16,
+      "depth", G_TYPE_INT, 16,
+      "endianness", G_TYPE_INT, G_LITTLE_ENDIAN,
+      "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1, NULL);
   gst_caps_append_structure (gcaps, gs);
 
   gs = gst_structure_empty_new ("video");
   gst_structure_set_name (gs, "video/x-raw-gray");
   gst_structure_set (gs,
-	  "width", GST_TYPE_INT_RANGE, 1, G_MAXINT,
-	  "height", GST_TYPE_INT_RANGE, 1, G_MAXINT,
-	  "bpp", G_TYPE_INT, 8,
-	  "depth", G_TYPE_INT, 8,
-	  "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1, NULL);
+      "width", GST_TYPE_INT_RANGE, 1, G_MAXINT,
+      "height", GST_TYPE_INT_RANGE, 1, G_MAXINT,
+      "bpp", G_TYPE_INT, 8,
+      "depth", G_TYPE_INT, 8,
+      "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1, NULL);
   gst_caps_append_structure (gcaps, gs);
 
   return gcaps;
@@ -751,15 +751,15 @@ gst_niimaq_get_cam_caps (GstNiImaq * src)
   height = val;
 
   if (rval) {
-	  GST_ELEMENT_ERROR (src, STREAM, FAILED,
-		  ("attempt to read attributes failed"),
-		  ("attempt to read attributes failed"));
-	  goto error;
+    GST_ELEMENT_ERROR (src, STREAM, FAILED,
+        ("attempt to read attributes failed"),
+        ("attempt to read attributes failed"));
+    goto error;
   }
 
   gs = gst_structure_empty_new ("video");
   if (!gst_niimaq_set_caps_color(gs, bpp, depth) ||
-	  !gst_niimaq_set_caps_framesize(gs, width, height)) {
+      !gst_niimaq_set_caps_framesize(gs, width, height)) {
     GST_ELEMENT_ERROR (src, STREAM, FAILED,
         ("attempt to set caps %dx%dx%d (%d) failed", width,height,depth, bpp),
         ("attempt to set caps %dx%dx%d (%d) failed", width,height,depth, bpp));
@@ -796,39 +796,39 @@ gst_niimaq_start (GstBaseSrc * src)
   rval=imgInterfaceOpen(filter->interface_name,&(filter->iid));
 
   if (rval) {
-	  GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to open camera interface"),
-		  ("Failed to open camera interface %s", filter->interface_name));
-	  goto error;
+    GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to open camera interface"),
+        ("Failed to open camera interface %s", filter->interface_name));
+    goto error;
   }
 
   GST_LOG_OBJECT (filter, "Opening camera session: %s", filter->interface_name);
 
   rval=imgSessionOpen(filter->iid, &(filter->sid));
   if (rval) {
-	  GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to open camera session"),
-		  ("Failed to open camera session %d", filter->sid));
-	  goto error;
+    GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to open camera session"),
+        ("Failed to open camera session %d", filter->sid));
+    goto error;
   }
 
   GST_LOG_OBJECT (filter, "Creating ring with %d buffers", filter->bufsize);
 
   filter->buflist = g_new(guint32*, filter->bufsize);
   for(i=0;i<filter->bufsize;i++) {
-	  filter->buflist[i] = 0;
+    filter->buflist[i] = 0;
   }
   rval=imgRingSetup(filter->sid, filter->bufsize, (void**)(filter->buflist), 0, FALSE);
   if(rval) {
-	  GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to create ring buffer"),
-		  ("Failed to create ring buffer with %d buffers", filter->bufsize));
-	  goto error;
+    GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to create ring buffer"),
+        ("Failed to create ring buffer with %d buffers", filter->bufsize));
+    goto error;
   }
 
   //GST_LOG_OBJECT (filter, "Registering callback functions");
   //rval=imgSessionWaitSignalAsync2(filter->sid, IMG_SIGNAL_STATUS, IMG_BUF_COMPLETE, IMG_SIGNAL_STATE_RISING, Imaq_BUF_COMPLETE, filter);
   //if(rval) {
-	 // GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to register BUF_COMPLETE callback"),
-		//  ("Failed to register BUF_COMPLETE callback"));
-	 // goto error;
+   // GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Failed to register BUF_COMPLETE callback"),
+      //  ("Failed to register BUF_COMPLETE callback"));
+   // goto error;
   //}
 
   GST_LOG_OBJECT (filter, "Starting acquisition");
@@ -837,19 +837,19 @@ gst_niimaq_start (GstBaseSrc * src)
 
   i = 0;
   while (rval != 0 && i++ < 5) {
-	  g_usleep (50000);
-	  if (rval=imgSessionStartAcquisition(filter->sid)) {
-		  if (rval != 0) {
-			  GST_LOG_OBJECT (src, "camera is still off , retrying");
-		  }
-	  }
+    g_usleep (50000);
+    if (rval=imgSessionStartAcquisition(filter->sid)) {
+      if (rval != 0) {
+        GST_LOG_OBJECT (src, "camera is still off , retrying");
+      }
+    }
   }
 
   if (i >= 5) {
-	  GST_ELEMENT_ERROR (filter, RESOURCE, FAILED,
-		  ("Camera doesn't seem to want to turn on!"),
-		  ("Camera doesn't seem to want to turn on!"));
-	  goto error;
+    GST_ELEMENT_ERROR (filter, RESOURCE, FAILED,
+        ("Camera doesn't seem to want to turn on!"),
+        ("Camera doesn't seem to want to turn on!"));
+    goto error;
   }
 
   GST_LOG_OBJECT (src, "got transmision status ON");
@@ -859,10 +859,10 @@ gst_niimaq_start (GstBaseSrc * src)
 error:
 
   if(filter->sid)
-	  imgClose(filter->sid,TRUE);
+    imgClose(filter->sid,TRUE);
   filter->sid = 0;
   if(filter->iid)
-	  imgClose(filter->iid,TRUE);
+    imgClose(filter->iid,TRUE);
   filter->iid = 0;
 
   return FALSE;;
@@ -872,39 +872,39 @@ error:
 
 gboolean gst_niimaq_stop( GstBaseSrc * src )
 {
-	GstNiImaq* filter = GST_NIIMAQ(src);
-	Int32 rval;
+  GstNiImaq* filter = GST_NIIMAQ(src);
+  Int32 rval;
 
-	rval=imgSessionStopAcquisition(filter->sid);
-	if (rval) {
-		GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Unable to stop transmision"),
-			("Unable to stop transmision"));
-	}
+  rval=imgSessionStopAcquisition(filter->sid);
+  if (rval) {
+    GST_ELEMENT_ERROR (filter, RESOURCE, FAILED, ("Unable to stop transmision"),
+        ("Unable to stop transmision"));
+  }
 
-	if(filter->sid)
-		imgClose(filter->sid,TRUE);
-	filter->sid = 0;
-	if(filter->iid)
-		imgClose(filter->iid,TRUE);
-	filter->iid = 0;
+  if(filter->sid)
+    imgClose(filter->sid,TRUE);
+  filter->sid = 0;
+  if(filter->iid)
+    imgClose(filter->iid,TRUE);
+  filter->iid = 0;
 
-	GST_DEBUG_OBJECT (filter, "Capture stoped");
+  GST_DEBUG_OBJECT (filter, "Capture stoped");
 
-	return TRUE;
+  return TRUE;
 }
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-	GST_DEBUG_CATEGORY_INIT (niimaq_debug, "niimaqsrc", 0, "NI-IMAQ interface");
+  GST_DEBUG_CATEGORY_INIT (niimaq_debug, "niimaqsrc", 0, "NI-IMAQ interface");
 
-	return gst_element_register (plugin, "niimaqsrc", GST_RANK_NONE,
-		GST_TYPE_NIIMAQ);
+  return gst_element_register (plugin, "niimaqsrc", GST_RANK_NONE,
+      GST_TYPE_NIIMAQ);
 
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
 GST_VERSION_MINOR,
-				   "niimaq",
-				   "NI-IMAQ Video Source",
-				   plugin_init, VERSION, GST_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)
+           "niimaq",
+           "NI-IMAQ Video Source",
+           plugin_init, VERSION, GST_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)
