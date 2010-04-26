@@ -227,16 +227,16 @@ gst_videolevels_class_init (GstVideoLevelsClass * object)
 
   /* Install GObject properties */
   g_object_class_install_property (obj_class, PROP_LOWIN,
-      g_param_spec_double ("low_in", "Lower Input Level", "Lower Input Level",
+      g_param_spec_double ("lower-input-level", "Lower Input Level", "Lower Input Level",
       -G_MINDOUBLE, G_MAXDOUBLE, DEFAULT_PROP_LOWIN, G_PARAM_READWRITE));
   g_object_class_install_property (obj_class, PROP_HIGHIN,
-      g_param_spec_double ("upper_in", "Upper Input Level", "Upper Input Level",
+      g_param_spec_double ("upper-input-level", "Upper Input Level", "Upper Input Level",
       -G_MINDOUBLE, G_MAXDOUBLE, DEFAULT_PROP_HIGHIN, G_PARAM_READWRITE));
   g_object_class_install_property (obj_class, PROP_LOWOUT,
-      g_param_spec_double ("low_out", "Lower Output Level", "Lower Output Level",
+      g_param_spec_double ("lower-output-level", "Lower Output Level", "Lower Output Level",
       -G_MINDOUBLE, G_MAXDOUBLE, DEFAULT_PROP_LOWOUT, G_PARAM_READWRITE));
   g_object_class_install_property (obj_class, PROP_HIGHOUT,
-      g_param_spec_double ("upper_out", "Upper Output Level", "Upper Output Level",
+      g_param_spec_double ("upper-output-level", "Upper Output Level", "Upper Output Level",
       -G_MINDOUBLE, G_MAXDOUBLE, DEFAULT_PROP_HIGHOUT, G_PARAM_READWRITE));
   g_object_class_install_property (obj_class, PROP_AUTO,
       g_param_spec_int ("auto", "Auto Adjust", "Auto adjust contrast (0): off, (1): single-shot, (2): continuous",
@@ -493,7 +493,11 @@ gst_videolevels_set_caps (GstBaseTransform * base, GstCaps * incaps,
   levels->upper_input = (1 << levels->bpp_in) - 1;
   levels->lower_output = 0.0;
   levels->upper_output = (1 << levels->bpp_out) - 1;
-
+  
+  g_object_notify (G_OBJECT (levels), "lower-input-level");
+  g_object_notify (G_OBJECT (levels), "upper-input-level");
+  g_object_notify (G_OBJECT (levels), "lower-output-level");
+  g_object_notify (G_OBJECT (levels), "upper-output-level");
 
   //gst_videolevels_calculate_tables (levels);
 
@@ -919,7 +923,8 @@ gst_videolevels_auto_adjust (GstVideoLevels * videolevels,
   GST_DEBUG ("Contrast stretch with npixsat=%d, (%.3f, %.3f)", npixsat,
       videolevels->lower_input, videolevels->upper_input);
 
-  //gst_videolevels_calculate_tables (videolevels);
+  g_object_notify (G_OBJECT (videolevels), "lower-input-level");
+  g_object_notify (G_OBJECT (videolevels), "upper-input-level");
 
   return TRUE;
 }
