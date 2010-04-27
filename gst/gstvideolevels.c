@@ -125,6 +125,25 @@ GST_STATIC_PAD_TEMPLATE ("src",
      )
 );
 
+#define GST_TYPE_VIDEOLEVELS_AUTO (gst_videolevels_auto_get_type())
+static GType
+gst_videolevels_auto_get_type (void)
+{
+  static GType videolevels_auto_type = 0;
+  static const GEnumValue videolevels_auto[] = {
+    {GST_VIDEOLEVELS_AUTO_OFF, "off", "off"},
+    {GST_VIDEOLEVELS_AUTO_SINGLE, "single", "single"},
+    {GST_VIDEOLEVELS_AUTO_CONTINUOUS, "continuous", "continuous"},
+    {0, NULL, NULL},
+  };
+
+  if (!videolevels_auto_type) {
+    videolevels_auto_type =
+        g_enum_register_static ("GstVideoLevelsAuto", videolevels_auto);
+  }
+  return videolevels_auto_type;
+}
+
 /* GObject vmethod declarations */
 static void gst_videolevels_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
@@ -239,8 +258,9 @@ gst_videolevels_class_init (GstVideoLevelsClass * object)
       g_param_spec_double ("upper-output-level", "Upper Output Level", "Upper Output Level",
       -G_MINDOUBLE, G_MAXDOUBLE, DEFAULT_PROP_HIGHOUT, G_PARAM_READWRITE));
   g_object_class_install_property (obj_class, PROP_AUTO,
-      g_param_spec_int ("auto", "Auto Adjust", "Auto adjust contrast (0): off, (1): single-shot, (2): continuous",
-      0, 2, DEFAULT_PROP_AUTO, G_PARAM_READWRITE));
+      g_param_spec_enum ("auto", "Auto Adjust",
+      "Auto adjust contrast", GST_TYPE_VIDEOLEVELS_AUTO,
+      DEFAULT_PROP_AUTO, G_PARAM_READWRITE));
   g_object_class_install_property (obj_class, PROP_INTERVAL,
       g_param_spec_uint64 ("interval", "Interval", "Interval of time between adjustments (in nanoseconds)",
       1, G_MAXUINT64, DEFAULT_PROP_INTERVAL, G_PARAM_READWRITE));
@@ -306,9 +326,10 @@ gst_videolevels_set_property (GObject * object, guint prop_id,
       videolevels->upper_output = g_value_get_double (value);
       //gst_videolevels_calculate_tables (videolevels);
       break;
-    case PROP_AUTO:
-      videolevels->auto_adjust = g_value_get_int (value);
+    case PROP_AUTO: {
+      videolevels->auto_adjust = g_value_get_enum (value);
       break;
+    }
     case PROP_INTERVAL:
       videolevels->interval = g_value_get_uint64 (value);
       videolevels->last_auto_timestamp = GST_CLOCK_TIME_NONE;
@@ -349,7 +370,7 @@ gst_videolevels_get_property (GObject * object, guint prop_id, GValue * value,
       g_value_set_double (value, videolevels->upper_output);
       break;
     case PROP_AUTO:
-      g_value_set_int (value, videolevels->auto_adjust);
+      g_value_set_enum (value, videolevels->auto_adjust);
       break;
     case PROP_INTERVAL:
       g_value_set_uint64 (value, videolevels->interval);
@@ -571,6 +592,7 @@ gst_videolevels_transform (GstBaseTransform * base, GstBuffer * inbuf,
   if (videolevels->auto_adjust == 1) {
     gst_videolevels_auto_adjust (videolevels, input);
     videolevels->auto_adjust = 0;
+    g_object_notify (G_OBJECT (videolevels), "auto");
   }
   else if (videolevels->auto_adjust == 2) {
     elapsed = GST_CLOCK_DIFF (videolevels->last_auto_timestamp, inbuf->timestamp);

@@ -44,32 +44,55 @@ typedef struct _GstVideoLevels GstVideoLevels;
 typedef struct _GstVideoLevelsClass GstVideoLevelsClass;
 
 /**
- * GstVideoLevels:
- *
- * Opaque data structure.
- */
+* GstVideoLevelsAuto:
+* @GST_VIDEOLEVELS_AUTO_OFF: don't perform auto adjustment
+* @GST_VIDEOLEVELS_AUTO_SINGLE: perform auto adjustment once
+* @GST_VIDEOLEVELS_AUTO_CONTINUOUS: perform auto adjustment continuously (defined by "interval" property)
+*
+* Vertical alignment of the text.
+*/
+typedef enum {
+  GST_VIDEOLEVELS_AUTO_OFF,
+  GST_VIDEOLEVELS_AUTO_SINGLE,
+  GST_VIDEOLEVELS_AUTO_CONTINUOUS
+} GstVideoLevelsAuto;
+
+/**
+* GstVideoLevels:
+* @element: the parent element.
+*
+*
+* The opaque GstVideoLevels data structure.
+*/
 struct _GstVideoLevels
 {
-  GstVideoFilter videofilter;
+  GstVideoFilter element;
 
   /* format */
   gint width;
   gint height;
-  gint bpp;
-  gint depth;
-  gint size;
+
+  guint stride_in;
+  gint bpp_in;
+  gint depth_in;
+  gint endianness_in;
   gboolean is_signed_in;
 
+  guint stride_out;
+  gint bpp_out;
+  gint depth_out;
+  gint endianness_out;
+
   /* properties */
-  guint16 lower_input;
-  guint16 upper_input;
-  guint8 lower_output;
-  guint8 upper_output;
+  gdouble lower_input;
+  gdouble upper_input;
+  gdouble lower_output;
+  gdouble upper_output;
 
   /* tables */
-  guint8* levels_table;
+  gpointer lookup_table;
 
-  gint auto_adjust;
+  GstVideoLevelsAuto auto_adjust;
   guint64 interval;
   gfloat lower_pix_sat;
   gfloat upper_pix_sat;
