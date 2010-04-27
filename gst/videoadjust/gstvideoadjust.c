@@ -4,21 +4,22 @@
 
 #include "gstvideolevels.h"
 
-#define GST_CAT_DEFAULT gst_nvl_gstnvl_debug
+#define GST_CAT_DEFAULT gst_nvl_gstvideoadjust_debug
 GST_DEBUG_CATEGORY_STATIC (GST_CAT_DEFAULT);
+
 
 /* Register filters that make up the gstgl plugin */
 static gboolean
-plugin_init ( GstPlugin * plugin )
+plugin_init (GstPlugin * plugin)
 {
-    GST_DEBUG_CATEGORY_INIT ( gst_nvl_gstnvl_debug, "nvl", 0, "nvl" );
+    GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "videoadjust", 0, "videoadjust");
 
-    GST_CAT_INFO ( gst_nvl_gstnvl_debug, "plugin_init" );
+    GST_DEBUG ("plugin_init");
 
+    GST_CAT_INFO (GST_CAT_DEFAULT, "registering videolevels element");
 
-    GST_CAT_INFO ( gst_nvl_gstnvl_debug, "registering videolevels element" );
-    if ( !gst_element_register ( plugin, "videolevels", GST_RANK_NONE,
-        GST_TYPE_VIDEOLEVELS ) ) {
+    if ( !gst_element_register (plugin, "videolevels", GST_RANK_NONE,
+        GST_TYPE_VIDEOLEVELS)) {
         return FALSE;
     }
    
@@ -27,8 +28,8 @@ plugin_init ( GstPlugin * plugin )
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
                    GST_VERSION_MINOR,
-                   "nvl",
-                   "Plugins of interest to NVL",
+                   "videoadjust",
+                   "Filters that apply transform from 16-bit to 8-bit video",
                    plugin_init,
                    VERSION,
                    GST_LICENSE,

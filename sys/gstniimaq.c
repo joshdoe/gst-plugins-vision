@@ -666,7 +666,6 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
   gpointer data;
   GstFlowReturn res = GST_FLOW_OK;
   guint i;
-  GstClock *clock;
   GstNiImaqSrcFrameTime * frametime;
   GstClockTime timestamp = GST_CLOCK_TIME_NONE;
   GstClockTime timestamp2 = GST_CLOCK_TIME_NONE;
@@ -1163,5 +1162,5 @@ plugin_init (GstPlugin * plugin)
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR, GST_VERSION_MINOR, "niimaq",
-    "NI-IMAQ Video Source", plugin_init, VERSION, GST_LICENSE, GST_PACKAGE_NAME,
+    "NI-IMAQ source element", plugin_init, VERSION, GST_LICENSE, GST_PACKAGE_NAME,
     GST_PACKAGE_ORIGIN)
