@@ -247,16 +247,16 @@ gst_videolevels_class_init (GstVideoLevelsClass * object)
   /* Install GObject properties */
   g_object_class_install_property (obj_class, PROP_LOWIN,
       g_param_spec_double ("lower-input-level", "Lower Input Level", "Lower Input Level",
-      -G_MINDOUBLE, G_MAXDOUBLE, DEFAULT_PROP_LOWIN, G_PARAM_READWRITE));
+      0.0, 1.0, DEFAULT_PROP_LOWIN, G_PARAM_READWRITE));
   g_object_class_install_property (obj_class, PROP_HIGHIN,
       g_param_spec_double ("upper-input-level", "Upper Input Level", "Upper Input Level",
-      -G_MINDOUBLE, G_MAXDOUBLE, DEFAULT_PROP_HIGHIN, G_PARAM_READWRITE));
+      0.0, 1.0, DEFAULT_PROP_HIGHIN, G_PARAM_READWRITE));
   g_object_class_install_property (obj_class, PROP_LOWOUT,
       g_param_spec_double ("lower-output-level", "Lower Output Level", "Lower Output Level",
-      -G_MINDOUBLE, G_MAXDOUBLE, DEFAULT_PROP_LOWOUT, G_PARAM_READWRITE));
+      0.0, 1.0, DEFAULT_PROP_LOWOUT, G_PARAM_READWRITE));
   g_object_class_install_property (obj_class, PROP_HIGHOUT,
       g_param_spec_double ("upper-output-level", "Upper Output Level", "Upper Output Level",
-      -G_MINDOUBLE, G_MAXDOUBLE, DEFAULT_PROP_HIGHOUT, G_PARAM_READWRITE));
+      0.0, 1.0, DEFAULT_PROP_HIGHOUT, G_PARAM_READWRITE));
   g_object_class_install_property (obj_class, PROP_AUTO,
       g_param_spec_enum ("auto", "Auto Adjust",
       "Auto adjust contrast", GST_TYPE_VIDEOLEVELS_AUTO,
@@ -510,16 +510,6 @@ gst_videolevels_set_caps (GstBaseTransform * base, GstCaps * incaps,
   levels->stride_in = GST_ROUND_UP_4 (levels->width * levels->depth_in/8);
   levels->stride_out = GST_ROUND_UP_4 (levels->width * levels->depth_out/8);
 
-  levels->lower_input = 0.0;
-  levels->upper_input = (1 << levels->bpp_in) - 1;
-  levels->lower_output = 0.0;
-  levels->upper_output = (1 << levels->bpp_out) - 1;
-  
-  g_object_notify (G_OBJECT (levels), "lower-input-level");
-  g_object_notify (G_OBJECT (levels), "upper-input-level");
-  g_object_notify (G_OBJECT (levels), "lower-output-level");
-  g_object_notify (G_OBJECT (levels), "upper-output-level");
-
   //gst_videolevels_calculate_tables (levels);
 
   return res;
@@ -673,7 +663,7 @@ static void gst_videolevels_reset(GstVideoLevels* videolevels)
  *
  * Calculate lookup tables based on input and output levels
  */
-static void
+/*static void
 gst_videolevels_calculate_tables (GstVideoLevels * videolevels)
 {
   gint i;
@@ -724,7 +714,7 @@ gst_videolevels_calculate_tables (GstVideoLevels * videolevels)
 
   for (i = 0; i < 65536; i += 128)
     GST_DEBUG ("lut[%d / %d] = %d", i, GUINT16_SWAP_LE_BE(i), lut[i]);
-}
+}*/
 
 #define GINT_CLAMP(x, low, high) ((gint)(CLAMP((x),(low),(high))))
 #define GUINT8_CLAMP(x, low, high) ((guint8)(CLAMP((x),(low),(high))))
@@ -737,23 +727,26 @@ gst_videolevels_convert_uint16le_to_uint8(GstVideoLevels * videolevels,
   const gint size = videolevels->stride_in / 2 * videolevels->height;
   gdouble m;
   gdouble b;
-  const guint8 low = (guint8) videolevels->lower_output;
-  const guint8 high = (guint8) videolevels->upper_output;
+  const guint16 max_in = (1 << videolevels->bpp_in) - 1;
+  const guint16 low_in = (guint16) (videolevels->lower_input * max_in);
+  const guint16 high_in = (guint16) (videolevels->upper_input * max_in);
+  const guint8 max_out = (1 << videolevels->bpp_out) - 1;
+  const guint8 low_out = (guint8) (videolevels->lower_output * max_out);
+  const guint8 high_out = (guint8) (videolevels->upper_output * max_out);
+  
 
-  GST_DEBUG ("Applying linear mapping (%.3f, %.3f) -> (%.3f, %.3f)",
-      videolevels->lower_input, videolevels->upper_input,
-      videolevels->lower_output, videolevels->upper_output);
+  GST_DEBUG ("Applying linear mapping (%d, %d) -> (%d, %d)",
+      low_in, high_in, low_out, high_out);
 
-  if (videolevels->lower_input == videolevels->upper_input)
-    m = 0;
+  if (low_in == high_in)
+    m = 0.0;
   else
-    m = (videolevels->upper_output - videolevels->lower_output) /
-        (videolevels->upper_input - videolevels->lower_input);
+    m = (high_out - low_out) / (gdouble)(high_in - low_in);
 
-  b = videolevels->lower_output - m * videolevels->lower_input;
+  b = low_out - m * low_in;
 
   for (i = 0; i < size; i++)
-    out[i] = GUINT8_CLAMP (m * GUINT16_FROM_LE (in[i]) + b, low, high);
+    out[i] = GUINT8_CLAMP (m * GUINT16_FROM_LE (in[i]) + b, low_out, high_out);
 }
 
 void
@@ -764,23 +757,25 @@ gst_videolevels_convert_uint16be_to_uint8(GstVideoLevels * videolevels,
   const gint size = videolevels->stride_in / 2 * videolevels->height;
   gdouble m;
   gdouble b;
-  const guint8 low = (guint8) videolevels->lower_output;
-  const guint8 high = (guint8) videolevels->upper_output;
+  const guint16 max_in = (1 << videolevels->bpp_in) - 1;
+  const guint16 low_in = (guint16) (videolevels->lower_input * max_in);
+  const guint16 high_in = (guint16) (videolevels->upper_input * max_in);
+  const guint8 max_out = (1 << videolevels->bpp_out) - 1;
+  const guint8 low_out = (guint8) (videolevels->lower_output * max_out);
+  const guint8 high_out = (guint8) (videolevels->upper_output * max_out);
 
-  GST_DEBUG ("Applying linear mapping (%.3f, %.3f) -> (%.3f, %.3f)",
-      videolevels->lower_input, videolevels->upper_input,
-      videolevels->lower_output, videolevels->upper_output);
-  
-  if (videolevels->lower_input == videolevels->upper_input)
-    m = 0;
+  GST_DEBUG ("Applying linear mapping (%d, %d) -> (%d, %d)",
+    low_in, high_in, low_out, high_out);
+
+  if (low_in == high_in)
+    m = 0.0;
   else
-    m = (videolevels->upper_output - videolevels->lower_output) /
-    (videolevels->upper_input - videolevels->lower_input);
+    m = (high_out - low_out) / (gdouble)(high_in - low_in);
 
-  b = videolevels->lower_output - m * videolevels->lower_input;
+  b = low_out - m * low_in;
 
   for (i = 0; i < size; i++)
-    out[i] = GUINT8_CLAMP (m * GUINT16_FROM_BE (in[i]) + b, low, high);
+    out[i] = GUINT8_CLAMP (m * GUINT16_FROM_BE (in[i]) + b, low_out, high_out);
 }
 
 /**
@@ -925,7 +920,7 @@ gst_videolevels_auto_adjust (GstVideoLevels * videolevels,
     sum += videolevels->histogram[i];
     if (sum > npixsat) {
       videolevels->lower_input =
-          CLAMP (i / (gdouble)videolevels->nbins * max, min, max);
+          CLAMP (i / (gdouble)videolevels->nbins, 0.0, 1.0);
       break;
     }
   }
@@ -937,12 +932,12 @@ gst_videolevels_auto_adjust (GstVideoLevels * videolevels,
     sum += videolevels->histogram[i];
     if (sum > npixsat) {
       videolevels->upper_input =
-          CLAMP ((i + 1) / (gdouble)videolevels->nbins * max, min, max);
+          CLAMP ((i + 1) / (gdouble)videolevels->nbins, 0.0, 1.0);
       break;
     }
   }
 
-  GST_DEBUG ("Contrast stretch with npixsat=%d, (%.3f, %.3f)", npixsat,
+  GST_DEBUG ("Contrast stretch with npixsat=%d, (%.6f, %.6f)", npixsat,
       videolevels->lower_input, videolevels->upper_input);
 
   g_object_notify (G_OBJECT (videolevels), "lower-input-level");
