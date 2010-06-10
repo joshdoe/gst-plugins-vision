@@ -7,6 +7,7 @@ project ( gst-plugins-vision )
 find_package (Gstreamer REQUIRED)
 find_package (Glib2 REQUIRED)
 find_package (NIIMAQ)
+find_package (FreeImage)
 
 # conditional required packages
 include (CheckIncludeFiles)
@@ -31,5 +32,6 @@ if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
         ${PREFIX} CACHE PATH "Directory to install plugins, under lib/gstreamer-0.10" FORCE)
 endif (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 
+add_subdirectory (ext)
 add_subdirectory (gst)
 add_subdirectory (sys)
