@@ -33,11 +33,16 @@
 #include <string.h>
 #include <gst/video/video.h>
 
-GST_DEBUG_CATEGORY_STATIC (freeimagedec_debug);
+GST_DEBUG_CATEGORY_EXTERN (freeimagedec_debug);
 #define GST_CAT_DEFAULT freeimagedec_debug
 
-static void gst_freeimagedec_base_init (gpointer g_class);
-static void gst_freeimagedec_class_init (GstFreeImageDecClass * klass);
+typedef struct
+{
+  FREE_IMAGE_FORMAT fif;
+} GstFreeImageDecClassData;
+
+static void gst_freeimagedec_class_init (GstFreeImageDecClass * klass,
+    GstFreeImageDecClassData * class_data);
 static void gst_freeimagedec_init (GstFreeImageDec * freeimagedec);
 
 static GstStateChangeReturn gst_freeimagedec_change_state (GstElement * element,
@@ -58,32 +63,10 @@ static gboolean gst_freeimagedec_freeimage_init (GstFreeImageDec * freeimagedec)
 static gboolean gst_freeimagedec_freeimage_clear (GstFreeImageDec * freeimagedec);
 static GstFlowReturn gst_freeimagedec_caps_create_and_set (GstFreeImageDec * freeimagedec);
 static GstFlowReturn gst_freeimagedec_push_dib (GstFreeImageDec * freeimagedec);
+static GstCaps * gst_freeimagedec_caps_from_freeimage_format (FREE_IMAGE_FORMAT fif);
 
 static GstElementClass *parent_class = NULL;
 
-GType
-gst_freeimagedec_get_type (void)
-{
-  static GType freeimagedec_type = 0;
-
-  if (!freeimagedec_type) {
-    static const GTypeInfo freeimagedec_info = {
-      sizeof (GstFreeImageDecClass),
-      gst_freeimagedec_base_init,
-      NULL,
-      (GClassInitFunc) gst_freeimagedec_class_init,
-      NULL,
-      NULL,
-      sizeof (GstFreeImageDec),
-      0,
-      (GInstanceInitFunc) gst_freeimagedec_init,
-    };
-
-    freeimagedec_type = g_type_register_static (GST_TYPE_ELEMENT, "GstFreeImageDec",
-        &freeimagedec_info, 0);
-  }
-  return freeimagedec_type;
-}
 
 static GstStaticPadTemplate gst_freeimagedec_src_pad_template =
     GST_STATIC_PAD_TEMPLATE ("src",
@@ -209,32 +192,55 @@ short_buffer:
 }
 
 static void
-gst_freeimagedec_base_init (gpointer g_class)
-{
-  GstElementClass *element_class = GST_ELEMENT_CLASS (g_class);
-
-  gst_element_class_add_pad_template (element_class,
-    gst_static_pad_template_get (&gst_freeimagedec_src_pad_template));
-  gst_element_class_add_pad_template (element_class,
-    gst_static_pad_template_get (&gst_freeimagedec_sink_pad_template));
-  gst_element_class_set_details_simple (element_class, "FreeImage image decoder",
-    "Codec/Decoder/Image",
-    "Decode a FreeImage supported video frame to a raw image",
-    "Joshua M. Doe <oss@nvl.army.mil>");
-}
-
-static void
-gst_freeimagedec_class_init (GstFreeImageDecClass * klass)
+gst_freeimagedec_class_init (GstFreeImageDecClass * klass,
+    GstFreeImageDecClassData * class_data)
 {
   GstElementClass *gstelement_class;
+  GstCaps * caps;
+  GstPadTemplate *templ;
+  const gchar * mimetype;
+  const gchar * format;
+  const gchar * format_description;
+  const gchar * extensions;
+  gchar * description;
+  gchar * longname;
+
+  klass->fif = class_data->fif;
 
   gstelement_class = (GstElementClass *) klass;
 
   parent_class = g_type_class_peek_parent (klass);
 
-  gstelement_class->change_state = gst_freeimagedec_change_state;
+  mimetype = FreeImage_GetFIFMimeType (klass->fif);
+  format = FreeImage_GetFormatFromFIF (klass->fif);
+  format_description = FreeImage_GetFIFDescription (klass->fif);
+  extensions = FreeImage_GetFIFExtensionList (klass->fif);
 
-  GST_DEBUG_CATEGORY_INIT (freeimagedec_debug, "freeimagedec", 0, "PNG image decoder");
+  /* add sink pad template from FIF mimetype */
+  if (mimetype)
+    caps = gst_caps_new_simple (mimetype, NULL);
+  else
+    caps = gst_caps_new_simple ("image/freeimage-unknown", NULL);
+  templ = gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS, caps);
+  gst_element_class_add_pad_template (gstelement_class, templ);
+
+  /* add src pad template */
+  caps = gst_freeimagedec_caps_from_freeimage_format (klass->fif);
+  templ = gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS, caps);
+  gst_element_class_add_pad_template (gstelement_class, templ);
+
+  longname = g_strdup_printf ("FreeImage %s image decoder", format);
+  description = g_strdup_printf ("Decode %s (%s) images",
+      format_description, extensions);
+  gst_element_class_set_details_simple (gstelement_class, longname,
+    "Codec/Decoder/Image",
+    description,
+    "Joshua M. Doe <oss@nvl.army.mil>");
+  g_free (longname);
+  g_free (description);
+
+
+  gstelement_class->change_state = gst_freeimagedec_change_state;
 }
 
 static void
@@ -284,8 +290,6 @@ gst_freeimagedec_caps_create_and_set (GstFreeImageDec * freeimagedec)
   GstCaps *caps = NULL, *res = NULL;
   GstPadTemplate *templ = NULL;
   gint image_type, video_format = -1, endianness;
-
-  g_return_val_if_fail (GST_IS_FREEIMAGEDEC (freeimagedec), GST_FLOW_ERROR);
 
   /* Get bits per channel */
   freeimagedec->bpp = FreeImage_GetBPP (freeimagedec->dib);
@@ -471,7 +475,11 @@ gst_freeimagedec_chain (GstPad * pad, GstBuffer * buffer)
   /* Decode image to DIB */
   fimem = FreeImage_OpenMemory (GST_BUFFER_DATA (buffer), GST_BUFFER_SIZE (buffer));
   format = FreeImage_GetFileTypeFromMemory (fimem, 0);
+  GST_LOG ("FreeImage format is %d", format);
   freeimagedec->dib = FreeImage_LoadFromMemory (format, fimem, 0);
+
+  if (freeimagedec->dib == NULL)
+    goto invalid_dib;
 
   freeimagedec->in_timestamp = GST_BUFFER_TIMESTAMP (buffer);
   freeimagedec->in_duration = GST_BUFFER_DURATION (buffer);
@@ -505,6 +513,12 @@ not_configured:
   {
     GST_LOG_OBJECT (freeimagedec, "we are not configured yet");
     ret = GST_FLOW_WRONG_STATE;
+    goto beach;
+  }
+invalid_dib:
+  {
+    GST_LOG_OBJECT (freeimagedec, "file is not recognized");
+    ret = GST_FLOW_UNEXPECTED;
     goto beach;
   }
 }
@@ -599,8 +613,6 @@ gst_freeimagedec_sink_event (GstPad * pad, GstEvent * event)
 static gboolean
 gst_freeimagedec_freeimage_clear (GstFreeImageDec * freeimagedec)
 {
-  g_return_val_if_fail (GST_IS_FREEIMAGEDEC (freeimagedec), FALSE);
-
   GST_LOG ("cleaning up freeimage structures");
 
   if (freeimagedec->dib) {
@@ -621,8 +633,6 @@ gst_freeimagedec_freeimage_clear (GstFreeImageDec * freeimagedec)
 static gboolean
 gst_freeimagedec_freeimage_init (GstFreeImageDec * freeimagedec)
 {
-  g_return_val_if_fail (GST_IS_FREEIMAGEDEC (freeimagedec), FALSE);
-
   if (freeimagedec->setup)
     return TRUE;
 
@@ -756,4 +766,172 @@ gst_freeimagedec_push_dib (GstFreeImageDec * freeimagedec)
   ret = gst_pad_push (freeimagedec->srcpad, buffer);
 
   return ret;
+}
+
+#ifndef GST_VIDEO_CAPS_FLOAT
+#define GST_VIDEO_CAPS_FLOAT                                            \
+            "video/x-raw-gray-float, "                                  \
+            "bpp = (int) 32, "                                          \
+            "depth = (int) 32, "                                        \
+            "endianness = (int) BYTE_ORDER, "                           \
+            "width = " GST_VIDEO_SIZE_RANGE ", "                        \
+            "height = " GST_VIDEO_SIZE_RANGE ", "                       \
+            "framerate = " GST_VIDEO_FPS_RANGE
+#endif
+
+#ifndef GST_VIDEO_CAPS_RGBF
+#define GST_VIDEO_CAPS_RGBF                                             \
+            "video/x-raw-rgb-float, "                                   \
+            "bpp = (int) 96, "                                          \
+            "depth = (int) 96, "                                        \
+            "endianness = (int) BYTE_ORDER, "                           \
+            "width = " GST_VIDEO_SIZE_RANGE ", "                        \
+            "height = " GST_VIDEO_SIZE_RANGE ", "                       \
+            "framerate = " GST_VIDEO_FPS_RANGE
+#endif
+
+#ifndef GST_VIDEO_CAPS_RGBAF
+#define GST_VIDEO_CAPS_RGBAF                                            \
+            "video/x-raw-rgba-float, "                                  \
+            "bpp = (int) 96, "                                          \
+            "depth = (int) 96, "                                        \
+            "endianness = (int) BYTE_ORDER, "                           \
+            "width = " GST_VIDEO_SIZE_RANGE ", "                        \
+            "height = " GST_VIDEO_SIZE_RANGE ", "                       \
+            "framerate = " GST_VIDEO_FPS_RANGE
+#endif
+
+#ifndef GST_VIDEO_CAPS_GRAY8
+#define GST_VIDEO_CAPS_GRAY8                                            \
+        "video/x-raw-gray, "                                            \
+        "bpp = (int) 8, "                                               \
+        "depth = (int) 8, "                                             \
+        "width = " GST_VIDEO_SIZE_RANGE ", "                            \
+        "height = " GST_VIDEO_SIZE_RANGE ", "                           \
+        "framerate = " GST_VIDEO_FPS_RANGE
+#endif
+
+static GstCaps *
+gst_freeimagedec_caps_from_freeimage_format (FREE_IMAGE_FORMAT fif)
+{
+  GstCaps * caps = NULL;
+  switch (fif) {
+    case FIF_BMP:
+      caps = gst_caps_from_string (
+          GST_VIDEO_CAPS_RGB ";"
+          GST_VIDEO_CAPS_BGR ";"
+          GST_VIDEO_CAPS_RGBA ";"
+          GST_VIDEO_CAPS_BGRA ";"
+          GST_VIDEO_CAPS_RGB_15 ";"
+          GST_VIDEO_CAPS_RGB_16);
+      break;
+    case FIF_CUT:
+      caps = gst_caps_from_string (GST_VIDEO_CAPS_RGB);
+      break;
+    case FIF_DDS:
+      caps = gst_caps_from_string (
+          GST_VIDEO_CAPS_RGB ";"
+          GST_VIDEO_CAPS_RGBA);
+      break;
+    case FIF_EXR:
+      caps = gst_caps_from_string (
+          GST_VIDEO_CAPS_FLOAT ";"
+          GST_VIDEO_CAPS_RGBF ";"
+          GST_VIDEO_CAPS_RGBAF);
+      break;
+    case FIF_FAXG3:
+      caps = gst_caps_from_string (GST_VIDEO_CAPS_GRAY8);
+      break;
+    case FIF_GIF:
+      caps = gst_caps_from_string (GST_VIDEO_CAPS_RGB);
+      break;
+    case FIF_HDR:
+      caps = gst_caps_from_string (GST_VIDEO_CAPS_RGBF);
+      break;
+    case FIF_ICO:
+      caps = gst_caps_from_string (
+          GST_VIDEO_CAPS_RGB ";"
+          GST_VIDEO_CAPS_BGR ";"
+          GST_VIDEO_CAPS_RGBA ";"
+          GST_VIDEO_CAPS_BGRA ";"
+          GST_VIDEO_CAPS_RGB_15 ";"
+          GST_VIDEO_CAPS_RGB_16);
+    case FIF_IFF:
+      caps = gst_caps_from_string (GST_VIDEO_CAPS_RGB);
+      break;
+    default:
+      caps = NULL;
+  }
+  return caps;
+}
+
+
+
+gboolean
+gst_freeimagedec_register_plugin (GstPlugin * plugin, FREE_IMAGE_FORMAT fif)
+{
+  GTypeInfo typeinfo = {
+    sizeof (GstFreeImageDecClass),
+    NULL,
+    NULL,
+    (GClassInitFunc) gst_freeimagedec_class_init,
+    NULL,
+    NULL,
+    sizeof (GstFreeImageDec),
+    0,
+    (GInstanceInitFunc) gst_freeimagedec_init
+  };
+  GType type;
+  gchar *type_name, *tmp;
+  GstFreeImageDecClassData *class_data;
+  gboolean ret = FALSE;
+
+  const gchar *format = FreeImage_GetFormatFromFIF (fif);
+  if (format == NULL) {
+    GST_WARNING ("Specified format not supported by FreeImage");
+    return FALSE;
+  }
+
+  tmp = g_strdup_printf ("fidec_%s", format);
+  type_name = g_ascii_strdown (tmp, -1);
+  g_free (tmp);
+  g_strcanon (type_name, G_CSET_A_2_Z G_CSET_a_2_z G_CSET_DIGITS "-+", '-');
+
+  GST_LOG ("Trying to use name %s", type_name);
+
+  if (g_type_from_name (type_name)) {
+    GST_WARNING ("Type '%s' already exists", type_name);
+    return FALSE;
+  }
+
+  class_data = g_new0 (GstFreeImageDecClassData, 1);
+  class_data->fif = fif;
+  typeinfo.class_data = class_data;
+
+  type = g_type_register_static (GST_TYPE_ELEMENT, type_name, &typeinfo, 0);
+  ret = gst_element_register (plugin, type_name, GST_RANK_NONE, type);
+
+  g_free (type_name);
+  return ret;
+}
+
+gboolean
+gst_freeimagedec_register_plugins (GstPlugin * plugin)
+{
+  gint i;
+  gint nloaded = 0;
+
+  GST_LOG ("FreeImage indicates there are %d formats supported", FreeImage_GetFIFCount());
+
+  for (i = 0; i < FreeImage_GetFIFCount(); i++) {
+    if (FreeImage_FIFSupportsReading ((FREE_IMAGE_FORMAT)i)) {
+      if (gst_freeimagedec_register_plugin (plugin, (FREE_IMAGE_FORMAT)i) == TRUE)
+        nloaded += 1;
+    }
+  }
+
+  if (nloaded)
+    return TRUE;
+  else
+    return FALSE;
 }

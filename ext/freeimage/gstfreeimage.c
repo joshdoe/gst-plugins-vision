@@ -25,11 +25,15 @@
 
 #include "gstfreeimagedec.h"
 
+
+GST_DEBUG_CATEGORY (freeimagedec_debug);
+
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  if (!gst_element_register (plugin, "freeimagedec", GST_RANK_PRIMARY,
-          GST_TYPE_FREEIMAGEDEC))
+  GST_DEBUG_CATEGORY_INIT (freeimagedec_debug, "freeimagedec", 0, "FreeImage image decoder");
+
+  if (!gst_freeimagedec_register_plugins (plugin))
     return FALSE;
 
   return TRUE;

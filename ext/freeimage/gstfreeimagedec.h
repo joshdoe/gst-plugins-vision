@@ -26,11 +26,13 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_FREEIMAGEDEC (gst_freeimagedec_get_type())
-#define GST_FREEIMAGEDEC(obj) (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_FREEIMAGEDEC,GstFreeImageDec))
-#define GST_FREEIMAGEDEC_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_FREEIMAGEDEC,GstFreeImageDecClass))
-#define GST_IS_FREEIMAGEDEC(obj) (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_FREEIMAGEDEC))
-#define GST_IS_FREEIMAGEDEC_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_FREEIMAGEDEC))
+#define GST_FREEIMAGEDEC(obj) \
+  ((GstFreeImageDec *) obj)
+#define GST_FREEIMAGEDEC_CLASS(klass) \
+  ((GstFreeImageDecClass *) klass)
+#define GST_FREEIMAGEDEC_GET_CLASS(obj) \
+  ((GstFreeImageDecClass *) g_type_class_peek (G_TYPE_FROM_INSTANCE (obj)))
+
 
 typedef struct _GstFreeImageDec GstFreeImageDec;
 typedef struct _GstFreeImageDecClass GstFreeImageDecClass;
@@ -74,9 +76,11 @@ struct _GstFreeImageDec
 struct _GstFreeImageDecClass
 {
   GstElementClass parent_class;
+
+  FREE_IMAGE_FORMAT fif;
 };
 
-GType gst_freeimagedec_get_type(void);
+gboolean gst_freeimagedec_register_plugins (GstPlugin * plugin);
 
 G_END_DECLS
 
