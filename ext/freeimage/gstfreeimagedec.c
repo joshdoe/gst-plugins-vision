@@ -41,6 +41,21 @@ typedef struct
   FREE_IMAGE_FORMAT fif;
 } GstFreeImageDecClassData;
 
+
+static GstStaticPadTemplate gst_freeimagedec_src_pad_template =
+    GST_STATIC_PAD_TEMPLATE ("src",
+        GST_PAD_SRC,
+        GST_PAD_ALWAYS,
+        GST_STATIC_CAPS ("ANY")
+    );
+
+static GstStaticPadTemplate gst_freeimagedec_sink_pad_template =
+    GST_STATIC_PAD_TEMPLATE ("sink",
+        GST_PAD_SINK,
+        GST_PAD_ALWAYS,
+        GST_STATIC_CAPS ("ANY")
+    );
+
 static void gst_freeimagedec_class_init (GstFreeImageDecClass * klass,
     GstFreeImageDecClassData * class_data);
 static void gst_freeimagedec_init (GstFreeImageDec * freeimagedec);
@@ -66,41 +81,6 @@ static GstFlowReturn gst_freeimagedec_push_dib (GstFreeImageDec * freeimagedec);
 static GstCaps * gst_freeimagedec_caps_from_freeimage_format (FREE_IMAGE_FORMAT fif);
 
 static GstElementClass *parent_class = NULL;
-
-
-static GstStaticPadTemplate gst_freeimagedec_src_pad_template =
-    GST_STATIC_PAD_TEMPLATE ("src",
-    GST_PAD_SRC,
-    GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (
-      GST_VIDEO_CAPS_RGB_15 ";"
-      GST_VIDEO_CAPS_RGB_16 ";"
-      GST_VIDEO_CAPS_RGB ";"
-      GST_VIDEO_CAPS_BGR ";"
-      GST_VIDEO_CAPS_RGBA ";"
-      GST_VIDEO_CAPS_BGRA ";"
-      "video/x-raw-gray, "                                            \
-      "bpp = (int) 16, "                                              \
-      "depth = (int) 16, "                                            \
-      "endianness = (int) BIG_ENDIAN, "                           \
-      "width = " GST_VIDEO_SIZE_RANGE ", "                            \
-      "height = " GST_VIDEO_SIZE_RANGE ", "                           \
-      "framerate = " GST_VIDEO_FPS_RANGE ";"
-      "video/x-raw-gray, "                                            \
-      "bpp = (int) 16, "                                              \
-      "depth = (int) 16, "                                            \
-      "endianness = (int) LITTLE_ENDIAN, "                           \
-      "width = " GST_VIDEO_SIZE_RANGE ", "                            \
-      "height = " GST_VIDEO_SIZE_RANGE ", "                           \
-      "framerate = " GST_VIDEO_FPS_RANGE ";")
-    );
-
-static GstStaticPadTemplate gst_freeimagedec_sink_pad_template =
-GST_STATIC_PAD_TEMPLATE ("sink",
-    GST_PAD_SINK,
-    GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("image/tiff")
-    );
 
 void DLL_CALLCONV
 user_error (FREE_IMAGE_FORMAT fif, const char *message)
@@ -229,16 +209,16 @@ gst_freeimagedec_class_init (GstFreeImageDecClass * klass,
   templ = gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS, caps);
   gst_element_class_add_pad_template (gstelement_class, templ);
 
+  /* set details */
   longname = g_strdup_printf ("FreeImage %s image decoder", format);
   description = g_strdup_printf ("Decode %s (%s) images",
       format_description, extensions);
   gst_element_class_set_details_simple (gstelement_class, longname,
-    "Codec/Decoder/Image",
-    description,
-    "Joshua M. Doe <oss@nvl.army.mil>");
+      "Codec/Decoder/Image",
+      description,
+      "Joshua M. Doe <oss@nvl.army.mil>");
   g_free (longname);
   g_free (description);
-
 
   gstelement_class->change_state = gst_freeimagedec_change_state;
 }
@@ -259,9 +239,10 @@ gst_freeimagedec_init (GstFreeImageDec * freeimagedec)
   gst_element_add_pad (GST_ELEMENT (freeimagedec), freeimagedec->sinkpad);
 
   freeimagedec->srcpad =
-    gst_pad_new_from_static_template (&gst_freeimagedec_src_pad_template, "src");
+      gst_pad_new_from_static_template (&gst_freeimagedec_src_pad_template, "src");
   gst_pad_use_fixed_caps (freeimagedec->srcpad);
   gst_element_add_pad (GST_ELEMENT (freeimagedec), freeimagedec->srcpad);
+
 
   freeimagedec->setup = FALSE;
 
@@ -306,8 +287,19 @@ gst_freeimagedec_caps_create_and_set (GstFreeImageDec * freeimagedec)
   switch (image_type) {
     case FIT_BITMAP:
       if (freeimagedec->bpp < 16) {
-        GST_ELEMENT_ERROR (freeimagedec, STREAM, NOT_IMPLEMENTED, (NULL),
-            ("freeimagedec does not support palletised bitmaps yet"));
+        FIBITMAP * dib;
+        if (FreeImage_IsTransparent (freeimagedec->dib)) {
+          GST_DEBUG ("Image is palletised with transparency, convert to 32-bit RGB");
+          dib = FreeImage_ConvertTo32Bits (freeimagedec->dib);
+          video_format = GST_VIDEO_FORMAT_RGBA;
+        }
+        else {
+          GST_DEBUG ("Image is palletised, convert to 24-bit RGB");
+          dib = FreeImage_ConvertTo24Bits (freeimagedec->dib);
+          video_format = GST_VIDEO_FORMAT_RGB;
+        }
+        FreeImage_Unload (freeimagedec->dib);
+        freeimagedec->dib = dib;
       }
       else if (freeimagedec->bpp == 24) {
         if (FreeImage_GetRedMask (freeimagedec->dib) == GST_VIDEO_BYTE1_MASK_24_INT &&
@@ -356,10 +348,8 @@ gst_freeimagedec_caps_create_and_set (GstFreeImageDec * freeimagedec)
           freeimagedec->height, freeimagedec->fps_n, freeimagedec->fps_d, 1, 1);
       break;
     case FIT_UINT16:
-      if (FreeImage_IsLittleEndian ())
-        endianness = 1234;
-      else
-        endianness = 4321;
+      endianness = G_BYTE_ORDER;
+
       caps = gst_caps_new_simple ("video/x-raw-gray",
           "width", G_TYPE_INT, freeimagedec->width,
           "height", G_TYPE_INT, freeimagedec->height,
@@ -370,10 +360,8 @@ gst_freeimagedec_caps_create_and_set (GstFreeImageDec * freeimagedec)
           NULL);
       break;
     case FIT_INT16:
-      if (FreeImage_IsLittleEndian ())
-        endianness = 1234;
-      else
-        endianness = 4321;
+      endianness = G_BYTE_ORDER;
+      
       caps = gst_caps_new_simple ("video/x-raw-gray",
           "width", G_TYPE_INT, freeimagedec->width,
           "height", G_TYPE_INT, freeimagedec->height,
@@ -814,54 +802,60 @@ gst_freeimagedec_push_dib (GstFreeImageDec * freeimagedec)
 static GstCaps *
 gst_freeimagedec_caps_from_freeimage_format (FREE_IMAGE_FORMAT fif)
 {
-  GstCaps * caps = NULL;
-  switch (fif) {
-    case FIF_BMP:
-      caps = gst_caps_from_string (
-          GST_VIDEO_CAPS_RGB ";"
-          GST_VIDEO_CAPS_BGR ";"
-          GST_VIDEO_CAPS_RGBA ";"
-          GST_VIDEO_CAPS_BGRA ";"
-          GST_VIDEO_CAPS_RGB_15 ";"
-          GST_VIDEO_CAPS_RGB_16);
-      break;
-    case FIF_CUT:
-      caps = gst_caps_from_string (GST_VIDEO_CAPS_RGB);
-      break;
-    case FIF_DDS:
-      caps = gst_caps_from_string (
-          GST_VIDEO_CAPS_RGB ";"
-          GST_VIDEO_CAPS_RGBA);
-      break;
-    case FIF_EXR:
-      caps = gst_caps_from_string (
-          GST_VIDEO_CAPS_FLOAT ";"
-          GST_VIDEO_CAPS_RGBF ";"
-          GST_VIDEO_CAPS_RGBAF);
-      break;
-    case FIF_FAXG3:
-      caps = gst_caps_from_string (GST_VIDEO_CAPS_GRAY8);
-      break;
-    case FIF_GIF:
-      caps = gst_caps_from_string (GST_VIDEO_CAPS_RGB);
-      break;
-    case FIF_HDR:
-      caps = gst_caps_from_string (GST_VIDEO_CAPS_RGBF);
-      break;
-    case FIF_ICO:
-      caps = gst_caps_from_string (
-          GST_VIDEO_CAPS_RGB ";"
-          GST_VIDEO_CAPS_BGR ";"
-          GST_VIDEO_CAPS_RGBA ";"
-          GST_VIDEO_CAPS_BGRA ";"
-          GST_VIDEO_CAPS_RGB_15 ";"
-          GST_VIDEO_CAPS_RGB_16);
-    case FIF_IFF:
-      caps = gst_caps_from_string (GST_VIDEO_CAPS_RGB);
-      break;
-    default:
-      caps = NULL;
+  GstCaps * caps = gst_caps_new_empty ();
+
+  if (FreeImage_FIFSupportsExportType (fif, FIT_BITMAP)) {
+    if (FreeImage_FIFSupportsExportBPP (fif, 1) ||
+        FreeImage_FIFSupportsExportBPP (fif, 4) ||
+        FreeImage_FIFSupportsExportBPP (fif, 8) ||
+        FreeImage_FIFSupportsExportBPP (fif, 24)) {
+      gst_caps_append (caps, gst_caps_from_string (GST_VIDEO_CAPS_RGB));
+      gst_caps_append (caps, gst_caps_from_string (GST_VIDEO_CAPS_BGR));
+    }
+    if (FreeImage_FIFSupportsExportBPP (fif, 16)) {
+      gst_caps_append (caps, gst_caps_from_string (GST_VIDEO_CAPS_RGB_15));
+      gst_caps_append (caps, gst_caps_from_string (GST_VIDEO_CAPS_RGB_16));
+    }
+    if (FreeImage_FIFSupportsExportBPP (fif, 32)) {
+      gst_caps_append (caps, gst_caps_from_string (GST_VIDEO_CAPS_RGBA));
+      gst_caps_append (caps, gst_caps_from_string (GST_VIDEO_CAPS_BGRA));
+    }
   }
+  if (FreeImage_FIFSupportsExportType (fif, FIT_UINT16)) {
+    if (G_BYTE_ORDER == G_BIG_ENDIAN)
+      gst_caps_append (caps, gst_caps_from_string (
+          GST_VIDEO_CAPS_GRAY16 ("BIG_ENDIAN")));
+    else
+      gst_caps_append (caps, gst_caps_from_string (
+          GST_VIDEO_CAPS_GRAY16 ("LITTLE_ENDIAN")));
+  }
+  if (FreeImage_FIFSupportsExportType (fif, FIT_INT16)) {
+  }
+  if (FreeImage_FIFSupportsExportType (fif, FIT_UINT32)) {
+  }
+  if (FreeImage_FIFSupportsExportType (fif, FIT_INT32)) {
+  }
+  if (FreeImage_FIFSupportsExportType (fif, FIT_FLOAT)) {
+  }
+  if (FreeImage_FIFSupportsExportType (fif, FIT_DOUBLE)) {
+  }
+  if (FreeImage_FIFSupportsExportType (fif, FIT_COMPLEX)) {
+  }
+  if (FreeImage_FIFSupportsExportType (fif, FIT_RGB16)) {
+  }
+  if (FreeImage_FIFSupportsExportType (fif, FIT_RGBA16)) {
+  }
+  if (FreeImage_FIFSupportsExportType (fif, FIT_RGBF)) {
+  }
+  if (FreeImage_FIFSupportsExportType (fif, FIT_RGBAF)) {
+  }
+
+  /* non-standard format, we'll convert to RGB */
+  if (gst_caps_get_size (caps) == 0) {
+    gst_caps_append (caps, gst_caps_from_string (GST_VIDEO_CAPS_RGB));
+    gst_caps_append (caps, gst_caps_from_string (GST_VIDEO_CAPS_RGBA));
+  }
+
   return caps;
 }
 
