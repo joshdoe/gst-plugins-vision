@@ -60,9 +60,6 @@ struct _GstFreeImageDec
 
   gboolean setup;
 
-  gint width;
-  gint height;
-  gint bpp;
   gint fps_n;
   gint fps_d;
 

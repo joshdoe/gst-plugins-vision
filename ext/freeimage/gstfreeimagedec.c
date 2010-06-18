@@ -27,11 +27,11 @@
 #include "config.h"
 #endif
 
-#include "gstfreeimagedec.h"
-
 #include <stdlib.h>
 #include <string.h>
-#include <gst/video/video.h>
+
+#include "gstfreeimagedec.h"
+#include "gstfreeimageutils.h"
 
 GST_DEBUG_CATEGORY_EXTERN (freeimagedec_debug);
 #define GST_CAT_DEFAULT freeimagedec_debug
@@ -40,21 +40,6 @@ typedef struct
 {
   FREE_IMAGE_FORMAT fif;
 } GstFreeImageDecClassData;
-
-
-static GstStaticPadTemplate gst_freeimagedec_src_pad_template =
-    GST_STATIC_PAD_TEMPLATE ("src",
-        GST_PAD_SRC,
-        GST_PAD_ALWAYS,
-        GST_STATIC_CAPS ("ANY")
-    );
-
-static GstStaticPadTemplate gst_freeimagedec_sink_pad_template =
-    GST_STATIC_PAD_TEMPLATE ("sink",
-        GST_PAD_SINK,
-        GST_PAD_ALWAYS,
-        GST_STATIC_CAPS ("ANY")
-    );
 
 static void gst_freeimagedec_class_init (GstFreeImageDecClass * klass,
     GstFreeImageDecClassData * class_data);
@@ -78,18 +63,17 @@ static gboolean gst_freeimagedec_freeimage_init (GstFreeImageDec * freeimagedec)
 static gboolean gst_freeimagedec_freeimage_clear (GstFreeImageDec * freeimagedec);
 static GstFlowReturn gst_freeimagedec_caps_create_and_set (GstFreeImageDec * freeimagedec);
 static GstFlowReturn gst_freeimagedec_push_dib (GstFreeImageDec * freeimagedec);
-static GstCaps * gst_freeimagedec_caps_from_freeimage_format (FREE_IMAGE_FORMAT fif);
 
 static GstElementClass *parent_class = NULL;
 
 void DLL_CALLCONV
-user_error (FREE_IMAGE_FORMAT fif, const char *message)
+gst_freeimagedec_user_error (FREE_IMAGE_FORMAT fif, const char *message)
 {
   GST_ERROR ("%s", message);
 }
 
 static int DLL_CALLCONV
-user_seek (fi_handle handle, long offset, int origin)
+gst_freeimagedec_user_seek (fi_handle handle, long offset, int origin)
 {
   GstFreeImageDec *freeimagedec = GST_FREEIMAGEDEC (handle);
   
@@ -108,7 +92,7 @@ user_seek (fi_handle handle, long offset, int origin)
 }
 
 static long DLL_CALLCONV
-user_tell (fi_handle handle)
+gst_freeimagedec_user_tell (fi_handle handle)
 {
   GstFreeImageDec *freeimagedec = GST_FREEIMAGEDEC (handle);
 
@@ -205,7 +189,7 @@ gst_freeimagedec_class_init (GstFreeImageDecClass * klass,
   gst_element_class_add_pad_template (gstelement_class, templ);
 
   /* add src pad template */
-  caps = gst_freeimagedec_caps_from_freeimage_format (klass->fif);
+  caps = gst_freeimageutils_caps_from_freeimage_format (klass->fif);
   templ = gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS, caps);
   gst_element_class_add_pad_template (gstelement_class, templ);
 
@@ -226,8 +210,11 @@ gst_freeimagedec_class_init (GstFreeImageDecClass * klass,
 static void
 gst_freeimagedec_init (GstFreeImageDec * freeimagedec)
 {
-  freeimagedec->sinkpad =
-      gst_pad_new_from_static_template (&gst_freeimagedec_sink_pad_template, "sink");
+  GstElementClass * klass = GST_ELEMENT_GET_CLASS (freeimagedec);
+
+  freeimagedec->sinkpad = gst_pad_new_from_template (
+      gst_element_class_get_pad_template (klass, "sink"), "sink");
+
   gst_pad_set_activate_function (freeimagedec->sinkpad, gst_freeimagedec_sink_activate);
   gst_pad_set_activatepull_function (freeimagedec->sinkpad,
       gst_freeimagedec_sink_activate_pull);
@@ -238,8 +225,8 @@ gst_freeimagedec_init (GstFreeImageDec * freeimagedec)
   gst_pad_set_setcaps_function (freeimagedec->sinkpad, gst_freeimagedec_sink_setcaps);
   gst_element_add_pad (GST_ELEMENT (freeimagedec), freeimagedec->sinkpad);
 
-  freeimagedec->srcpad =
-      gst_pad_new_from_static_template (&gst_freeimagedec_src_pad_template, "src");
+  freeimagedec->srcpad = gst_pad_new_from_template (
+      gst_element_class_get_pad_template (klass, "src"), "src");
   gst_pad_use_fixed_caps (freeimagedec->srcpad);
   gst_element_add_pad (GST_ELEMENT (freeimagedec), freeimagedec->srcpad);
 
@@ -249,9 +236,6 @@ gst_freeimagedec_init (GstFreeImageDec * freeimagedec)
   freeimagedec->in_timestamp = GST_CLOCK_TIME_NONE;
   freeimagedec->in_duration = GST_CLOCK_TIME_NONE;
 
-  freeimagedec->width = -1;
-  freeimagedec->height = -1;
-  freeimagedec->bpp = -1;
   freeimagedec->fps_n = 0;
   freeimagedec->fps_d = 1;
 
@@ -260,8 +244,8 @@ gst_freeimagedec_init (GstFreeImageDec * freeimagedec)
   /* Set user IO functions to FreeImageIO struct */
   freeimagedec->fiio.read_proc = user_read;
   freeimagedec->fiio.write_proc = NULL;
-  freeimagedec->fiio.seek_proc = user_seek;
-  freeimagedec->fiio.tell_proc = user_tell;
+  freeimagedec->fiio.seek_proc = gst_freeimagedec_user_seek;
+  freeimagedec->fiio.tell_proc = gst_freeimagedec_user_tell;
 }
 
 static GstFlowReturn
@@ -270,114 +254,48 @@ gst_freeimagedec_caps_create_and_set (GstFreeImageDec * freeimagedec)
   GstFlowReturn ret = GST_FLOW_OK;
   GstCaps *caps = NULL, *res = NULL;
   GstPadTemplate *templ = NULL;
-  gint image_type, video_format = -1, endianness;
 
-  /* Get bits per channel */
-  freeimagedec->bpp = FreeImage_GetBPP (freeimagedec->dib);
+  caps = gst_freeimageutils_caps_from_dib (freeimagedec->dib,
+      freeimagedec->fps_n, freeimagedec->fps_d);
 
-  /* Get image type */
-  image_type = FreeImage_GetImageType (freeimagedec->dib);
+  if (caps == NULL) {
+    /* we have an unsupported type, we'll try converting to RGB/RGBA */
+    FIBITMAP * dib;
+    if (FreeImage_IsTransparent (freeimagedec->dib)) {
+      GST_DEBUG ("Image is non-standard format with transparency, convert to 32-bit RGB");
+      dib = FreeImage_ConvertTo32Bits (freeimagedec->dib);
+    }
+    else {
+      GST_DEBUG ("Image is non-standard format, convert to 24-bit RGB");
+      dib = FreeImage_ConvertTo24Bits (freeimagedec->dib);
+    }
 
-  /* Get width and height */
-  freeimagedec->width = FreeImage_GetWidth (freeimagedec->dib);
-  freeimagedec->height = FreeImage_GetHeight (freeimagedec->dib);
+    caps = gst_freeimageutils_caps_from_dib (freeimagedec->dib,
+        freeimagedec->fps_n, freeimagedec->fps_d);
+    if (caps == NULL) {
+      GST_DEBUG ("Image could not be converted to RGB/RGBA, try grayscale");
+      if (dib)
+        FreeImage_Unload (dib);
+      dib = FreeImage_ConvertToStandardType (freeimagedec->dib, TRUE);
 
-  GST_LOG ("Image_type=%d, %dx%dx%d", image_type, freeimagedec->width, freeimagedec->height, freeimagedec->bpp);
+      caps = gst_freeimageutils_caps_from_dib (freeimagedec->dib,
+          freeimagedec->fps_n, freeimagedec->fps_d);
 
-  switch (image_type) {
-    case FIT_BITMAP:
-      if (freeimagedec->bpp < 16) {
-        FIBITMAP * dib;
-        if (FreeImage_IsTransparent (freeimagedec->dib)) {
-          GST_DEBUG ("Image is palletised with transparency, convert to 32-bit RGB");
-          dib = FreeImage_ConvertTo32Bits (freeimagedec->dib);
-          video_format = GST_VIDEO_FORMAT_RGBA;
-        }
-        else {
-          GST_DEBUG ("Image is palletised, convert to 24-bit RGB");
-          dib = FreeImage_ConvertTo24Bits (freeimagedec->dib);
-          video_format = GST_VIDEO_FORMAT_RGB;
-        }
-        FreeImage_Unload (freeimagedec->dib);
-        freeimagedec->dib = dib;
-      }
-      else if (freeimagedec->bpp == 24) {
-        if (FreeImage_GetRedMask (freeimagedec->dib) == GST_VIDEO_BYTE1_MASK_24_INT &&
-            FreeImage_GetGreenMask (freeimagedec->dib) == GST_VIDEO_BYTE2_MASK_24_INT &&
-            FreeImage_GetBlueMask (freeimagedec->dib) == GST_VIDEO_BYTE3_MASK_24_INT) {
-          video_format = GST_VIDEO_FORMAT_RGB;
-        }
-        else if (FreeImage_GetRedMask (freeimagedec->dib) == GST_VIDEO_BYTE3_MASK_24_INT &&
-            FreeImage_GetGreenMask (freeimagedec->dib) == GST_VIDEO_BYTE2_MASK_24_INT &&
-            FreeImage_GetBlueMask (freeimagedec->dib) == GST_VIDEO_BYTE1_MASK_24_INT) {
-          video_format = GST_VIDEO_FORMAT_BGR;
-        }
-        else {
-          GST_ELEMENT_ERROR (freeimagedec, STREAM, NOT_IMPLEMENTED, (NULL),
-              ("freeimagedec only supports RGB or BGR 24-bit bitmaps"));
-        }
-      }
-      else if (freeimagedec->bpp == 32) {
-        if (FreeImage_GetRedMask (freeimagedec->dib) == GST_VIDEO_BYTE1_MASK_32_INT &&
-            FreeImage_GetGreenMask (freeimagedec->dib) == GST_VIDEO_BYTE2_MASK_32_INT &&
-            FreeImage_GetBlueMask (freeimagedec->dib) == GST_VIDEO_BYTE3_MASK_32_INT) {
-            video_format = GST_VIDEO_FORMAT_RGBA;
-        }
-        else if (FreeImage_GetRedMask (freeimagedec->dib) == GST_VIDEO_BYTE3_MASK_32_INT &&
-            FreeImage_GetGreenMask (freeimagedec->dib) == GST_VIDEO_BYTE2_MASK_32_INT &&
-            FreeImage_GetBlueMask (freeimagedec->dib) == GST_VIDEO_BYTE1_MASK_32_INT) {
-            video_format = GST_VIDEO_FORMAT_BGRA;
-        }
-        else {
-          GST_ELEMENT_ERROR (freeimagedec, STREAM, NOT_IMPLEMENTED, (NULL),
-            ("freeimagedec only supports RGBA or BGRA 32-bit bitmaps"));
-        }
-      }
-      else {
-        GST_ELEMENT_ERROR (freeimagedec, STREAM, NOT_IMPLEMENTED, (NULL),
-            ("freeimagedec does not support this image type"));
-      }
-
-      /* We could not find a supported format */
-      if (video_format == -1) {
+      if (caps == NULL) {
+        GST_WARNING ("Failed to convert image");
+        if (dib)
+          FreeImage_Unload (dib);
         ret = GST_FLOW_NOT_SUPPORTED;
         goto beach;
       }
+    }
 
-      caps = gst_video_format_new_caps (video_format, freeimagedec->width,
-          freeimagedec->height, freeimagedec->fps_n, freeimagedec->fps_d, 1, 1);
-      break;
-    case FIT_UINT16:
-      endianness = G_BYTE_ORDER;
-
-      caps = gst_caps_new_simple ("video/x-raw-gray",
-          "width", G_TYPE_INT, freeimagedec->width,
-          "height", G_TYPE_INT, freeimagedec->height,
-          "bpp", G_TYPE_INT, 16,
-          "depth", G_TYPE_INT, 16,
-          "endianness", G_TYPE_INT, endianness,
-          "framerate", GST_TYPE_FRACTION, freeimagedec->fps_n, freeimagedec->fps_d,
-          NULL);
-      break;
-    case FIT_INT16:
-      endianness = G_BYTE_ORDER;
-      
-      caps = gst_caps_new_simple ("video/x-raw-gray",
-          "width", G_TYPE_INT, freeimagedec->width,
-          "height", G_TYPE_INT, freeimagedec->height,
-          "bpp", G_TYPE_INT, 16,
-          "depth", G_TYPE_INT, 16,
-          "endianness", G_TYPE_INT, endianness,
-          "framerate", GST_TYPE_FRACTION, freeimagedec->fps_n, freeimagedec->fps_d,
-          "signed", G_TYPE_BOOLEAN, TRUE,
-          NULL);
-      break;
-    default:
-      GST_ELEMENT_ERROR (freeimagedec, STREAM, NOT_IMPLEMENTED, (NULL),
-          ("freeimagedec does not support this image type"));
-      ret = GST_FLOW_NOT_SUPPORTED;
-      goto beach;
+    /* set the converted dib as our new dib */
+    FreeImage_Unload (freeimagedec->dib);
+    freeimagedec->dib = dib;
   }
+
+  GST_DEBUG_OBJECT (caps, "are the caps");
 
   if (!gst_pad_set_caps (freeimagedec->srcpad, caps))
     ret = GST_FLOW_NOT_NEGOTIATED;
@@ -407,7 +325,7 @@ gst_freeimagedec_task (GstPad * pad)
 
   GST_LOG_OBJECT (freeimagedec, "read frame");
 
-  /* Query length of file for use by user_seek (SEEK_END) */
+  /* Query length of file for use by gst_freeimagedec_user_seek (SEEK_END) */
   format = GST_FORMAT_BYTES;
   gst_pad_query_peer_duration (pad, &format, &freeimagedec->length);
 
@@ -611,8 +529,6 @@ gst_freeimagedec_freeimage_clear (GstFreeImageDec * freeimagedec)
   freeimagedec->in_timestamp = GST_CLOCK_TIME_NONE;
   freeimagedec->in_duration = GST_CLOCK_TIME_NONE;
 
-  freeimagedec->bpp = freeimagedec->height = freeimagedec->width = -1;
-
   freeimagedec->setup = FALSE;
 
   return TRUE;
@@ -714,7 +630,7 @@ gst_freeimagedec_push_dib (GstFreeImageDec * freeimagedec)
   GstFlowReturn ret;
   GstBuffer *buffer = NULL;
   size_t buffer_size = 0;
-  guint pitch;
+  guint pitch, height;
   gint i;
 
   if (freeimagedec->dib == NULL)
@@ -727,8 +643,9 @@ gst_freeimagedec_push_dib (GstFreeImageDec * freeimagedec)
   }
 
   /* Allocate output buffer */
+  height = FreeImage_GetHeight (freeimagedec->dib);
   pitch = FreeImage_GetPitch (freeimagedec->dib);
-  buffer_size = pitch * freeimagedec->height;
+  buffer_size = pitch * height;
 
   GST_LOG ("Buffer size must be %d", buffer_size);
 
@@ -739,9 +656,9 @@ gst_freeimagedec_push_dib (GstFreeImageDec * freeimagedec)
     return ret;
 
   /* flip image and copy to buffer */
-  for (i = 0; i < freeimagedec->height; i++) {
+  for (i = 0; i < height; i++) {
     memcpy (GST_BUFFER_DATA (buffer) + i * pitch,
-        FreeImage_GetBits (freeimagedec->dib) + (freeimagedec->height - i - 1) * pitch, pitch);
+        FreeImage_GetBits (freeimagedec->dib) + (height - i - 1) * pitch, pitch);
   }
   
 
@@ -755,111 +672,6 @@ gst_freeimagedec_push_dib (GstFreeImageDec * freeimagedec)
 
   return ret;
 }
-
-#ifndef GST_VIDEO_CAPS_FLOAT
-#define GST_VIDEO_CAPS_FLOAT                                            \
-            "video/x-raw-gray-float, "                                  \
-            "bpp = (int) 32, "                                          \
-            "depth = (int) 32, "                                        \
-            "endianness = (int) BYTE_ORDER, "                           \
-            "width = " GST_VIDEO_SIZE_RANGE ", "                        \
-            "height = " GST_VIDEO_SIZE_RANGE ", "                       \
-            "framerate = " GST_VIDEO_FPS_RANGE
-#endif
-
-#ifndef GST_VIDEO_CAPS_RGBF
-#define GST_VIDEO_CAPS_RGBF                                             \
-            "video/x-raw-rgb-float, "                                   \
-            "bpp = (int) 96, "                                          \
-            "depth = (int) 96, "                                        \
-            "endianness = (int) BYTE_ORDER, "                           \
-            "width = " GST_VIDEO_SIZE_RANGE ", "                        \
-            "height = " GST_VIDEO_SIZE_RANGE ", "                       \
-            "framerate = " GST_VIDEO_FPS_RANGE
-#endif
-
-#ifndef GST_VIDEO_CAPS_RGBAF
-#define GST_VIDEO_CAPS_RGBAF                                            \
-            "video/x-raw-rgba-float, "                                  \
-            "bpp = (int) 96, "                                          \
-            "depth = (int) 96, "                                        \
-            "endianness = (int) BYTE_ORDER, "                           \
-            "width = " GST_VIDEO_SIZE_RANGE ", "                        \
-            "height = " GST_VIDEO_SIZE_RANGE ", "                       \
-            "framerate = " GST_VIDEO_FPS_RANGE
-#endif
-
-#ifndef GST_VIDEO_CAPS_GRAY8
-#define GST_VIDEO_CAPS_GRAY8                                            \
-        "video/x-raw-gray, "                                            \
-        "bpp = (int) 8, "                                               \
-        "depth = (int) 8, "                                             \
-        "width = " GST_VIDEO_SIZE_RANGE ", "                            \
-        "height = " GST_VIDEO_SIZE_RANGE ", "                           \
-        "framerate = " GST_VIDEO_FPS_RANGE
-#endif
-
-static GstCaps *
-gst_freeimagedec_caps_from_freeimage_format (FREE_IMAGE_FORMAT fif)
-{
-  GstCaps * caps = gst_caps_new_empty ();
-
-  if (FreeImage_FIFSupportsExportType (fif, FIT_BITMAP)) {
-    if (FreeImage_FIFSupportsExportBPP (fif, 1) ||
-        FreeImage_FIFSupportsExportBPP (fif, 4) ||
-        FreeImage_FIFSupportsExportBPP (fif, 8) ||
-        FreeImage_FIFSupportsExportBPP (fif, 24)) {
-      gst_caps_append (caps, gst_caps_from_string (GST_VIDEO_CAPS_RGB));
-      gst_caps_append (caps, gst_caps_from_string (GST_VIDEO_CAPS_BGR));
-    }
-    if (FreeImage_FIFSupportsExportBPP (fif, 16)) {
-      gst_caps_append (caps, gst_caps_from_string (GST_VIDEO_CAPS_RGB_15));
-      gst_caps_append (caps, gst_caps_from_string (GST_VIDEO_CAPS_RGB_16));
-    }
-    if (FreeImage_FIFSupportsExportBPP (fif, 32)) {
-      gst_caps_append (caps, gst_caps_from_string (GST_VIDEO_CAPS_RGBA));
-      gst_caps_append (caps, gst_caps_from_string (GST_VIDEO_CAPS_BGRA));
-    }
-  }
-  if (FreeImage_FIFSupportsExportType (fif, FIT_UINT16)) {
-    if (G_BYTE_ORDER == G_BIG_ENDIAN)
-      gst_caps_append (caps, gst_caps_from_string (
-          GST_VIDEO_CAPS_GRAY16 ("BIG_ENDIAN")));
-    else
-      gst_caps_append (caps, gst_caps_from_string (
-          GST_VIDEO_CAPS_GRAY16 ("LITTLE_ENDIAN")));
-  }
-  if (FreeImage_FIFSupportsExportType (fif, FIT_INT16)) {
-  }
-  if (FreeImage_FIFSupportsExportType (fif, FIT_UINT32)) {
-  }
-  if (FreeImage_FIFSupportsExportType (fif, FIT_INT32)) {
-  }
-  if (FreeImage_FIFSupportsExportType (fif, FIT_FLOAT)) {
-  }
-  if (FreeImage_FIFSupportsExportType (fif, FIT_DOUBLE)) {
-  }
-  if (FreeImage_FIFSupportsExportType (fif, FIT_COMPLEX)) {
-  }
-  if (FreeImage_FIFSupportsExportType (fif, FIT_RGB16)) {
-  }
-  if (FreeImage_FIFSupportsExportType (fif, FIT_RGBA16)) {
-  }
-  if (FreeImage_FIFSupportsExportType (fif, FIT_RGBF)) {
-  }
-  if (FreeImage_FIFSupportsExportType (fif, FIT_RGBAF)) {
-  }
-
-  /* non-standard format, we'll convert to RGB */
-  if (gst_caps_get_size (caps) == 0) {
-    gst_caps_append (caps, gst_caps_from_string (GST_VIDEO_CAPS_RGB));
-    gst_caps_append (caps, gst_caps_from_string (GST_VIDEO_CAPS_RGBA));
-  }
-
-  return caps;
-}
-
-
 
 gboolean
 gst_freeimagedec_register_plugin (GstPlugin * plugin, FREE_IMAGE_FORMAT fif)
@@ -889,7 +701,7 @@ gst_freeimagedec_register_plugin (GstPlugin * plugin, FREE_IMAGE_FORMAT fif)
   tmp = g_strdup_printf ("fidec_%s", format);
   type_name = g_ascii_strdown (tmp, -1);
   g_free (tmp);
-  g_strcanon (type_name, G_CSET_A_2_Z G_CSET_a_2_z G_CSET_DIGITS "-+", '-');
+  g_strcanon (type_name, G_CSET_A_2_Z G_CSET_a_2_z G_CSET_DIGITS "-+_", '-');
 
   GST_LOG ("Trying to use name %s", type_name);
 
