@@ -8,6 +8,7 @@ find_package (Gstreamer REQUIRED)
 find_package (Glib2 REQUIRED)
 find_package (NIIMAQ)
 find_package (FreeImage)
+find_package (OpenCV REQUIRED)
 
 # conditional required packages
 include (CheckIncludeFiles)
@@ -22,7 +23,7 @@ endif (NOT GST_USING_BINARY_REGISTRY)
 
 
 include_directories (
-	.
+    .
     ${GSTREAMER_INCLUDE_DIR}
     ${GLIB2_INCLUDE_DIR} )
 
