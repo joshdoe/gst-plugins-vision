@@ -8,7 +8,7 @@ find_package (Gstreamer REQUIRED)
 find_package (Glib2 REQUIRED)
 find_package (NIIMAQ)
 find_package (FreeImage)
-find_package (OpenCV REQUIRED)
+find_package (OpenCV)
 
 # conditional required packages
 include (CheckIncludeFiles)
