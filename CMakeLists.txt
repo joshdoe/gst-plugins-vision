@@ -9,6 +9,7 @@ find_package (Glib2 REQUIRED)
 find_package (NIIMAQ)
 find_package (FreeImage)
 find_package (OpenCV)
+find_package (Euresys)
 
 # conditional required packages
 include (CheckIncludeFiles)
