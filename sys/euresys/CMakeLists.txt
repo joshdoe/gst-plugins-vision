@@ -19,7 +19,8 @@ target_link_libraries ( libgsteuresys
   ${GSTREAMER_LIBRARIES}
   ${GSTREAMER_BASE_LIBRARY}
   ${GSTREAMER_INTERFACE_LIBRARY}
-  ${GSTREAMER_VIDEO_LIBRARY})
+  ${GSTREAMER_VIDEO_LIBRARY}
+  ${EURESYS_LIBRARIES})
   
 install (TARGETS libgsteuresys
   LIBRARY DESTINATION lib/gstreamer-0.10)

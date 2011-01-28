@@ -66,14 +66,10 @@ static gboolean gst_euresys_get_size (GstBaseSrc * src, guint64 * size);
 static gboolean gst_euresys_is_seekable (GstBaseSrc * src);
 static gboolean gst_euresys_unlock (GstBaseSrc * src);
 static gboolean gst_euresys_event (GstBaseSrc * src, GstEvent * event);
-static gboolean gst_euresys_do_seek (GstBaseSrc * src, GstSegment * segment);
 static gboolean gst_euresys_query (GstBaseSrc * src, GstQuery * query);
 static gboolean gst_euresys_check_get_range (GstBaseSrc * src);
 static void gst_euresys_fixate (GstBaseSrc * src, GstCaps * caps);
 static gboolean gst_euresys_unlock_stop (GstBaseSrc * src);
-static gboolean
-gst_euresys_prepare_seek_segment (GstBaseSrc * src, GstEvent * seek,
-    GstSegment * segment);
 static GstFlowReturn gst_euresys_create (GstPushSrc * src, GstBuffer ** buf);
 
 enum
@@ -86,7 +82,7 @@ enum
 };
 
 #define DEFAULT_PROP_BOARD_INDEX 0
-#define DEFAULT_PROP_CAMERA_TYPE  MC_Camera_NTSC
+#define DEFAULT_PROP_CAMERA_TYPE  MC_Camera_CAMERA_NTSC
 #define DEFAULT_PROP_CONNECTOR  MC_Connector_VID1
 
 /* pad templates */
@@ -153,10 +149,10 @@ gst_euresys_camera_get_type (void)
 {
   static GType euresys_camera_type = 0;
   static const GEnumValue euresys_camera[] = {
-    {MC_Camera_CCIR, "CCIR", "CCIR broadcasting standard"},
-    {MC_Camera_EIA, "EIA", "EIA broadcasting standard"},
-    {MC_Camera_PAL, "PAL", "PAL broadcasting standard"},
-    {MC_Camera_NTSC, "NTSC", "NTSC broadcasting standard"},
+    {MC_Camera_CAMERA_CCIR, "CCIR", "CCIR broadcasting standard"},
+    {MC_Camera_CAMERA_EIA, "EIA", "EIA broadcasting standard"},
+    {MC_Camera_CAMERA_PAL, "PAL", "PAL broadcasting standard"},
+    {MC_Camera_CAMERA_NTSC, "NTSC", "NTSC broadcasting standard"},
     {0, NULL, NULL},
   };
 
@@ -170,12 +166,8 @@ gst_euresys_camera_get_type (void)
 
 /* class initialization */
 
-#define DEBUG_INIT(bla) \
-  GST_DEBUG_CATEGORY_INIT (gst_euresys_debug, "euresys", 0, \
-      "debug category for euresys element");
-
-GST_BOILERPLATE_FULL (GstEuresys, gst_euresys, GstPushSrc,
-    GST_TYPE_PUSH_SRC, DEBUG_INIT);
+GST_BOILERPLATE (GstEuresys, gst_euresys, GstPushSrc,
+    GST_TYPE_PUSH_SRC);
 
 
 static GstVideoFormat
@@ -271,12 +263,10 @@ gst_euresys_class_init (GstEuresysClass * klass)
   base_src_class->is_seekable = GST_DEBUG_FUNCPTR (gst_euresys_is_seekable);
   base_src_class->unlock = GST_DEBUG_FUNCPTR (gst_euresys_unlock);
   base_src_class->event = GST_DEBUG_FUNCPTR (gst_euresys_event);
-  base_src_class->do_seek = GST_DEBUG_FUNCPTR (gst_euresys_do_seek);
   base_src_class->query = GST_DEBUG_FUNCPTR (gst_euresys_query);
   base_src_class->check_get_range = GST_DEBUG_FUNCPTR (gst_euresys_check_get_range);
   base_src_class->fixate = GST_DEBUG_FUNCPTR (gst_euresys_fixate);
   base_src_class->unlock_stop = GST_DEBUG_FUNCPTR (gst_euresys_unlock_stop);
-  base_src_class->prepare_seek_segment = GST_DEBUG_FUNCPTR (gst_euresys_prepare_seek_segment);
 
   push_src_class->create = GST_DEBUG_FUNCPTR (gst_euresys_create);
 
@@ -478,6 +468,8 @@ gst_euresys_start (GstBaseSrc * src)
   GstVideoFormat videoFormat;
   int width, height;
 
+  printf("REMOVE: start()\n");
+
   GST_DEBUG_OBJECT (euresys, "start");
 
   /* Open MultiCam driver */
@@ -525,7 +517,7 @@ gst_euresys_start (GstBaseSrc * src)
   status = McSetParamInt(euresys->hChannel, MC_Camera, euresys->cameraType);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
-        (_("Failed to set camera type.")), (NULL));
+        (_("Failed to set camera type = %d."), euresys->cameraType), (NULL));
     McDelete (euresys->hChannel);
     euresys->hChannel = 0;
     return FALSE;
@@ -545,10 +537,21 @@ gst_euresys_start (GstBaseSrc * src)
     return FALSE;
   }
 
+  /* Enable signals */
+  status = McSetParamInt(euresys->hChannel, MC_SignalEnable + MC_SIG_SURFACE_PROCESSING, MC_SignalEnable_ON);
+  status |= McSetParamInt(euresys->hChannel, MC_SignalEnable + MC_SIG_ACQUISITION_FAILURE, MC_SignalEnable_ON);
+  if (status != MC_OK) {
+    GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
+      (_("Failed to enable signals.")), (NULL));
+    McDelete (euresys->hChannel);
+    euresys->hChannel = 0;
+    return FALSE;
+  }
+
   /* TODO create caps */
   status = McGetParamInt (euresys->hChannel, MC_ColorFormat, &colorFormat);
   status |= McGetParamInt (euresys->hChannel, MC_ImageSizeX, &width);
-  status |= McGetParamInt (euresys->hChannel, MC_ImageSizeX, &height);
+  status |= McGetParamInt (euresys->hChannel, MC_ImageSizeY, &height);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
       (_("Failed to get color format, width, and height.")), (NULL));
@@ -656,16 +659,6 @@ gst_euresys_event (GstBaseSrc * src, GstEvent * event)
 }
 
 static gboolean
-gst_euresys_do_seek (GstBaseSrc * src, GstSegment * segment)
-{
-  GstEuresys *euresys = GST_EURESYS (src);
-
-  GST_DEBUG_OBJECT (euresys, "do_seek");
-
-  return FALSE;
-}
-
-static gboolean
 gst_euresys_query (GstBaseSrc * src, GstQuery * query)
 {
   GstEuresys *euresys = GST_EURESYS (src);
@@ -703,17 +696,6 @@ gst_euresys_unlock_stop (GstBaseSrc * src)
   return TRUE;
 }
 
-static gboolean
-gst_euresys_prepare_seek_segment (GstBaseSrc * src, GstEvent * seek,
-    GstSegment * segment)
-{
-  GstEuresys *euresys = GST_EURESYS (src);
-
-  GST_DEBUG_OBJECT (euresys, "seek_segment");
-
-  return FALSE;
-}
-
 static GstFlowReturn
 gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
 {
@@ -726,6 +708,8 @@ gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
   INT64 timeStamp;
   int newsize;
   GstFlowReturn ret;
+
+  printf("REMOVE: create()\n");
 
   /* Start acquisition */
   if (!euresys->acq_started) {
@@ -742,9 +726,13 @@ gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
   while (TRUE) {
     /* Wait up to 5000 msecs for a signal */
     status = McWaitSignal (euresys->hChannel, MC_SIG_ANY, 5000, &siginfo);
+  printf("REMOVE: wait status=%d, signal = %d\n", status, siginfo.Signal);
+  GST_DEBUG ("Test debug from default category");
+  GST_DEBUG_OBJECT (euresys, "Test debug from default category");
     if (status == MC_TIMEOUT) {
+      printf("REMOVE: timeout\n");
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          (_("Timeout waiting for signal.")), (NULL));
+          (_("Timeout waiting for signal.")), (_("Timeout waiting for signal.")));
       return GST_FLOW_ERROR;
     }
     else if (siginfo.Signal == MC_SIG_ACQUISITION_FAILURE) {
@@ -756,6 +744,7 @@ gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
       break;
     }
     else {
+      printf("REMOVE: continue\n");
       continue;
     }
   }
@@ -789,7 +778,7 @@ gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
       GST_ELEMENT_CAST (src)->base_time;
 
   /* Done processing surface, release control */
-  McSetParamInt (euresys->hChannel, MC_SurfaceState, MC_SurfaceState_FREE);
+  McSetParamInt (hSurface, MC_SurfaceState, MC_SurfaceState_FREE);
 
   return GST_FLOW_OK;
 }
@@ -797,7 +786,10 @@ gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-
+  printf ("REMOVE: gst_euresus_debug=%d\n", gst_euresys_debug);
+  GST_DEBUG_CATEGORY_INIT (gst_euresys_debug, "euresys", 0, \
+    "debug category for euresys element");
+  printf ("REMOVE: gst_euresus_debug=%d\n", gst_euresys_debug);
   gst_element_register (plugin, "euresys", GST_RANK_NONE,
       gst_euresys_get_type ());
 

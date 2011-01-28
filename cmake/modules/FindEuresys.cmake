@@ -19,7 +19,7 @@ ELSE (EURESYS_INCLUDE_DIR AND EURESYS_LIBRARIES)
 ENDIF (EURESYS_INCLUDE_DIR AND EURESYS_LIBRARIES)
 
 IF (NOT EURESYS_DIR)
-    SET (EURESYS_DIR "/usr/local/euresys/multicam" CACHE PATH "Directory containing Euresys Multicam includes and libraries")
+    SET (EURESYS_DIR "C:/Program Files/Euresys/MultiCam" CACHE PATH "Directory containing Euresys Multicam includes and libraries")
 ENDIF (NOT EURESYS_DIR)
 
 FIND_PATH (EURESYS_INCLUDE_DIR multicam.h
@@ -27,9 +27,9 @@ FIND_PATH (EURESYS_INCLUDE_DIR multicam.h
     "${EURESYS_DIR}/include"
     DOC "Directory containing multicam.h include file")
 
-FIND_LIBRARY (EURESYS_LIBRARIES NAMES libMultiCam
+FIND_LIBRARY (EURESYS_LIBRARIES NAMES MultiCam
     PATHS
-    "${EURESYS_DIR}/drivers"
+    "${EURESYS_DIR}/lib"
     DOC "EURESYS library to link with")
 
 IF (EURESYS_INCLUDE_DIR)

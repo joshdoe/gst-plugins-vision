@@ -4,7 +4,7 @@ set LIBXML2_DIR=%GSTREAMER_DIR%
 set LIBICONV_DIR=%GSTREAMER_DIR%
 set GLIB2_DIR=%GSTREAMER_DIR%
 set NIIMAQ_DIR=C:\Program Files\National Instruments
-set EURESYS_DIR=C:\Users\joshua.doe\Apps\multicam-6.5.1.1221
+set EURESYS_DIR=C:\Program Files\Euresys\MultiCam
 set OpenCV_DIR=C:\Users\joshua.doe\Apps\opencv
 
 rem Plugins will be installed under %CMAKE_PREFIX_PATH%\lib\gstreamer-0.10
