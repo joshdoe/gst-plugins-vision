@@ -1,12 +1,16 @@
 add_definitions(-DHAVE_CONFIG_H)
 
 set ( SOURCES
-    gstfreeimage.c
-    gstfreeimagedec.c)
+  gstfreeimage.c
+  gstfreeimagedec.c
+  gstfreeimageenc.c
+  gstfreeimageutils.c)
     
 set ( HEADERS
-    gstfreeimage.h
-    gstfreeimagedec.h)
+  gstfreeimage.h
+  gstfreeimagedec.h
+  gstfreeimageenc.h
+  gstfreeimageutils.h)
 
 include_directories ( AFTER
   ${FREEIMAGE_INCLUDE_DIR} )

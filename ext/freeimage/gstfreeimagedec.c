@@ -100,7 +100,7 @@ gst_freeimagedec_user_tell (fi_handle handle)
 }
 
 unsigned DLL_CALLCONV
-user_read (void *data, unsigned elsize, unsigned elcount, fi_handle handle)
+gst_freeimagedec_user_read (void *data, unsigned elsize, unsigned elcount, fi_handle handle)
 {
   GstFreeImageDec *freeimagedec;
   GstBuffer *buffer;
@@ -235,6 +235,7 @@ gst_freeimagedec_init (GstFreeImageDec * freeimagedec)
 
   freeimagedec->in_timestamp = GST_CLOCK_TIME_NONE;
   freeimagedec->in_duration = GST_CLOCK_TIME_NONE;
+  freeimagedec->in_offset = GST_BUFFER_OFFSET_NONE;
 
   freeimagedec->fps_n = 0;
   freeimagedec->fps_d = 1;
@@ -242,7 +243,7 @@ gst_freeimagedec_init (GstFreeImageDec * freeimagedec)
   gst_segment_init (&freeimagedec->segment, GST_FORMAT_UNDEFINED);
 
   /* Set user IO functions to FreeImageIO struct */
-  freeimagedec->fiio.read_proc = user_read;
+  freeimagedec->fiio.read_proc = gst_freeimagedec_user_read;
   freeimagedec->fiio.write_proc = NULL;
   freeimagedec->fiio.seek_proc = gst_freeimagedec_user_seek;
   freeimagedec->fiio.tell_proc = gst_freeimagedec_user_tell;
@@ -485,6 +486,10 @@ gst_freeimagedec_sink_event (GstPad * pad, GstEvent * event)
         gst_event_unref (event);
         res = TRUE;
       }
+
+      /* set offset of outgoing buffers */
+      freeimagedec->in_offset = 0;
+
       break;
     }
     case GST_EVENT_FLUSH_STOP:
@@ -661,14 +666,25 @@ gst_freeimagedec_push_dib (GstFreeImageDec * freeimagedec)
         FreeImage_GetBits (freeimagedec->dib) + (height - i - 1) * pitch, pitch);
   }
   
-
-  if (GST_CLOCK_TIME_IS_VALID (freeimagedec->in_timestamp))
+  if (GST_BUFFER_TIMESTAMP_IS_VALID (freeimagedec->in_timestamp))
     GST_BUFFER_TIMESTAMP (buffer) = freeimagedec->in_timestamp;
-  if (GST_CLOCK_TIME_IS_VALID (freeimagedec->in_duration))
-    GST_BUFFER_DURATION (buffer) = freeimagedec->in_duration;
+  else
+    if (freeimagedec->fps_d != 0)
+      GST_BUFFER_TIMESTAMP (buffer) =
+          (freeimagedec->in_offset * freeimagedec->fps_n) / freeimagedec->fps_d;
+  if (GST_BUFFER_TIMESTAMP_IS_VALID (freeimagedec->in_duration))
+       GST_BUFFER_DURATION (buffer) = freeimagedec->in_duration;
+  else
+    if (freeimagedec->fps_n != 0)
+      GST_BUFFER_DURATION (buffer) = freeimagedec->fps_d / freeimagedec->fps_n;
+  GST_BUFFER_OFFSET (buffer) = freeimagedec->in_offset;
+  GST_BUFFER_OFFSET_END (buffer) = freeimagedec->in_offset;
 
   /* Push the raw frame */
   ret = gst_pad_push (freeimagedec->srcpad, buffer);
+
+  /* increment output buffer offset */
+  freeimagedec->in_offset++;
 
   return ret;
 }

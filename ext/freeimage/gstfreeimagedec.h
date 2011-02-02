@@ -51,6 +51,7 @@ struct _GstFreeImageDec
 
   guint64 in_timestamp;
   guint64 in_duration;
+  guint64 in_offset;
 
   gboolean framed;
 
