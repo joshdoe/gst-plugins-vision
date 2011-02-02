@@ -314,6 +314,9 @@ gst_euresys_init (GstEuresys * euresys, GstEuresysClass * euresys_class)
 
   euresys->acq_started = FALSE;
 
+	euresys->last_time_code = -1;
+	euresys->dropped_frame_count = 0;
+
 }
 
 void
@@ -613,6 +616,9 @@ gst_euresys_stop (GstBaseSrc * src)
   gst_caps_unref (euresys->caps);
   euresys->caps = NULL;
 
+	euresys->dropped_frame_count = 0;
+	euresys->last_time_code = -1;
+
   return TRUE;
 }
 
@@ -685,6 +691,7 @@ gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
   INT64 timeStamp;
   int newsize;
   GstFlowReturn ret;
+	int dropped_frame_count;
 
   /* Start acquisition */
   if (!euresys->acq_started) {
@@ -737,6 +744,15 @@ gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
   }
 
 	GST_INFO ("Got surface #%05d", timeCode);
+
+	dropped_frame_count = timeCode - (euresys->last_time_code + 1);
+	if (dropped_frame_count != 0) {
+		euresys->dropped_frame_count += dropped_frame_count;
+		GST_WARNING ("Dropped %d frames (%d total)", dropped_frame_count, euresys->dropped_frame_count);
+		/* TODO: emit message here about dropped frames */
+	}
+	euresys->last_time_code = timeCode;
+
 
   /* Create the buffer */
   ret = gst_pad_alloc_buffer (GST_BASE_SRC_PAD (GST_BASE_SRC (src)),

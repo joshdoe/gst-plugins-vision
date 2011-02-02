@@ -54,7 +54,10 @@ struct _GstEuresys
 
   GstCaps *caps;
 
-  gboolean acq_started;
+	gint dropped_frame_count;
+	gboolean acq_started;
+
+	INT32 last_time_code;
   MCHANDLE hChannel;
   INT32 boardType;
   INT32 boardIdx;
