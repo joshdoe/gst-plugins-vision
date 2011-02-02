@@ -30,6 +30,15 @@
  * </refsect2>
  */
 
+/* TODO:
+ * - add all caps supported by any Euresys framegrabber to src pad static caps
+ *   - once specific framegrabber is known, set caps to available set
+ *   - once caps are negotiated set to framegrabber
+ *   - possibly use SurfaceColorFormat to determine the format of each surface
+ * - apply surface timestamp to buffer
+ * - issue warning and message if a frame has dropped
+ */
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -55,7 +64,6 @@ static void gst_euresys_finalize (GObject * object);
 
 static GstCaps *gst_euresys_get_caps (GstBaseSrc * src);
 static gboolean gst_euresys_set_caps (GstBaseSrc * src, GstCaps * caps);
-static gboolean gst_euresys_negotiate (GstBaseSrc * src);
 static gboolean gst_euresys_newsegment (GstBaseSrc * src);
 static gboolean gst_euresys_start (GstBaseSrc * src);
 static gboolean gst_euresys_stop (GstBaseSrc * src);
@@ -64,12 +72,9 @@ gst_euresys_get_times (GstBaseSrc * src, GstBuffer * buffer,
     GstClockTime * start, GstClockTime * end);
 static gboolean gst_euresys_get_size (GstBaseSrc * src, guint64 * size);
 static gboolean gst_euresys_is_seekable (GstBaseSrc * src);
-static gboolean gst_euresys_unlock (GstBaseSrc * src);
-static gboolean gst_euresys_event (GstBaseSrc * src, GstEvent * event);
 static gboolean gst_euresys_query (GstBaseSrc * src, GstQuery * query);
 static gboolean gst_euresys_check_get_range (GstBaseSrc * src);
 static void gst_euresys_fixate (GstBaseSrc * src, GstCaps * caps);
-static gboolean gst_euresys_unlock_stop (GstBaseSrc * src);
 static GstFlowReturn gst_euresys_create (GstPushSrc * src, GstBuffer ** buf);
 
 enum
@@ -91,7 +96,12 @@ static GstStaticPadTemplate gst_euresys_src_template =
 GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("application/unknown")
+    GST_STATIC_CAPS (
+				GST_VIDEO_CAPS_GRAY8 ";"
+				GST_VIDEO_CAPS_RGB ";"
+				GST_VIDEO_CAPS_ARGB ";"
+				GST_VIDEO_CAPS_RGB_15 ";"
+				GST_VIDEO_CAPS_RGB_16)
     );
 
 
@@ -254,19 +264,15 @@ gst_euresys_class_init (GstEuresysClass * klass)
   gobject_class->finalize = gst_euresys_finalize;
   base_src_class->get_caps = GST_DEBUG_FUNCPTR (gst_euresys_get_caps);
   base_src_class->set_caps = GST_DEBUG_FUNCPTR (gst_euresys_set_caps);
-  base_src_class->negotiate = GST_DEBUG_FUNCPTR (gst_euresys_negotiate);
   base_src_class->newsegment = GST_DEBUG_FUNCPTR (gst_euresys_newsegment);
   base_src_class->start = GST_DEBUG_FUNCPTR (gst_euresys_start);
   base_src_class->stop = GST_DEBUG_FUNCPTR (gst_euresys_stop);
   base_src_class->get_times = GST_DEBUG_FUNCPTR (gst_euresys_get_times);
   base_src_class->get_size = GST_DEBUG_FUNCPTR (gst_euresys_get_size);
   base_src_class->is_seekable = GST_DEBUG_FUNCPTR (gst_euresys_is_seekable);
-  base_src_class->unlock = GST_DEBUG_FUNCPTR (gst_euresys_unlock);
-  base_src_class->event = GST_DEBUG_FUNCPTR (gst_euresys_event);
   base_src_class->query = GST_DEBUG_FUNCPTR (gst_euresys_query);
   base_src_class->check_get_range = GST_DEBUG_FUNCPTR (gst_euresys_check_get_range);
   base_src_class->fixate = GST_DEBUG_FUNCPTR (gst_euresys_fixate);
-  base_src_class->unlock_stop = GST_DEBUG_FUNCPTR (gst_euresys_unlock_stop);
 
   push_src_class->create = GST_DEBUG_FUNCPTR (gst_euresys_create);
 
@@ -440,16 +446,6 @@ gst_euresys_set_caps (GstBaseSrc * src, GstCaps * caps)
 }
 
 static gboolean
-gst_euresys_negotiate (GstBaseSrc * src)
-{
-  GstEuresys *euresys = GST_EURESYS (src);
-
-  GST_DEBUG_OBJECT (euresys, "negotiate");
-
-  return TRUE;
-}
-
-static gboolean
 gst_euresys_newsegment (GstBaseSrc * src)
 {
   GstEuresys *euresys = GST_EURESYS (src);
@@ -468,8 +464,6 @@ gst_euresys_start (GstBaseSrc * src)
   GstVideoFormat videoFormat;
   int width, height;
 
-  printf("REMOVE: start()\n");
-
   GST_DEBUG_OBJECT (euresys, "start");
 
   /* Open MultiCam driver */
@@ -477,6 +471,13 @@ gst_euresys_start (GstBaseSrc * src)
   if (status != MC_OK) {
       GST_ELEMENT_ERROR (euresys, LIBRARY, INIT, (NULL), (NULL));
       return FALSE;
+  }
+
+  status = McGetParamInt (MC_BOARD + euresys->boardIdx, MC_BoardType, &euresys->boardType);
+  if (status != MC_OK) {
+    GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
+      (_("Failed to get board type.")), (NULL));
+    return FALSE;
   }
 
   /* Only Windows supports error message boxes */
@@ -524,8 +525,14 @@ gst_euresys_start (GstBaseSrc * src)
   }
 
   /* Set the color format */
-  /*status = McSetParamInt(euresys->hChannel, MC_ColorFormat, MC_ColorFormat_RGB32);
-  if (status != MC_OK) goto Finalize; */
+  status = McSetParamInt(euresys->hChannel, MC_ColorFormat, MC_ColorFormat_Y8);
+  if (status != MC_OK) {
+    GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
+      (_("Failed to set color format = %d."), MC_ColorFormat_Y8), (NULL));
+    McDelete (euresys->hChannel);
+    euresys->hChannel = 0;
+    return FALSE;
+  }
 
   /* The number of images to acquire */
   status = McSetParamInt (euresys->hChannel, MC_SeqLength_Fr, MC_INDETERMINATE);
@@ -639,26 +646,6 @@ gst_euresys_is_seekable (GstBaseSrc * src)
 }
 
 static gboolean
-gst_euresys_unlock (GstBaseSrc * src)
-{
-  GstEuresys *euresys = GST_EURESYS (src);
-
-  GST_DEBUG_OBJECT (euresys, "unlock");
-
-  return TRUE;
-}
-
-static gboolean
-gst_euresys_event (GstBaseSrc * src, GstEvent * event)
-{
-  GstEuresys *euresys = GST_EURESYS (src);
-
-  GST_DEBUG_OBJECT (euresys, "event");
-
-  return TRUE;
-}
-
-static gboolean
 gst_euresys_query (GstBaseSrc * src, GstQuery * query)
 {
   GstEuresys *euresys = GST_EURESYS (src);
@@ -686,16 +673,6 @@ gst_euresys_fixate (GstBaseSrc * src, GstCaps * caps)
   GST_DEBUG_OBJECT (euresys, "fixate");
 }
 
-static gboolean
-gst_euresys_unlock_stop (GstBaseSrc * src)
-{
-  GstEuresys *euresys = GST_EURESYS (src);
-
-  GST_DEBUG_OBJECT (euresys, "stop");
-
-  return TRUE;
-}
-
 static GstFlowReturn
 gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
 {
@@ -708,8 +685,6 @@ gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
   INT64 timeStamp;
   int newsize;
   GstFlowReturn ret;
-
-  printf("REMOVE: create()\n");
 
   /* Start acquisition */
   if (!euresys->acq_started) {
@@ -726,11 +701,7 @@ gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
   while (TRUE) {
     /* Wait up to 5000 msecs for a signal */
     status = McWaitSignal (euresys->hChannel, MC_SIG_ANY, 5000, &siginfo);
-  printf("REMOVE: wait status=%d, signal = %d\n", status, siginfo.Signal);
-  GST_DEBUG ("Test debug from default category");
-  GST_DEBUG_OBJECT (euresys, "Test debug from default category");
     if (status == MC_TIMEOUT) {
-      printf("REMOVE: timeout\n");
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
           (_("Timeout waiting for signal.")), (_("Timeout waiting for signal.")));
       return GST_FLOW_ERROR;
@@ -744,15 +715,19 @@ gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
       break;
     }
     else {
-      printf("REMOVE: continue\n");
       continue;
     }
   }
 
   /* Get pointer to image data and other info*/
   hSurface = (MCHANDLE) siginfo.SignalInfo;
+	/* "number of bytes actually written into the surface" */
   status = McGetParamInt (hSurface, MC_FillCount, &newsize);
+	/* "Internal numbering of surface during acquisition sequence" (zero-based)*/
   status |= McGetParamInt (hSurface, MC_TimeCode, &timeCode);
+	/* "number of microseconds elapsed since midnight (00:00:00), 
+	 * January 1, 1970, coordinated universal time (UTC), according
+	 * to the system clock when the surface is filled" */
   status |= McGetParamInt64 (hSurface, MC_TimeStamp_us, &timeStamp);
   status |= McGetParamPtr (hSurface, MC_SurfaceAddr, (PVOID*)&pImage);
   if (G_UNLIKELY (status != MC_OK)) {
@@ -760,6 +735,8 @@ gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
       (_("Failed to read surface parameter.")), (NULL));
     return GST_FLOW_ERROR;
   }
+
+	GST_INFO ("Got surface #%05d", timeCode);
 
   /* Create the buffer */
   ret = gst_pad_alloc_buffer (GST_BASE_SRC_PAD (GST_BASE_SRC (src)),
@@ -786,10 +763,8 @@ gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  printf ("REMOVE: gst_euresus_debug=%d\n", gst_euresys_debug);
   GST_DEBUG_CATEGORY_INIT (gst_euresys_debug, "euresys", 0, \
     "debug category for euresys element");
-  printf ("REMOVE: gst_euresus_debug=%d\n", gst_euresys_debug);
   gst_element_register (plugin, "euresys", GST_RANK_NONE,
       gst_euresys_get_type ());
 

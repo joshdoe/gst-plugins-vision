@@ -56,6 +56,7 @@ struct _GstEuresys
 
   gboolean acq_started;
   MCHANDLE hChannel;
+  INT32 boardType;
   INT32 boardIdx;
   INT32 cameraType;
   INT32 connector;
