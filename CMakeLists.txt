@@ -10,6 +10,7 @@ find_package (NIIMAQ)
 find_package (FreeImage)
 find_package (OpenCV)
 find_package (Euresys)
+find_package (IOtechDaqX)
 
 # conditional required packages
 include (CheckIncludeFiles)

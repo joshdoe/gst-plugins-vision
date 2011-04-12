@@ -1,0 +1,49 @@
+# - Try to find IOtech DaqX SDK
+# Once done this will define
+#
+#  IOTECHDAQX_FOUND - system has IOtech DaqX SDK
+#  IOTECHDAQX_INCLUDE_DIR - the IOtech DaqX SDK include directory
+#  IOTECHDAQX_LIBRARIES - the libraries needed to use IOtech DaqX
+
+# Copyright (c) 2006, Tim Beaulen <tbscope@gmail.com>
+#
+# Redistribution and use is allowed according to the terms of the BSD license.
+# For details see the accompanying COPYING-CMAKE-SCRIPTS file.
+
+IF (IOTECHDAQX_INCLUDE_DIR AND IOTECHDAQX_LIBRARIES)
+   # in cache already
+   SET(IOTECHDAQX_FIND_QUIETLY TRUE)
+ELSE (IOTECHDAQX_INCLUDE_DIR AND IOTECHDAQX_LIBRARIES)
+   SET(IOTECHDAQX_FIND_QUIETLY FALSE)
+ENDIF (IOTECHDAQX_INCLUDE_DIR AND IOTECHDAQX_LIBRARIES)
+
+IF (NOT IOTECHDAQX_DIR)
+    SET (IOTECHDAQX_DIR "C:/Program Files/DaqX" CACHE PATH "Directory containing IOtech DaqX")
+ENDIF (NOT IOTECHDAQX_DIR)
+
+FIND_PATH (IOTECHDAQX_INCLUDE_DIR DAQX.H
+    PATHS
+    "${IOTECHDAQX_DIR}/Programming Language Support/WaveBook/C/32-bit Enhanced API"
+    DOC "Directory containing DAQX.H include file")
+
+FIND_LIBRARY (IOTECHDAQX_LIBRARIES NAMES DAQX
+    PATHS
+    "${IOTECHDAQX_DIR}/Programming Language Support/WaveBook/C/32-bit Enhanced API"
+    DOC "IOTECHDAQX library to link with")
+
+IF (IOTECHDAQX_INCLUDE_DIR)
+   #MESSAGE(STATUS "DEBUG: Found IOtech DaqX include dir: ${IOTECHDAQX_INCLUDE_DIR}")
+ELSE (IOTECHDAQX_INCLUDE_DIR)
+   MESSAGE(STATUS "IOTECHDAQX: WARNING: include dir not found")
+ENDIF (IOTECHDAQX_INCLUDE_DIR)
+
+IF (IOTECHDAQX_LIBRARIES)
+   #MESSAGE(STATUS "DEBUG: Found IOtech DaqX library: ${IOTECHDAQX_LIBRARIES}")
+ELSE (IOTECHDAQX_LIBRARIES)
+   MESSAGE(STATUS "IOTECHDAQX: WARNING: library not found")
+ENDIF (IOTECHDAQX_LIBRARIES)
+
+INCLUDE (FindPackageHandleStandardArgs)
+FIND_PACKAGE_HANDLE_STANDARD_ARGS (IOTECHDAQX  DEFAULT_MSG  IOTECHDAQX_INCLUDE_DIR IOTECHDAQX_LIBRARIES)
+
+MARK_AS_ADVANCED(IOTECHDAQX_INCLUDE_DIR IOTECHDAQX_LIBRARIES)
