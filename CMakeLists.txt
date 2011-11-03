@@ -11,6 +11,7 @@ find_package (FreeImage)
 find_package (OpenCV)
 find_package (Euresys)
 find_package (IOtechDaqX)
+find_package (Phoenix)
 
 # conditional required packages
 include (CheckIncludeFiles)

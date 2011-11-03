@@ -10,4 +10,6 @@ if (IOTECHDAQX_FOUND)
 	add_subdirectory (iotechdaqx)
 endif (IOTECHDAQX_FOUND)
 
-add_subdirectory (decklink)
+if (PHOENIX_FOUND)
+	add_subdirectory(phoenix)
+endif (PHOENIX_FOUND)
