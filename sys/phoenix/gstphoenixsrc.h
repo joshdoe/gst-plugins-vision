@@ -62,17 +62,15 @@ struct _GstPhoenixSrc
 
   /* camera handle */
   tHandle hCamera;
-  
-  guint32 buffer_size;
-  //INT32 last_time_code;
-  //INT32 boardType;
-  //INT32 boardIdx;
-  //INT32 cameraType;
-  //INT32 connector;
 
+  /* properties */
   gchar *config_filepath;
+
+  guint32 buffer_size;
   gboolean buffer_ready;
   guint buffer_ready_count;
+  guint frame_end_count;
+  guint buffer_processed_count;
   gboolean timeout_occurred;
   gboolean fifo_overflow_occurred;
 
