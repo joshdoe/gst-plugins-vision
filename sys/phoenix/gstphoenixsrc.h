@@ -71,6 +71,13 @@ struct _GstPhoenixSrc
   //INT32 connector;
 
   gchar *config_filepath;
+  gboolean buffer_ready;
+  guint buffer_ready_count;
+  gboolean timeout_occurred;
+  gboolean fifo_overflow_occurred;
+
+  GMutex *mutex;
+  GCond *cond;
 };
 
 struct _GstPhoenixSrcClass
