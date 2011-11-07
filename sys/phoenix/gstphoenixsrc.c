@@ -96,80 +96,10 @@ GST_STATIC_PAD_TEMPLATE ("src",
         GST_VIDEO_CAPS_GRAY16("BIG_ENDIAN") ";"
         GST_VIDEO_CAPS_GRAY16("LITTLE_ENDIAN") ";"
 				GST_VIDEO_CAPS_RGB ";"
-				GST_VIDEO_CAPS_ARGB ";"
+				GST_VIDEO_CAPS_xRGB ";"
 				GST_VIDEO_CAPS_RGB_15 ";"
 				GST_VIDEO_CAPS_RGB_16)
     );
-
-
-/*#define GST_TYPE_PHOENIX_SRC_CONNECTOR (gst_phoenixsrc_connector_get_type())
-static GType
-gst_phoenixsrc_connector_get_type (void)
-{
-  static GType phoenixsrc_connector_type = 0;
-  static const GEnumValue phoenixsrc_connector[] = {
-    {MC_Connector_VID1, "VID1", "VID1 input"},
-    {MC_Connector_VID2, "VID2", "VID2 input"},
-    {MC_Connector_VID3, "VID3", "VID3 input"},
-    {MC_Connector_VID4, "VID4", "VID4 input"},
-    {MC_Connector_VID5, "VID5", "VID5 input"},
-    {MC_Connector_VID6, "VID6", "VID6 input"},
-    {MC_Connector_VID7, "VID7", "VID7 input"},
-    {MC_Connector_VID8, "VID8", "VID8 input"},
-    {MC_Connector_VID9, "VID9", "VID9 input"},
-    {MC_Connector_VID10, "VID10", "VID10 input"},
-    {MC_Connector_VID11, "VID11", "VID11 input"},
-    {MC_Connector_VID12, "VID12", "VID12 input"},
-    {MC_Connector_VID13, "VID13", "VID13 input"},
-    {MC_Connector_VID14, "VID14", "VID14 input"},
-    {MC_Connector_VID15, "VID15", "VID15 input"},
-    {MC_Connector_VID16, "VID16", "VID16 input"},
-    {MC_Connector_YC, "YC", "YC input using the MiniDIN4 or DB9 connector"},
-    {MC_Connector_YC1, "YC1", "YC1 input using the HD44 connector"},
-    {MC_Connector_YC2, "YC2", "YC2 input using the HD44 connector"},
-    {MC_Connector_YC3, "YC3", "YC3 input using the HD44 connector"},
-    {MC_Connector_YC4, "YC4", "YC4 input using the HD44 connector"},
-    {MC_Connector_X, "X", "X input"},
-    {MC_Connector_Y, "Y", "Y input"},
-    {MC_Connector_XBIS, "XBIS", "XBIS input using the secondary lane"},
-    {MC_Connector_YBIS, "YBIS", "YBIS input using the secondary lane"},
-    {MC_Connector_X1, "X1", "X1 input"},
-    {MC_Connector_X2, "X2", "X2 input"},
-    {MC_Connector_Y1, "Y1", "Y1 input"},
-    {MC_Connector_Y2, "Y2", "Y2 input"},
-    {MC_Connector_A, "A", "A input (Grablink Expert 2 DuoCam mode, connector A)"},
-    {MC_Connector_B, "B", "B input (Grablink Expert 2 DuoCam mode, connector B)"},
-    {MC_Connector_M, "M", "M input (Grablink in MonoCam mode)"},
-    {0, NULL, NULL},
-  };
-
-  if (!phoenixsrc_connector_type) {
-    phoenixsrc_connector_type =
-      g_enum_register_static ("GstPhoenixSrcConnector", phoenixsrc_connector);
-  }
-  return phoenixsrc_connector_type;
-}*/
-
-/*#define GST_TYPE_PHOENIX_SRC_CAMERA (gst_phoenixsrc_camera_get_type())
-static GType
-gst_phoenixsrc_camera_get_type (void)
-{
-  static GType phoenixsrc_camera_type = 0;
-  static const GEnumValue phoenixsrc_camera[] = {
-    {MC_Camera_CAMERA_CCIR, "CCIR", "CCIR broadcasting standard"},
-    {MC_Camera_CAMERA_EIA, "EIA", "EIA broadcasting standard"},
-    {MC_Camera_CAMERA_PAL, "PAL", "PAL broadcasting standard"},
-    {MC_Camera_CAMERA_NTSC, "NTSC", "NTSC broadcasting standard"},
-    {0, NULL, NULL},
-  };
-
-  if (!phoenixsrc_camera_type) {
-    phoenixsrc_camera_type =
-      g_enum_register_static ("GstPhoenixSrcCamera", phoenixsrc_camera);
-  }
-  return phoenixsrc_camera_type;
-}*/
-
 
 /* class initialization */
 
@@ -220,7 +150,7 @@ gst_phoenixsrc_base_init (gpointer g_class)
   gst_element_class_set_details_simple (element_class,
       "Active Silicon Phoenix Video Source", "Source/Video",
       "Active Silicon Phoenix framegrabber video source",
-      "Joshua Doe <joshua.m.doe2.civ@mail.mil>");
+      "Joshua M. Doe <oss@nvl.army.mil>");
 }
 
 static void
@@ -277,6 +207,9 @@ gst_phoenixsrc_init (GstPhoenixSrc * phoenixsrc, GstPhoenixSrcClass * phoenixsrc
   phoenixsrc->config_filepath = g_strdup (DEFAULT_PROP_CAMERA_CONFIG_FILEPATH);
   phoenixsrc->num_capture_buffers = DEFAULT_PROP_NUM_CAPTURE_BUFFERS;
 
+  phoenixsrc->first_phoenix_ts = GST_CLOCK_TIME_NONE;
+  phoenixsrc->frame_start_times = g_new (guint64, phoenixsrc->num_capture_buffers);
+  phoenixsrc->frame_end_times = g_new (guint64, phoenixsrc->num_capture_buffers);
   phoenixsrc->buffer_ready = FALSE;
   phoenixsrc->timeout_occurred = FALSE;
   phoenixsrc->fifo_overflow_occurred = FALSE;
@@ -284,22 +217,11 @@ gst_phoenixsrc_init (GstPhoenixSrc * phoenixsrc, GstPhoenixSrcClass * phoenixsrc
   phoenixsrc->buffer_ready_count = 0;
   phoenixsrc->buffer_processed_count = 0;
   phoenixsrc->frame_end_count = 0;
+  phoenixsrc->frame_start_count = 0;
+  /*phoenixsrc->frame_count = 0;*/
 
   phoenixsrc->mutex = g_mutex_new ();
   phoenixsrc->cond = g_cond_new ();
-
-  // phoenixsrc->boardIdx = DEFAULT_PROP_BOARD_INDEX;
- // phoenixsrc->cameraType = DEFAULT_PROP_CAMERA_TYPE;
- // phoenixsrc->connector = DEFAULT_PROP_CONNECTOR;
-
- // phoenixsrc->hChannel = 0;
- // phoenixsrc->caps = NULL;
-
- // phoenixsrc->acq_started = FALSE;
-
-	//phoenixsrc->last_time_code = -1;
-	//phoenixsrc->dropped_frame_count = 0;
-
 }
 
 void
@@ -325,6 +247,11 @@ gst_phoenixsrc_set_property (GObject * object, guint property_id,
       else {
         phoenixsrc->num_capture_buffers = g_value_get_uint (value);
         
+        g_free (phoenixsrc->frame_start_times);
+        phoenixsrc->frame_start_times = g_new (guint64, phoenixsrc->num_capture_buffers);
+
+        g_free (phoenixsrc->frame_end_times);
+        phoenixsrc->frame_end_times = g_new (guint64, phoenixsrc->num_capture_buffers);
       }
       break;
     default:
@@ -379,6 +306,8 @@ gst_phoenixsrc_finalize (GObject * object)
   phoenixsrc = GST_PHOENIX_SRC (object);
 
   /* clean up object here */
+  g_free (phoenixsrc->frame_start_times);
+  g_free (phoenixsrc->frame_end_times);
 
   g_mutex_free (phoenixsrc->mutex);
   g_cond_free (phoenixsrc->cond);
@@ -449,44 +378,78 @@ gst_phoenixsrc_newsegment (GstBaseSrc * src)
   return TRUE;
 }
 
+static inline GstClockTime
+gst_phoenix_get_timestamp (GstPhoenixSrc *phoenixsrc)
+{
+  ui32 dwParam;
+  guint64 timestamp;
+
+  /* get time in microseconds from start of acquisition */
+  /* TODO: check for rollover */
+  PHX_ParameterGet (phoenixsrc->hCamera, PHX_EVENTCOUNT, &dwParam);
+  timestamp = (guint64)1000 * dwParam;
+
+  if (phoenixsrc->first_phoenix_ts == GST_CLOCK_TIME_NONE) {
+    phoenixsrc->first_phoenix_ts = timestamp;
+  }
+  return timestamp - phoenixsrc->first_phoenix_ts;
+}
+
 /* Callback function to handle image capture events. */
 void
 phx_callback (tHandle hCamera, ui32 dwMask, void* pvParams )
 {
   GstPhoenixSrc *phoenixsrc = GST_PHOENIX_SRC (pvParams);
+  GstClockTime ct = gst_phoenix_get_timestamp (phoenixsrc);
   gboolean signal_create_func = FALSE;
-
-  ui32 dwParam;
+  guint n;
 
   g_mutex_lock (phoenixsrc->mutex);
 
-  /* Note that more than one interrupt can be sent, so no else if */
+  /* Note that more than one interrupt can be sent, so no "else if" */
+
+  /* called when frame valid signal goes high */
+  if (PHX_INTRPT_FRAME_START & dwMask) {
+    /* FIXME: this will work until frames are dropped */
+    n = phoenixsrc->frame_start_count % phoenixsrc->num_capture_buffers;
+    phoenixsrc->frame_start_times[n] = ct;
+
+    phoenixsrc->frame_start_count++;
+  }
+
+  /* called when frame valid signal goes low */
+  if (PHX_INTRPT_FRAME_END & dwMask) {
+    /* FIXME: this will work until frames are dropped */
+    n = (phoenixsrc->frame_end_count - 1) % phoenixsrc->num_capture_buffers;
+    phoenixsrc->frame_end_times[n] = ct;
+
+    phoenixsrc->frame_end_count++;
+  }
+
   if (PHX_INTRPT_BUFFER_READY & dwMask) {
     /* we have a buffer */
     phoenixsrc->buffer_ready = TRUE;
     phoenixsrc->buffer_ready_count++;
     signal_create_func = TRUE;
   }
+
   if (PHX_INTRPT_TIMEOUT & dwMask) {
     /* TODO: we could offer to try and ABORT then re-START capture */
     phoenixsrc->timeout_occurred = TRUE;
     signal_create_func = TRUE;
   }
+
   if (PHX_INTRPT_FIFO_OVERFLOW & dwMask) {
     phoenixsrc->fifo_overflow_occurred = TRUE;
     signal_create_func = TRUE;
   }
-  if (PHX_INTRPT_FRAME_END & dwMask) {
-    phoenixsrc->frame_end_count++;
-  }
 
-  ///* event counter is counting frames, should match buffer_ready_count unless we've dropped frames */
-  //PHX_ParameterGet (phoenixsrc->hCamera, PHX_EVENTCOUNT, &dwParam);
-  //phoenixsrc->frame_count = dwParam;
+
 
   if (signal_create_func)
     g_cond_signal (phoenixsrc->cond);
   g_mutex_unlock (phoenixsrc->mutex);
+  /* after unlocking, _create will check for these errors and copy data */
 }
 
 static gboolean
@@ -527,16 +490,16 @@ gst_phoenixsrc_start (GstBaseSrc * src)
   if (PHX_OK != eStat) goto ResourceSettingsError;
 
   /* capture in blocking fashion, i.e. don't overwrite un-processed buffers */
-  eParamValue = PHX_ENABLE;
+  eParamValue = PHX_DISABLE;
   eStat = PHX_ParameterSet (phoenixsrc->hCamera, PHX_ACQ_BLOCKING, &eParamValue);
   if (PHX_OK != eStat) goto ResourceSettingsError;
 
-  /* use event counter to count frames */
-  eParamValue = PHX_EVENTCOUNT_FRAME;
-  eStat = PHX_ParameterGet (phoenixsrc->hCamera, PHX_EVENTCOUNT_SRC, &eParamValue);
+  /* use event counter to count time from start of acquisition */
+  eParamValue = PHX_EVENTCOUNT_TIME;
+  eStat = PHX_ParameterSet (phoenixsrc->hCamera, PHX_EVENTCOUNT_SRC, &eParamValue);
   if (PHX_OK != eStat) goto ResourceSettingsError;
   eParamValue = PHX_EVENTGATE_ACQ;
-  eStat = PHX_ParameterGet (phoenixsrc->hCamera, PHX_EVENTGATE_SRC, &eParamValue);
+  eStat = PHX_ParameterSet (phoenixsrc->hCamera, PHX_EVENTGATE_SRC, &eParamValue);
   if (PHX_OK != eStat) goto ResourceSettingsError;
 
 
@@ -578,7 +541,7 @@ gst_phoenixsrc_start (GstBaseSrc * src)
 
   /* The BUFFER_READY interrupt is already enabled by default,
   * but we must enable other interrupts here. */
-  eParamValue = PHX_INTRPT_TIMEOUT | PHX_INTRPT_FIFO_OVERFLOW | PHX_INTRPT_FRAME_END;
+  eParamValue = PHX_INTRPT_TIMEOUT | PHX_INTRPT_FIFO_OVERFLOW | PHX_INTRPT_FRAME_END | PHX_INTRPT_FRAME_START;
   eStat = PHX_ParameterSet (phoenixsrc->hCamera, PHX_INTRPT_SET, (void *) &eParamValue);
   if (PHX_OK != eStat) goto ResourceSettingsError;
 
@@ -714,9 +677,10 @@ gst_phoenixsrc_create (GstPushSrc * src, GstBuffer ** buf)
   GstFlowReturn ret;
   etStat eStat = PHX_OK; /* Phoenix status variable */
   ui32 dwParamValue = 0; /* Phoenix Get/Set intermediate variable */
-  GTimeVal timeVal;
   stImageBuff phx_buffer;
   guint dropped_frame_count = 0;
+  guint new_dropped_frames;
+  guint n;
 
   /* Create and allocate the buffer */
   ret = gst_pad_alloc_buffer (GST_BASE_SRC_PAD (GST_BASE_SRC (src)),
@@ -744,9 +708,7 @@ gst_phoenixsrc_create (GstPushSrc * src, GstBuffer ** buf)
   /* about to read/write variables modified by phx_callback */
   g_mutex_lock (phoenixsrc->mutex);
 
-  /* wait up to 5 seconds for an interrupt */
-  //g_get_current_time (&timeVal);
-  //g_time_val_add (&timeVal, 5000000); /* TODO: don't hard code this timeout */
+  /* wait for callback (we should always get at least a timeout( */
   g_cond_wait (phoenixsrc->cond, phoenixsrc->mutex);
 
   if (phoenixsrc->fifo_overflow_occurred) {
@@ -765,20 +727,19 @@ gst_phoenixsrc_create (GstPushSrc * src, GstBuffer ** buf)
     return GST_FLOW_ERROR;
   }
 
-  if (phoenixsrc->buffer_ready) {
-    GST_INFO_OBJECT (phoenixsrc, "Buffer ready count: %d, frame end count: %d",
-        phoenixsrc->buffer_ready_count, phoenixsrc->frame_end_count);
-    phoenixsrc->buffer_ready = FALSE;
-  }
-  else {
+  if (!phoenixsrc->buffer_ready) {
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-        (_("Timeout waiting for buffer ready or error.")), (NULL));
+      (_("You should not see this error, something very bad happened.")), (NULL));
     g_mutex_unlock (phoenixsrc->mutex);
     return GST_FLOW_ERROR;
   }
 
-  /* frame_end is always 1 greater than buffer_ready */
-  dropped_frame_count = phoenixsrc->frame_end_count - phoenixsrc->buffer_ready_count - 1;
+  GST_INFO_OBJECT (phoenixsrc, "Processing new buffer %d (Frame start: %d), ready-processed = %d",
+      phoenixsrc->buffer_ready_count, phoenixsrc->frame_start_count, phoenixsrc->buffer_ready_count-phoenixsrc->buffer_processed_count);
+  phoenixsrc->buffer_ready = FALSE;
+
+  /* frame_start is always >= buffer_ready */
+  dropped_frame_count = phoenixsrc->frame_start_count - phoenixsrc->buffer_ready_count;
 
   g_mutex_unlock (phoenixsrc->mutex);
 
@@ -789,26 +750,30 @@ gst_phoenixsrc_create (GstPushSrc * src, GstBuffer ** buf)
     return GST_FLOW_ERROR;
   }
 
-  /* Copy image to buffer from surface */
+  /* Copy image to buffer from surface TODO: use orc_memcpy*/
   memcpy (GST_BUFFER_DATA (*buf), phx_buffer.pvAddress, phoenixsrc->buffer_size);
 
   /* Having processed the data, release the buffer ready for further image data */
   eStat = PHX_Acquire (phoenixsrc->hCamera, PHX_BUFFER_RELEASE, NULL);
+  phoenixsrc->buffer_processed_count++;
 
-  /* check for dropped frames */
-	if (dropped_frame_count != 0) {
-		phoenixsrc->dropped_frame_count += dropped_frame_count;
-		GST_WARNING ("Dropped %d frames (%d total)", dropped_frame_count, phoenixsrc->dropped_frame_count);
+  /* check for dropped frames (can only detect more than one) */
+  new_dropped_frames = dropped_frame_count - phoenixsrc->dropped_frame_count;
+	if (new_dropped_frames > 0) {
+		phoenixsrc->dropped_frame_count = dropped_frame_count;
+		GST_WARNING ("Dropped %d frames (%d total)", new_dropped_frames,
+        phoenixsrc->dropped_frame_count);
 		/* TODO: emit message here about dropped frames */
 	}
 
   GST_BUFFER_SIZE (*buf) = phoenixsrc->buffer_size;
-  GST_BUFFER_TIMESTAMP (*buf) =
-      gst_clock_get_time (GST_ELEMENT_CLOCK (src)) -
-      GST_ELEMENT_CAST (src)->base_time;
-  GST_BUFFER_OFFSET (*buf) = phoenixsrc->buffer_processed_count;
-
-  phoenixsrc->buffer_processed_count++;
+  /* use time from capture board */
+  n = (phoenixsrc->buffer_processed_count - 1) % phoenixsrc->num_capture_buffers;
+  GST_BUFFER_TIMESTAMP (*buf) = phoenixsrc->frame_start_times[n];
+  GST_BUFFER_DURATION (*buf) = GST_CLOCK_DIFF (phoenixsrc->frame_start_times[n],
+        phoenixsrc->frame_end_times[n]);
+  GST_BUFFER_OFFSET (*buf) = phoenixsrc->buffer_processed_count - 1;
+  GST_BUFFER_OFFSET_END (*buf) = GST_BUFFER_OFFSET (*buf);
 
   return GST_FLOW_OK;
 }

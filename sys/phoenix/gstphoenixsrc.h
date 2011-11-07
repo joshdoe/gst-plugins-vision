@@ -67,9 +67,13 @@ struct _GstPhoenixSrc
   gchar *config_filepath;
   guint num_capture_buffers;
 
+  GstClockTime first_phoenix_ts;
+  guint64 *frame_start_times;
+  guint64 *frame_end_times;
   guint32 buffer_size;
   gboolean buffer_ready;
   guint buffer_ready_count;
+  guint frame_start_count;
   guint frame_end_count;
   guint buffer_processed_count;
   gboolean timeout_occurred;
