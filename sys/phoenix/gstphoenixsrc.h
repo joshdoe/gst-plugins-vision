@@ -65,6 +65,7 @@ struct _GstPhoenixSrc
 
   /* properties */
   gchar *config_filepath;
+  guint num_capture_buffers;
 
   guint32 buffer_size;
   gboolean buffer_ready;

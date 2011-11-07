@@ -78,17 +78,12 @@ static GstFlowReturn gst_phoenixsrc_create (GstPushSrc * src, GstBuffer ** buf);
 enum
 {
     PROP_0,
-    PROP_CAMERA_CONFIG_FILEPATH/*,
-    PROP_BOARD_INDEX,
-    PROP_CAMERA_TYPE,
-    PROP_CONNECTOR*/
-    /* FILL ME */
+    PROP_CAMERA_CONFIG_FILEPATH,
+    PROP_NUM_CAPTURE_BUFFERS
 };
 
 #define DEFAULT_PROP_CAMERA_CONFIG_FILEPATH NULL /* defaults to 640x480x8bpp */
-/*#define DEFAULT_PROP_BOARD_INDEX 0
-#define DEFAULT_PROP_CAMERA_TYPE  MC_Camera_CAMERA_NTSC
-#define DEFAULT_PROP_CONNECTOR  MC_Connector_VID1*/
+#define DEFAULT_PROP_NUM_CAPTURE_BUFFERS 2
 
 /* pad templates */
 
@@ -253,20 +248,16 @@ gst_phoenixsrc_class_init (GstPhoenixSrcClass * klass)
 
   push_src_class->create = GST_DEBUG_FUNCPTR (gst_phoenixsrc_create);
 
-
   /* Install GObject properties */
   g_object_class_install_property (gobject_class, PROP_CAMERA_CONFIG_FILEPATH,
       g_param_spec_string ("config-file", "Config file",
           "Camera configuration filepath", DEFAULT_PROP_CAMERA_CONFIG_FILEPATH,
-          G_PARAM_READWRITE));
-  //g_object_class_install_property (gobject_class, PROP_CAMERA_TYPE,
-  //    g_param_spec_enum ("camera", "Camera",
-  //        "Camera type", GST_TYPE_PHOENIX_SRC_CAMERA,
-  //        DEFAULT_PROP_CAMERA_TYPE, G_PARAM_READWRITE));
-  //g_object_class_install_property (gobject_class, PROP_CONNECTOR,
-  //    g_param_spec_enum ("connector", "Connector",
-  //        "Connector where camera is attached", GST_TYPE_PHOENIX_SRC_CONNECTOR,
-  //        DEFAULT_PROP_CONNECTOR, G_PARAM_READWRITE));
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+  g_object_class_install_property (gobject_class, PROP_NUM_CAPTURE_BUFFERS,
+      g_param_spec_uint ("num-capture-buffers", "Number of capture buffers",
+          "Number of capture buffers", 1, G_MAXUINT,
+          DEFAULT_PROP_NUM_CAPTURE_BUFFERS,
+          (GParamFlags) (G_PARAM_READWRITE |G_PARAM_STATIC_STRINGS)));
 
 }
 
@@ -284,6 +275,7 @@ gst_phoenixsrc_init (GstPhoenixSrc * phoenixsrc, GstPhoenixSrcClass * phoenixsrc
 
   /* initialize member variables */
   phoenixsrc->config_filepath = g_strdup (DEFAULT_PROP_CAMERA_CONFIG_FILEPATH);
+  phoenixsrc->num_capture_buffers = DEFAULT_PROP_NUM_CAPTURE_BUFFERS;
 
   phoenixsrc->buffer_ready = FALSE;
   phoenixsrc->timeout_occurred = FALSE;
@@ -324,6 +316,17 @@ gst_phoenixsrc_set_property (GObject * object, guint property_id,
       g_free (phoenixsrc->config_filepath);
       phoenixsrc->config_filepath = g_strdup (g_value_get_string (value));
       break;
+    case PROP_NUM_CAPTURE_BUFFERS:
+      if (phoenixsrc->acq_started) {
+        GST_ELEMENT_WARNING (phoenixsrc, RESOURCE, SETTINGS,
+            ("Number of capture buffers cannot be changed after acquisition has started."),
+            (NULL));
+      }
+      else {
+        phoenixsrc->num_capture_buffers = g_value_get_uint (value);
+        
+      }
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -342,6 +345,9 @@ gst_phoenixsrc_get_property (GObject * object, guint property_id,
   switch (property_id) {
     case PROP_CAMERA_CONFIG_FILEPATH:
       g_value_set_string (value, phoenixsrc->config_filepath);
+      break;
+    case PROP_NUM_CAPTURE_BUFFERS:
+      g_value_set_uint (value, phoenixsrc->num_capture_buffers);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -561,8 +567,8 @@ gst_phoenixsrc_start (GstBaseSrc * src)
   if (PHX_OK != eStat) goto ResourceSettingsError;
   phoenixsrc->buffer_size = dwBufferHeight * dwBufferWidth;
 
-  /* Tell Phoenix to use N buffers. TODO: make this a property */
-  eParamValue = 2;
+  /* Tell Phoenix to use N buffers.  */
+  eParamValue = phoenixsrc->num_capture_buffers;
   PHX_ParameterSet (phoenixsrc->hCamera, PHX_ACQ_NUM_IMAGES, &eParamValue);
 
   /* Setup a one second timeout value (milliseconds) */
