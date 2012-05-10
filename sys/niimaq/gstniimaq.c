@@ -118,6 +118,7 @@ static gboolean gst_niimaqsrc_set_caps_framesize (GstStructure * gs, gint width,
     gint height);
 
 static GstCaps *gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * src);
+static void gst_niimaqsrc_close_interface (GstNiImaqSrc * niimaqsrc);
 
 uInt32
 gst_niimaqsrc_report_imaq_error (uInt32 code) {
@@ -528,11 +529,19 @@ gst_niimaqsrc_dispose (GObject * object)
 {
   GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (object);
 
+  gst_niimaqsrc_close_interface (niimaqsrc);
+
   /* free memory allocated */
   g_free (niimaqsrc->camera_name);
   niimaqsrc->camera_name = NULL;
   g_free (niimaqsrc->interface_name);
   niimaqsrc->interface_name = NULL;
+
+  if (niimaqsrc->caps)
+    gst_caps_unref (niimaqsrc->caps);
+  g_slist_free (niimaqsrc->timelist);
+  g_mutex_free (niimaqsrc->frametime_mutex);
+  
 
   /* chain dispose fuction of parent class */
   G_OBJECT_CLASS (parent_class)->dispose (object);
@@ -699,17 +708,7 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
         ("Camera doesn't seem to want to turn on!"),
         ("Camera doesn't seem to want to turn on!"));
 
-      if (niimaqsrc->sid) {
-        rval = imgClose (niimaqsrc->sid,TRUE);
-        gst_niimaqsrc_report_imaq_error (rval);
-        niimaqsrc->sid = 0;
-      }
-
-      if (niimaqsrc->iid) {
-        rval = imgClose (niimaqsrc->iid,TRUE);
-        gst_niimaqsrc_report_imaq_error (rval);
-        niimaqsrc->iid = 0;
-      }
+    gst_niimaqsrc_close_interface (niimaqsrc);
 
       return GST_FLOW_ERROR;
     }
@@ -1091,17 +1090,7 @@ gst_niimaqsrc_start (GstBaseSrc * src)
   return TRUE;
 
 error:
-  /* close IMAQ session and interface */
-  if(niimaqsrc->sid) {
-    rval = imgClose(niimaqsrc->sid,TRUE);
-    gst_niimaqsrc_report_imaq_error (rval);
-    niimaqsrc->sid = 0;
-  }
-  if(niimaqsrc->iid) {
-    rval = imgClose(niimaqsrc->iid,TRUE);
-    gst_niimaqsrc_report_imaq_error (rval);
-    niimaqsrc->iid = 0;
-  }
+  gst_niimaqsrc_close_interface (niimaqsrc);
 
   return FALSE;;
 
@@ -1122,34 +1111,50 @@ gst_niimaqsrc_stop (GstBaseSrc * src)
   Int32 rval;
 
   /* stop IMAQ session */
+  if (niimaqsrc->session_started) {
   rval = imgSessionStopAcquisition (niimaqsrc->sid);
   if (rval) {
     gst_niimaqsrc_report_imaq_error (rval);
     GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED, ("Unable to stop acquisition"),
-        ("Unable to stop acquisition"));
+      ("Unable to stop acquisition"));
+    }
+    niimaqsrc->session_started = FALSE;
+    GST_DEBUG_OBJECT (niimaqsrc, "Acquisition stopped");
   }
-  niimaqsrc->session_started = FALSE;
 
-  GST_DEBUG_OBJECT (niimaqsrc, "Acquisition stopped");
+  gst_niimaqsrc_close_interface(niimaqsrc);
+
+  if (niimaqsrc->caps) {
+    gst_caps_unref (niimaqsrc->caps);
+    niimaqsrc->caps = NULL;
+  }
+}
+
+/**
+* gst_niimaqsrc_close_interface:
+* niimaqsrc: #GstNiImaqSrc instance
+*
+* Close IMAQ session and interface
+*
+*/
+static void
+gst_niimaqsrc_close_interface (GstNiImaqSrc * niimaqsrc)
+{
+  Int32 rval;
 
   /* close IMAQ session and interface */
   if(niimaqsrc->sid) {
     rval = imgClose(niimaqsrc->sid,TRUE);
     gst_niimaqsrc_report_imaq_error (rval);
     niimaqsrc->sid = 0;
+    GST_DEBUG_OBJECT (niimaqsrc, "IMAQ session closed");
   }
   if(niimaqsrc->iid) {
     rval = imgClose(niimaqsrc->iid,TRUE);
     gst_niimaqsrc_report_imaq_error (rval);
     niimaqsrc->iid = 0;
+    GST_DEBUG_OBJECT (niimaqsrc, "IMAQ interface closed");
   }
-
-  GST_DEBUG_OBJECT (niimaqsrc, "IMAQ interface closed");
-
-  gst_caps_unref (niimaqsrc->caps);
-  niimaqsrc->caps = NULL;
-
-  return TRUE;
 }
 
 /**
