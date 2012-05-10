@@ -991,7 +991,7 @@ gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * niimaqsrc)
     gst_niimaqsrc_set_caps_color (gs, 16, 16);
     gst_caps_append_structure (gcaps, gst_structure_copy (gs));
   }
-  gst_object_unref (gs);
+  gst_structure_free (gs);
 
   GST_DEBUG_OBJECT (gcaps, "are the camera caps");
 
