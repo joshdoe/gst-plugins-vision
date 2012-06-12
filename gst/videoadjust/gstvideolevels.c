@@ -98,15 +98,6 @@ GST_STATIC_PAD_TEMPLATE ("sink",
       "endianness = (int) {LITTLE_ENDIAN, BIG_ENDIAN}, "    \
       "width = " GST_VIDEO_SIZE_RANGE ", "                  \
       "height = " GST_VIDEO_SIZE_RANGE ", "                 \
-      "framerate = " GST_VIDEO_FPS_RANGE                    \
-      ";"                                                   \
-      "video/x-raw-gray, "                                  \
-      "bpp = (int) [1, 16], "                                    \
-      "depth = (int) 16, "                                  \
-      "endianness = (int) {LITTLE_ENDIAN, BIG_ENDIAN}, "    \
-      "signed = (bool) {true, false}, "                     \
-      "width = " GST_VIDEO_SIZE_RANGE ", "                  \
-      "height = " GST_VIDEO_SIZE_RANGE ", "                 \
       "framerate = " GST_VIDEO_FPS_RANGE
     )
 );
@@ -418,11 +409,9 @@ gst_videolevels_transform_caps (GstBaseTransform * base,
         NULL);
     structure = gst_caps_get_structure (newcaps, 0);
     gst_structure_remove_field (structure, "endianness");
-    gst_structure_remove_field (structure, "signed");
   }
   else {
     GValue endianness = {0};
-    GValue signed_list = {0};
     GValue ival = {0};
     
     GST_DEBUG ("Pad direction is src");
@@ -441,14 +430,6 @@ gst_videolevels_transform_caps (GstBaseTransform * base,
     g_value_set_int (&ival, G_BIG_ENDIAN);
     gst_value_list_append_value (&endianness, &ival);
     gst_structure_set_value (structure, "endianness", &endianness);
-
-    /* add signed/unsigned to caps */
-    g_value_init (&signed_list, GST_TYPE_LIST);
-    g_value_set_int (&ival, FALSE);
-    gst_value_list_append_value (&signed_list, &ival);
-    g_value_set_int (&ival, TRUE);
-    gst_value_list_append_value (&signed_list, &ival);
-    gst_structure_set_value (structure, "signed", &signed_list);
   }
   GST_DEBUG_OBJECT (newcaps, "allowed caps are");
 
@@ -492,11 +473,6 @@ gst_videolevels_set_caps (GstBaseTransform * base, GstCaps * incaps,
       NULL);
   if (!res)
     return FALSE;
-
-	/* retrieve input caps sign, or set to false if field doesn't exist */ 
-  if (!gst_structure_get (structure,
-      "signed", G_TYPE_BOOLEAN, &levels->is_signed_in))
-      levels->is_signed_in = FALSE;
 
   /* retrieve output bpp and depth */
   structure = gst_caps_get_structure (outcaps, 0);
@@ -629,7 +605,6 @@ static void gst_videolevels_reset(GstVideoLevels* videolevels)
   videolevels->bpp_in = 0;
   videolevels->depth_in = 0;
   videolevels->endianness_in = 0;
-  videolevels->is_signed_in = FALSE;
 
   videolevels->stride_out = 0;
   videolevels->bpp_out = 0;
@@ -847,37 +822,19 @@ gst_videolevels_calculate_histogram (GstVideoLevels * videolevels, guint16 * dat
   memset (hist, 0, sizeof(gint)*nbins);
 
   GST_DEBUG ("Calculating histogram");
-  if (!videolevels->is_signed_in) {
-    if (videolevels->endianness_in == G_BYTE_ORDER) {
-      for (r = 0; r < videolevels->height; r++) {
-        for (c = 0; c < videolevels->width; c++) {
- /*         GST_DEBUG ("(%d, %d) = %d, hist[%d] = %d", r, c, data [c + r * videolevels->stride_in / 2], GINT_CLAMP (data [c + r * videolevels->stride_in / 2] * factor, 0, nbins - 1),
-              hist [GINT_CLAMP (data [c + r * videolevels->stride_in / 2] * factor, 0, nbins - 1)] + 1);*/
-          hist [GINT_CLAMP (data [c + r * videolevels->stride_in / 2] * factor, 0, nbins - 1)]++;
-        }
-      }
-    }
-    else {
-      for (r = 0; r < videolevels->height; r++) {
-        for (c = 0; c < videolevels->width; c++) {
-          hist [GINT_CLAMP (GUINT16_FROM_BE (data [c + r * videolevels->stride_in / 2]) * factor, 0, nbins - 1)]++;
-        }
+  if (videolevels->endianness_in == G_BYTE_ORDER) {
+    for (r = 0; r < videolevels->height; r++) {
+      for (c = 0; c < videolevels->width; c++) {
+/*         GST_DEBUG ("(%d, %d) = %d, hist[%d] = %d", r, c, data [c + r * videolevels->stride_in / 2], GINT_CLAMP (data [c + r * videolevels->stride_in / 2] * factor, 0, nbins - 1),
+            hist [GINT_CLAMP (data [c + r * videolevels->stride_in / 2] * factor, 0, nbins - 1)] + 1);*/
+        hist [GINT_CLAMP (data [c + r * videolevels->stride_in / 2] * factor, 0, nbins - 1)]++;
       }
     }
   }
   else {
-    if (videolevels->endianness_in == G_BYTE_ORDER) {
-      for (r = 0; r < videolevels->height; r++) {
-        for (c = 0; c < videolevels->width; c++) {
-          hist [GINT_CLAMP ((data [c + r * videolevels->stride_in / 2] + 32767) * factor, 0, nbins - 1)]++;
-        }
-      }
-    }
-    else {
-      for (r = 0; r < videolevels->height; r++) {
-        for (c = 0; c < videolevels->width; c++) {
-          hist [GINT_CLAMP ((GUINT16_FROM_BE (data [c + r * videolevels->stride_in / 2]) + 32767) * factor, 0, nbins - 1)]++;
-        }
+    for (r = 0; r < videolevels->height; r++) {
+      for (c = 0; c < videolevels->width; c++) {
+        hist [GINT_CLAMP (GUINT16_FROM_BE (data [c + r * videolevels->stride_in / 2]) * factor, 0, nbins - 1)]++;
       }
     }
   }

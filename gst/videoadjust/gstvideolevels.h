@@ -76,7 +76,6 @@ struct _GstVideoLevels
   gint bpp_in;
   gint depth_in;
   gint endianness_in;
-  gboolean is_signed_in;
 
   guint stride_out;
   gint bpp_out;
