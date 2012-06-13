@@ -1,41 +1,60 @@
-cmake_minimum_required (VERSION "2.8.0")
+cmake_minimum_required(VERSION "2.8.0")
 
-list (APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
 
-project ( gst-plugins-vision )
+project(gst-plugins-vision)
 
-find_package (Gstreamer REQUIRED)
-find_package (Glib2 REQUIRED)
-find_package (NIIMAQ)
-find_package (FreeImage)
-find_package (OpenCV)
-find_package (Euresys)
-find_package (IOtechDaqX)
-find_package (Phoenix)
+include(MacroLogFeature)
 
-# conditional required packages
-include (CheckIncludeFiles)
-CHECK_INCLUDE_FILES ("${GSTREAMER_INCLUDE_DIR}/gst/gstconfig.h" GST_USING_BINARY_REGISTRY)
-if (NOT GST_USING_BINARY_REGISTRY)
-    find_package (LIBXML2)
-    find_package (LIBICONV)
-    include_directories (AFTER
-        ${LIBXML2_INCLUDE_DIR}
-        ${LIBICONV_INCLUDE_DIR})
-endif (NOT GST_USING_BINARY_REGISTRY)
+find_package(GStreamer 0.10.29 COMPONENTS base)
+macro_log_feature(GSTREAMER_FOUND "GStreamer" "Required to build gst-plugins-vision" "http://gstreamer.freedesktop.org/" TRUE "0.10.29")
+macro_log_feature(GSTREAMER_BASE_LIBRARY_FOUND "GStreamer base library" "Required to build gst-plugins-vision" "http://gstreamer.freedesktop.org/" TRUE "0.10.29")
+
+find_package(GStreamerPluginsBase 0.10.29 COMPONENTS video)
+macro_log_feature(GSTREAMER_VIDEO_LIBRARY_FOUND "GStreamer video library" "Required to build several video plugins" "http://gstreamer.freedesktop.org/" FALSE "0.10.29")
+
+find_package(GLIB2)
+macro_log_feature(GLIB2_FOUND "GLib" "Required to build gst-plugins-vision" "http://www.gtk.org/" TRUE)
+
+find_package(GObject)
+macro_log_feature(GOBJECT_FOUND "GObject" "Required to build gst-plugins-vision" "http://www.gtk.org/" TRUE)
+
+find_package(NIIMAQ)
+macro_log_feature(NIIMAQ_FOUND "NI-IMAQ" "Required to build National Instruments IMAQ source element" "http://www.ni.com/" FALSE)
+
+find_package(FreeImage)
+macro_log_feature(FREEIMAGE_FOUND "FreeImage" "Required to build FreeImage plugin" "http://freeimage.sourceforge.net/" FALSE)
+
+find_package(OpenCV)
+macro_log_feature(OPENCV_FOUND "OpenCV" "Required to build sensorfx plugin" "http://opencv.willowgarage.com/" FALSE)
+
+find_package(Euresys)
+macro_log_feature(EURESYS_FOUND "Euresys" "Required to build Euresys source element" "http://www.euresys.com/" FALSE)
+
+find_package(IOtechDaqX)
+macro_log_feature(IOTECHDAQX_FOUND "IOtech DaqX" "Required to build IOtech DaqX source element" "http://www.euresys.com/" FALSE)
+
+find_package(Phoenix)
+macro_log_feature(PHOENIX_FOUND "Active Silicon Phoenix" "Required to build Active Silicon Phoenix source element" "http://www.activesilicon.com/" FALSE)
 
 
-include_directories (
+
+# Setup common environment
+include_directories(
     .
     ${GSTREAMER_INCLUDE_DIR}
-    ${GLIB2_INCLUDE_DIR} )
+    ${GLIB2_INCLUDE_DIR})
+add_definitions(-DGST_DISABLE_XML -DGST_DISABLE_LOADSAVE)
 
-if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-    file (TO_CMAKE_PATH "${GSTREAMER_INCLUDE_DIR}/../.." PREFIX)
-    set (CMAKE_INSTALL_PREFIX
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    file(TO_CMAKE_PATH "${GSTREAMER_INCLUDE_DIR}/../.." PREFIX)
+    set(CMAKE_INSTALL_PREFIX
         ${PREFIX} CACHE PATH "Directory to install plugins, under lib/gstreamer-0.10" FORCE)
-endif (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+endif(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 
-add_subdirectory (ext)
-add_subdirectory (gst)
-add_subdirectory (sys)
+# Build the plugins
+add_subdirectory(ext)
+add_subdirectory(gst)
+add_subdirectory(sys)
+
+macro_display_feature_log()
