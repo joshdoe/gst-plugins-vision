@@ -15,10 +15,10 @@ add_library (libgstvideoadjust MODULE
   ${HEADERS})
   
 target_link_libraries (libgstvideoadjust
-  general ${GLIB2_LIBRARIES}
-  general ${GSTREAMER_LIBRARIES}
-  general ${GSTREAMER_BASE_LIBRARY}
-  general ${GSTREAMER_VIDEO_LIBRARY})
+  ${GLIB2_LIBRARIES}
+  ${GSTREAMER_LIBRARIES}
+  ${GSTREAMER_BASE_LIBRARY}
+  ${GSTREAMER_VIDEO_LIBRARY})
   
 install (TARGETS libgstvideoadjust
     LIBRARY DESTINATION lib/gstreamer-0.10)
