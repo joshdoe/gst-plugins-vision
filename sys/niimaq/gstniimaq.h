@@ -75,6 +75,9 @@ struct _GstNiImaqSrc {
 
   GSList *timelist;
   GMutex *frametime_mutex;
+
+  GstDateTime *start_time;
+  gboolean start_time_sent;
 };
 
 struct _GstNiImaqSrcClass {

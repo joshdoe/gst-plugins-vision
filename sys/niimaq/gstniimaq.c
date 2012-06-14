@@ -143,6 +143,9 @@ gst_niimaqsrc_frame_start_callback (SESSION_ID sid, IMG_ERR err,
   GstNiImaqSrcFrameTime *frametime = g_new (GstNiImaqSrcFrameTime, 1);
   uInt32 val;
 
+  if (G_UNLIKELY (niimaqsrc->start_time == NULL))
+    niimaqsrc->start_time = gst_date_time_new_now_utc ();
+
   /* get clock time and set to frametime struct */
   clock = gst_element_get_clock (GST_ELEMENT (niimaqsrc));
   if (G_LIKELY (clock)) {
@@ -520,6 +523,9 @@ gst_niimaqsrc_init (GstNiImaqSrc * niimaqsrc, GstNiImaqSrcClass * g_class)
 
   niimaqsrc->timelist = NULL;
   niimaqsrc->frametime_mutex = g_mutex_new ();
+
+  niimaqsrc->start_time = NULL;
+  niimaqsrc->start_time_sent = FALSE;
 }
 
 /**
@@ -546,6 +552,11 @@ gst_niimaqsrc_dispose (GObject * object)
   niimaqsrc->frametime_mutex = NULL;
 
   /* unref objects */
+  if (niimaqsrc->start_time) {
+    gst_date_time_unref (niimaqsrc->start_time);
+    niimaqsrc->start_time = NULL;
+  }
+
   if (niimaqsrc->caps) {
     gst_caps_unref (niimaqsrc->caps);
     niimaqsrc->caps = NULL;
@@ -836,6 +847,13 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
      src->running_time = gst_util_uint64_scale_int (src->n_frames * GST_SECOND,
      src->rate_denominator, src->rate_numerator);
      } */
+
+  if (G_UNLIKELY (niimaqsrc->start_time && !niimaqsrc->start_time_sent)) {
+    GstTagList *tl =
+        gst_tag_list_new_full (GST_TAG_DATE_TIME, niimaqsrc->start_time, NULL);
+    GstEvent *e = gst_event_new_tag (tl);
+    gst_pad_push_event (GST_PAD (GST_BASE_SRC_PAD (niimaqsrc)), e);
+  }
 
   return res;
 
