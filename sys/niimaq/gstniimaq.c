@@ -36,12 +36,13 @@
 #include "config.h"
 #endif
 
-#include "gst/interfaces/propertyprobe.h"
-
 #include "gstniimaq.h"
 
 #include <time.h>
 #include <string.h>
+
+#include <gst/interfaces/propertyprobe.h>
+#include <gst/video/video.h>
 
 GST_DEBUG_CATEGORY (niimaqsrc_debug);
 #define GST_CAT_DEFAULT niimaqsrc_debug
@@ -110,11 +111,6 @@ static GstFlowReturn gst_niimaqsrc_create (GstPushSrc * psrc,
 /* GstNiImaq methods */
 static gboolean gst_niimaqsrc_parse_caps (const GstCaps * caps,
     gint * width, gint * height, gint * depth, gint * bpp);
-
-static gboolean gst_niimaqsrc_set_caps_color (GstStructure * gs, gint bpp,
-    gint depth);
-static gboolean gst_niimaqsrc_set_caps_framesize (GstStructure * gs, gint width,
-    gint height);
 
 static GstCaps *gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * src);
 static void gst_niimaqsrc_close_interface (GstNiImaqSrc * niimaqsrc);
@@ -878,50 +874,6 @@ gst_niimaqsrc_parse_caps (const GstCaps * caps, gint * width, gint * height,
 }
 
 /**
-* gst_niimaqsrc_set_caps_color:
-* gs: a #GstStructure to set the color of.
-* bpp: the bits per pixel to set.
-* depth: the depth to set.
-*
-* Sets the given bpp and depth to the given #GstStructure.
-*
-* Returns: TRUE on success
-*/
-static gboolean
-gst_niimaqsrc_set_caps_color (GstStructure * gs, gint bpp, gint depth)
-{
-  gboolean ret = TRUE;
-
-  gst_structure_set_name (gs, "video/x-raw-gray");
-  gst_structure_set (gs,
-      "bpp", G_TYPE_INT, bpp, "depth", G_TYPE_INT, depth, NULL);
-  if (depth > 8) {
-    gst_structure_set (gs, "endianness", G_TYPE_INT, G_LITTLE_ENDIAN, NULL);
-  }
-
-  return ret;
-}
-
-/**
-* gst_niimaqsrc_set_caps_framesize:
-* gs: #GstStructure
-* width: width to set
-* height: height to set
-*
-* Sets the given width and height to the given #GstStructure
-*
-* Returns: TRUE on success
-*/
-static gboolean
-gst_niimaqsrc_set_caps_framesize (GstStructure * gs, gint width, gint height)
-{
-  gst_structure_set (gs,
-      "width", G_TYPE_INT, width, "height", G_TYPE_INT, height, NULL);
-
-  return TRUE;
-}
-
-/**
 * gst_niimaqsrc_get_cam_caps:
 * src: #GstNiImaq instance
 *
@@ -968,14 +920,13 @@ gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * niimaqsrc)
   }
 
   /* create new structure and set caps we got from IMAQ */
-  gs = gst_structure_empty_new ("video");
-  if (!gst_niimaqsrc_set_caps_color (gs, bpp, depth) ||
-      !gst_niimaqsrc_set_caps_framesize (gs, width, height)) {
-    GST_ELEMENT_ERROR (niimaqsrc, STREAM, FAILED,
-        ("attempt to set caps %dx%dx%d (%d) failed", width, height, depth, bpp),
-        ("attempt to set caps %dx%dx%d (%d) failed", width, height, depth,
-            bpp));
-    goto error;
+  gs = gst_structure_empty_new ("video/x-raw-gray");
+  gst_structure_set (gs,
+      "bpp", G_TYPE_INT, bpp,
+      "depth", G_TYPE_INT, depth,
+      "width", G_TYPE_INT, width, "height", G_TYPE_INT, height, NULL);
+  if (depth > 8) {
+    gst_structure_set (gs, "endianness", G_TYPE_INT, G_LITTLE_ENDIAN, NULL);
   }
 
   /* hard code framerate to 30Hz as IMAQ doesn't tell us anything about it */
@@ -990,7 +941,10 @@ gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * niimaqsrc)
    * and other elements can work directly with this src */
   if (bpp > 8 && bpp < 16) {
     GST_DEBUG_OBJECT (niimaqsrc, "Adding 16bpp caps for compatibility");
-    gst_niimaqsrc_set_caps_color (gs, 16, 16);
+    gst_structure_set (gs,
+        "bpp", G_TYPE_INT, 16,
+        "depth", G_TYPE_INT, 16,
+        "endianness", G_TYPE_INT, G_LITTLE_ENDIAN, NULL);
     gst_caps_append_structure (gcaps, gst_structure_copy (gs));
   }
   gst_structure_free (gs);
