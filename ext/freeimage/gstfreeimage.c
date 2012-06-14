@@ -33,8 +33,10 @@ GST_DEBUG_CATEGORY (freeimageenc_debug);
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  GST_DEBUG_CATEGORY_INIT (freeimagedec_debug, "freeimagedec", 0, "FreeImage image decoder");
-  GST_DEBUG_CATEGORY_INIT (freeimageenc_debug, "freeimageenc", 0, "FreeImage image encoder");
+  GST_DEBUG_CATEGORY_INIT (freeimagedec_debug, "freeimagedec", 0,
+      "FreeImage image decoder");
+  GST_DEBUG_CATEGORY_INIT (freeimageenc_debug, "freeimageenc", 0,
+      "FreeImage image encoder");
 
   if (!gst_freeimagedec_register_plugins (plugin))
     return FALSE;

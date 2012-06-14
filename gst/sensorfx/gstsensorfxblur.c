@@ -71,55 +71,51 @@ GST_ELEMENT_DETAILS ("Blurs video",
 
 /* the capabilities of the inputs and outputs */
 static GstStaticPadTemplate gst_sfxblur_src_template =
-GST_STATIC_PAD_TEMPLATE ("sink",
+    GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (
-      "video/x-raw-gray, "                                            \
-      "bpp = (int) 16, "                                              \
-      "depth = (int) 16, "                                            \
-      "endianness = (int) BYTE_ORDER, "                               \
-      "width = " GST_VIDEO_SIZE_RANGE ", "                            \
-      "height = " GST_VIDEO_SIZE_RANGE ", "                           \
-      "framerate = " GST_VIDEO_FPS_RANGE ";"                          \
-      "video/x-raw-gray-float, "                                      \
-      "bpp = (int) 32, "                                              \
-      "depth = (int) 32, "                                            \
-      "endianness = (int) BYTE_ORDER, "                               \
-      "width = " GST_VIDEO_SIZE_RANGE ", "                            \
-      "height = " GST_VIDEO_SIZE_RANGE ", "                           \
-      "framerate = " GST_VIDEO_FPS_RANGE
-      )
-);
+    GST_STATIC_CAPS ("video/x-raw-gray, "
+        "bpp = (int) 16, "
+        "depth = (int) 16, "
+        "endianness = (int) BYTE_ORDER, "
+        "width = " GST_VIDEO_SIZE_RANGE ", "
+        "height = " GST_VIDEO_SIZE_RANGE ", "
+        "framerate = " GST_VIDEO_FPS_RANGE ";"
+        "video/x-raw-gray-float, "
+        "bpp = (int) 32, "
+        "depth = (int) 32, "
+        "endianness = (int) BYTE_ORDER, "
+        "width = " GST_VIDEO_SIZE_RANGE ", "
+        "height = " GST_VIDEO_SIZE_RANGE ", "
+        "framerate = " GST_VIDEO_FPS_RANGE)
+    );
 
 static GstStaticPadTemplate gst_sfxblur_sink_template =
-GST_STATIC_PAD_TEMPLATE ("src",
-     GST_PAD_SRC,
-     GST_PAD_ALWAYS,
-     GST_STATIC_CAPS (
-       "video/x-raw-gray, "                                            \
-       "bpp = (int) 16, "                                              \
-       "depth = (int) 16, "                                            \
-       "endianness = (int) BYTE_ORDER, "                               \
-       "width = " GST_VIDEO_SIZE_RANGE ", "                            \
-       "height = " GST_VIDEO_SIZE_RANGE ", "                           \
-       "framerate = " GST_VIDEO_FPS_RANGE ";"                          \
-       "video/x-raw-gray-float, "                                      \
-       "bpp = (int) 32, "                                              \
-       "depth = (int) 32, "                                            \
-       "endianness = (int) BYTE_ORDER, "                               \
-       "width = " GST_VIDEO_SIZE_RANGE ", "                            \
-       "height = " GST_VIDEO_SIZE_RANGE ", "                           \
-       "framerate = " GST_VIDEO_FPS_RANGE
-     )
-);
+    GST_STATIC_PAD_TEMPLATE ("src",
+    GST_PAD_SRC,
+    GST_PAD_ALWAYS,
+    GST_STATIC_CAPS ("video/x-raw-gray, "
+        "bpp = (int) 16, "
+        "depth = (int) 16, "
+        "endianness = (int) BYTE_ORDER, "
+        "width = " GST_VIDEO_SIZE_RANGE ", "
+        "height = " GST_VIDEO_SIZE_RANGE ", "
+        "framerate = " GST_VIDEO_FPS_RANGE ";"
+        "video/x-raw-gray-float, "
+        "bpp = (int) 32, "
+        "depth = (int) 32, "
+        "endianness = (int) BYTE_ORDER, "
+        "width = " GST_VIDEO_SIZE_RANGE ", "
+        "height = " GST_VIDEO_SIZE_RANGE ", "
+        "framerate = " GST_VIDEO_FPS_RANGE)
+    );
 
 /* GObject vmethod declarations */
 static void gst_sfxblur_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_sfxblur_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
-static void gst_sfxblur_finalize (GObject *object);
+static void gst_sfxblur_finalize (GObject * object);
 
 /* GstBaseTransform vmethod declarations */
 static gboolean gst_sfxblur_set_caps (GstBaseTransform * base,
@@ -128,7 +124,7 @@ static GstFlowReturn gst_sfxblur_transform_ip (GstBaseTransform * base,
     GstBuffer * buf);
 
 /* GstSensorFxBlur method declarations */
-static void gst_sfxblur_reset(GstSensorFxBlur* filter);
+static void gst_sfxblur_reset (GstSensorFxBlur * filter);
 
 /* setup debug */
 GST_DEBUG_CATEGORY_STATIC (sfxblur_debug);
@@ -138,7 +134,7 @@ GST_DEBUG_CATEGORY_STATIC (sfxblur_debug);
     "sfxblur");
 
 GST_BOILERPLATE_FULL (GstSensorFxBlur, gst_sfxblur, GstVideoFilter,
-    GST_TYPE_VIDEO_FILTER, DEBUG_INIT);\
+    GST_TYPE_VIDEO_FILTER, DEBUG_INIT);
 
 
 /************************************************************************/
@@ -156,7 +152,7 @@ gst_sfxblur_base_init (gpointer klass)
   GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
 
   GST_DEBUG ("base init");
-  
+
   gst_element_class_set_details (element_class, &sfxblur_details);
 
   gst_element_class_add_pad_template (element_class,
@@ -171,14 +167,14 @@ gst_sfxblur_base_init (gpointer klass)
  *
  */
 static void
-gst_sfxblur_finalize (GObject *object)
+gst_sfxblur_finalize (GObject * object)
 {
   GstSensorFxBlur *sfxblur = GST_SENSORFXBLUR (object);
 
   GST_DEBUG ("finalize");
-  
+
   gst_sfxblur_reset (sfxblur);
-  
+
   /* chain up to the parent class */
   G_OBJECT_CLASS (parent_class)->finalize (object);
 }
@@ -195,8 +191,8 @@ gst_sfxblur_class_init (GstSensorFxBlurClass * object)
   GstBaseTransformClass *trans_class = GST_BASE_TRANSFORM_CLASS (object);
 
   GST_DEBUG ("class init");
-  
- 
+
+
   /* Register GObject vmethods */
   obj_class->finalize = GST_DEBUG_FUNCPTR (gst_sfxblur_finalize);
   obj_class->set_property = GST_DEBUG_FUNCPTR (gst_sfxblur_set_property);
@@ -204,8 +200,9 @@ gst_sfxblur_class_init (GstSensorFxBlurClass * object)
 
   /* Install GObject properties */
   g_object_class_install_property (obj_class, PROP_LOWIN,
-      g_param_spec_double ("lower-input-level", "Lower Input Level", "Lower Input Level",
-      0.0, 1.0, DEFAULT_PROP_LOWIN, G_PARAM_READWRITE));
+      g_param_spec_double ("lower-input-level", "Lower Input Level",
+          "Lower Input Level", 0.0, 1.0, DEFAULT_PROP_LOWIN,
+          G_PARAM_READWRITE));
 
   /* Register GstBaseTransform vmethods */
   trans_class->set_caps = GST_DEBUG_FUNCPTR (gst_sfxblur_set_caps);
@@ -220,8 +217,7 @@ gst_sfxblur_class_init (GstSensorFxBlurClass * object)
 * Initialize the new element
 */
 static void
-gst_sfxblur_init (GstSensorFxBlur * sfxblur,
-    GstSensorFxBlurClass * g_class)
+gst_sfxblur_init (GstSensorFxBlur * sfxblur, GstSensorFxBlurClass * g_class)
 {
   GST_DEBUG_OBJECT (sfxblur, "init class instance");
 
@@ -317,17 +313,17 @@ gst_sfxblur_set_caps (GstBaseTransform * base, GstCaps * incaps,
       "height", G_TYPE_INT, &levels->height,
       "bpp", G_TYPE_INT, &levels->bpp,
       "depth", G_TYPE_INT, &levels->depth,
-      "endianness", G_TYPE_INT, &levels->endianness,
-      NULL);
+      "endianness", G_TYPE_INT, &levels->endianness, NULL);
   if (!res)
     return FALSE;
 
-  levels->stride = GST_ROUND_UP_4 (levels->width * levels->depth/8);
+  levels->stride = GST_ROUND_UP_4 (levels->width * levels->depth / 8);
 
   return res;
 }
 
-GstFlowReturn gst_sfxblur_transform_ip( GstBaseTransform * base, GstBuffer * buf )
+GstFlowReturn
+gst_sfxblur_transform_ip (GstBaseTransform * base, GstBuffer * buf)
 {
 
   return GST_FLOW_OK;
@@ -344,7 +340,7 @@ GstFlowReturn gst_sfxblur_transform_ip( GstBaseTransform * base, GstBuffer * buf
  * Reset instance variables and free memory
  */
 static void
-gst_sfxblur_reset(GstSensorFxBlur* sfxblur)
+gst_sfxblur_reset (GstSensorFxBlur * sfxblur)
 {
   sfxblur->width = 0;
   sfxblur->height = 0;
@@ -358,5 +354,5 @@ gboolean
 gst_sfxblur_plugin_init (GstPlugin * plugin)
 {
   return gst_element_register (plugin, "sfxblur", GST_RANK_NONE,
-    GST_TYPE_SENSORFXBLUR);
+      GST_TYPE_SENSORFXBLUR);
 }

@@ -52,8 +52,10 @@ static gboolean gst_freeimageenc_sink_setcaps (GstPad * pad, GstCaps * caps);
 
 static void gst_freeimageenc_task (GstPad * pad);
 
-static gboolean gst_freeimageenc_freeimage_init (GstFreeImageEnc * freeimageenc);
-static gboolean gst_freeimageenc_freeimage_clear (GstFreeImageEnc * freeimageenc);
+static gboolean gst_freeimageenc_freeimage_init (GstFreeImageEnc *
+    freeimageenc);
+static gboolean gst_freeimageenc_freeimage_clear (GstFreeImageEnc *
+    freeimageenc);
 static GstFlowReturn gst_freeimageenc_push_dib (GstFreeImageEnc * freeimageenc);
 
 static GstElementClass *parent_class = NULL;
@@ -68,7 +70,7 @@ static int DLL_CALLCONV
 gst_freeimageenc_user_seek (fi_handle handle, long offset, int origin)
 {
   GstFreeImageEnc *freeimageenc = GST_FREEIMAGEENC (handle);
-  
+
   switch (origin) {
     case SEEK_SET:
       freeimageenc->offset = offset;
@@ -96,14 +98,14 @@ gst_freeimageenc_class_init (GstFreeImageEncClass * klass,
     GstFreeImageEncClassData * class_data)
 {
   GstElementClass *gstelement_class;
-  GstCaps * caps;
+  GstCaps *caps;
   GstPadTemplate *templ;
-  const gchar * mimetype;
-  const gchar * format;
-  const gchar * format_description;
-  const gchar * extensions;
-  gchar * description;
-  gchar * longname;
+  const gchar *mimetype;
+  const gchar *format;
+  const gchar *format_description;
+  const gchar *extensions;
+  gchar *description;
+  gchar *longname;
 
   klass->fif = class_data->fif;
 
@@ -135,8 +137,7 @@ gst_freeimageenc_class_init (GstFreeImageEncClass * klass,
       format_description, extensions);
   gst_element_class_set_details_simple (gstelement_class, longname,
       "Codec/Encoder/Image",
-      description,
-      "Joshua M. Doe <oss@nvl.army.mil>");
+      description, "Joshua M. Doe <oss@nvl.army.mil>");
   g_free (longname);
   g_free (description);
 }
@@ -144,16 +145,19 @@ gst_freeimageenc_class_init (GstFreeImageEncClass * klass,
 static void
 gst_freeimageenc_init (GstFreeImageEnc * freeimageenc)
 {
-  GstElementClass * klass = GST_ELEMENT_GET_CLASS (freeimageenc);
+  GstElementClass *klass = GST_ELEMENT_GET_CLASS (freeimageenc);
 
-  freeimageenc->sinkpad = gst_pad_new_from_template (
-      gst_element_class_get_pad_template (klass, "sink"), "sink");
+  freeimageenc->sinkpad =
+      gst_pad_new_from_template (gst_element_class_get_pad_template (klass,
+          "sink"), "sink");
   gst_pad_set_chain_function (freeimageenc->sinkpad, gst_freeimageenc_chain);
-  gst_pad_set_setcaps_function (freeimageenc->sinkpad, gst_freeimageenc_sink_setcaps);
+  gst_pad_set_setcaps_function (freeimageenc->sinkpad,
+      gst_freeimageenc_sink_setcaps);
   gst_element_add_pad (GST_ELEMENT (freeimageenc), freeimageenc->sinkpad);
 
-  freeimageenc->srcpad = gst_pad_new_from_template (
-    gst_element_class_get_pad_template (klass, "src"), "src");
+  freeimageenc->srcpad =
+      gst_pad_new_from_template (gst_element_class_get_pad_template (klass,
+          "src"), "src");
   gst_pad_use_fixed_caps (freeimageenc->srcpad);
   gst_element_add_pad (GST_ELEMENT (freeimageenc), freeimageenc->srcpad);
 
@@ -174,37 +178,38 @@ gst_freeimageenc_init (GstFreeImageEnc * freeimageenc)
 
 static GstFlowReturn
 gst_freeimageenc_chain (GstPad * pad, GstBuffer * buffer)
-  {
+{
   GstFreeImageEnc *freeimageenc;
   GstFreeImageEncClass *klass;
   GstFlowReturn ret = GST_FLOW_OK;
-  GstBuffer * buffer_out;
+  GstBuffer *buffer_out;
   FIMEMORY *hmem = NULL;
   gint srcPitch, dstPitch;
-  guint8 * pSrc, * pDst;
+  guint8 *pSrc, *pDst;
   gint width, height, bpp;
   size_t y;
-  BYTE * mem_buffer;
+  BYTE *mem_buffer;
   DWORD size_in_bytes;
 
   freeimageenc = GST_FREEIMAGEENC (gst_pad_get_parent (pad));
   klass = GST_FREEIMAGEENC_GET_CLASS (freeimageenc);
 
-  GST_LOG_OBJECT (freeimageenc, "Got buffer, size=%u", GST_BUFFER_SIZE (buffer));
+  GST_LOG_OBJECT (freeimageenc, "Got buffer, size=%u",
+      GST_BUFFER_SIZE (buffer));
 
   /* convert raw buffer to FIBITMAP */
   width = FreeImage_GetWidth (freeimageenc->dib);
   height = FreeImage_GetHeight (freeimageenc->dib);
   bpp = FreeImage_GetBPP (freeimageenc->dib);
- 
+
   dstPitch = FreeImage_GetPitch (freeimageenc->dib);
   srcPitch = GST_ROUND_UP_4 (width * bpp / 8);
 
   /* Copy data, invert scanlines and respect FreeImage pitch */
-  pDst = FreeImage_GetBits(freeimageenc->dib);
+  pDst = FreeImage_GetBits (freeimageenc->dib);
   for (y = 0; y < height; ++y) {
     pSrc = GST_BUFFER_DATA (buffer) + (height - y - 1) * srcPitch;
-    memcpy(pDst, pSrc, srcPitch);
+    memcpy (pDst, pSrc, srcPitch);
     pDst += dstPitch;
   }
 
@@ -219,7 +224,7 @@ gst_freeimageenc_chain (GstPad * pad, GstBuffer * buffer)
     return GST_FLOW_ERROR;
   }
 
-  if (!FreeImage_AcquireMemory(hmem, &mem_buffer, &size_in_bytes)) {
+  if (!FreeImage_AcquireMemory (hmem, &mem_buffer, &size_in_bytes)) {
     GST_ERROR ("Failed to acquire encoded image");
     FreeImage_CloseMemory (hmem);
     gst_buffer_unref (buffer);
@@ -274,7 +279,7 @@ gst_freeimageenc_sink_setcaps (GstPad * pad, GstCaps * caps)
   freeimageenc = GST_FREEIMAGEENC (gst_pad_get_parent (pad));
 
   if (gst_freeimageutils_parse_caps (caps, &type, &width, &height, &bpp,
-      &red_mask, &green_mask, &blue_mask) == FALSE) {
+          &red_mask, &green_mask, &blue_mask) == FALSE) {
     GST_DEBUG ("Failed to parse caps");
     return FALSE;
   }
@@ -382,11 +387,13 @@ gst_freeimageenc_register_plugins (GstPlugin * plugin)
   gint i;
   gint nloaded = 0;
 
-  GST_LOG ("FreeImage indicates there are %d formats supported", FreeImage_GetFIFCount());
+  GST_LOG ("FreeImage indicates there are %d formats supported",
+      FreeImage_GetFIFCount ());
 
-  for (i = 0; i < FreeImage_GetFIFCount(); i++) {
-    if (FreeImage_FIFSupportsWriting ((FREE_IMAGE_FORMAT)i)) {
-      if (gst_freeimageenc_register_plugin (plugin, (FREE_IMAGE_FORMAT)i) == TRUE)
+  for (i = 0; i < FreeImage_GetFIFCount (); i++) {
+    if (FreeImage_FIFSupportsWriting ((FREE_IMAGE_FORMAT) i)) {
+      if (gst_freeimageenc_register_plugin (plugin,
+              (FREE_IMAGE_FORMAT) i) == TRUE)
         nloaded += 1;
     }
   }

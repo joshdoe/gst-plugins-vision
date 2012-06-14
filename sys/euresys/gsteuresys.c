@@ -79,11 +79,11 @@ static GstFlowReturn gst_euresys_create (GstPushSrc * src, GstBuffer ** buf);
 
 enum
 {
-    PROP_0,
-    PROP_BOARD_INDEX,
-    PROP_CAMERA_TYPE,
-    PROP_CONNECTOR
-    /* FILL ME */
+  PROP_0,
+  PROP_BOARD_INDEX,
+  PROP_CAMERA_TYPE,
+  PROP_CONNECTOR
+      /* FILL ME */
 };
 
 #define DEFAULT_PROP_BOARD_INDEX 0
@@ -93,15 +93,12 @@ enum
 /* pad templates */
 
 static GstStaticPadTemplate gst_euresys_src_template =
-GST_STATIC_PAD_TEMPLATE ("src",
+    GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (
-				GST_VIDEO_CAPS_GRAY8 ";"
-				GST_VIDEO_CAPS_RGB ";"
-				GST_VIDEO_CAPS_ARGB ";"
-				GST_VIDEO_CAPS_RGB_15 ";"
-				GST_VIDEO_CAPS_RGB_16)
+    GST_STATIC_CAPS (GST_VIDEO_CAPS_GRAY8 ";"
+        GST_VIDEO_CAPS_RGB ";"
+        GST_VIDEO_CAPS_ARGB ";" GST_VIDEO_CAPS_RGB_15 ";" GST_VIDEO_CAPS_RGB_16)
     );
 
 
@@ -140,15 +137,17 @@ gst_euresys_connector_get_type (void)
     {MC_Connector_X2, "X2", "X2 input"},
     {MC_Connector_Y1, "Y1", "Y1 input"},
     {MC_Connector_Y2, "Y2", "Y2 input"},
-    {MC_Connector_A, "A", "A input (Grablink Expert 2 DuoCam mode, connector A)"},
-    {MC_Connector_B, "B", "B input (Grablink Expert 2 DuoCam mode, connector B)"},
+    {MC_Connector_A, "A",
+        "A input (Grablink Expert 2 DuoCam mode, connector A)"},
+    {MC_Connector_B, "B",
+        "B input (Grablink Expert 2 DuoCam mode, connector B)"},
     {MC_Connector_M, "M", "M input (Grablink in MonoCam mode)"},
     {0, NULL, NULL},
   };
 
   if (!euresys_connector_type) {
     euresys_connector_type =
-      g_enum_register_static ("GstEuresysConnector", euresys_connector);
+        g_enum_register_static ("GstEuresysConnector", euresys_connector);
   }
   return euresys_connector_type;
 }
@@ -168,7 +167,7 @@ gst_euresys_camera_get_type (void)
 
   if (!euresys_camera_type) {
     euresys_camera_type =
-      g_enum_register_static ("GstEuresysCamera", euresys_camera);
+        g_enum_register_static ("GstEuresysCamera", euresys_camera);
   }
   return euresys_camera_type;
 }
@@ -176,8 +175,7 @@ gst_euresys_camera_get_type (void)
 
 /* class initialization */
 
-GST_BOILERPLATE (GstEuresys, gst_euresys, GstPushSrc,
-    GST_TYPE_PUSH_SRC);
+GST_BOILERPLATE (GstEuresys, gst_euresys, GstPushSrc, GST_TYPE_PUSH_SRC);
 
 
 static GstVideoFormat
@@ -186,8 +184,8 @@ gst_euresys_color_format_to_video_format (INT32 color_format)
   switch (color_format) {
     case MC_ColorFormat_Y8:
     case MC_ColorFormat_RAW8:
-       return GST_VIDEO_FORMAT_GRAY8;
-    /* TODO: possibly use different formats for each of the following */
+      return GST_VIDEO_FORMAT_GRAY8;
+      /* TODO: possibly use different formats for each of the following */
     case MC_ColorFormat_Y10:
     case MC_ColorFormat_Y12:
     case MC_ColorFormat_Y14:
@@ -199,13 +197,16 @@ gst_euresys_color_format_to_video_format (INT32 color_format)
       return GST_VIDEO_FORMAT_GRAY16_LE;
     case MC_ColorFormat_Y41P:
     case MC_ColorFormat_YUV411:
-      return gst_video_format_from_fourcc (GST_MAKE_FOURCC ('Y', '4', '1', 'P'));
+      return gst_video_format_from_fourcc (GST_MAKE_FOURCC ('Y', '4', '1',
+              'P'));
     case MC_ColorFormat_YUV422:
     case MC_ColorFormat_Y42P:
-      return gst_video_format_from_fourcc (GST_MAKE_FOURCC ('Y', '4', '2', 'P'));
+      return gst_video_format_from_fourcc (GST_MAKE_FOURCC ('Y', '4', '2',
+              'P'));
     case MC_ColorFormat_YUV444:
     case MC_ColorFormat_IYU2:
-      return gst_video_format_from_fourcc (GST_MAKE_FOURCC ('I', 'Y', 'U', '2'));
+      return gst_video_format_from_fourcc (GST_MAKE_FOURCC ('I', 'Y', 'U',
+              '2'));
     case MC_ColorFormat_YUV411PL:
     case MC_ColorFormat_Y41B:
       return GST_VIDEO_FORMAT_Y41B;
@@ -222,7 +223,8 @@ gst_euresys_color_format_to_video_format (INT32 color_format)
     case MC_ColorFormat_YUV411PL_DEC:
     case MC_ColorFormat_YUV9:
     case MC_ColorFormat_YVU9:
-      return gst_video_format_from_fourcc (GST_MAKE_FOURCC ('Y', 'V', 'U', '9'));
+      return gst_video_format_from_fourcc (GST_MAKE_FOURCC ('Y', 'V', 'U',
+              '9'));
     case MC_ColorFormat_RGB15:
       return GST_VIDEO_FORMAT_RGB15;
     case MC_ColorFormat_RGB16:
@@ -271,7 +273,8 @@ gst_euresys_class_init (GstEuresysClass * klass)
   base_src_class->get_size = GST_DEBUG_FUNCPTR (gst_euresys_get_size);
   base_src_class->is_seekable = GST_DEBUG_FUNCPTR (gst_euresys_is_seekable);
   base_src_class->query = GST_DEBUG_FUNCPTR (gst_euresys_query);
-  base_src_class->check_get_range = GST_DEBUG_FUNCPTR (gst_euresys_check_get_range);
+  base_src_class->check_get_range =
+      GST_DEBUG_FUNCPTR (gst_euresys_check_get_range);
   base_src_class->fixate = GST_DEBUG_FUNCPTR (gst_euresys_fixate);
 
   push_src_class->create = GST_DEBUG_FUNCPTR (gst_euresys_create);
@@ -295,8 +298,8 @@ gst_euresys_class_init (GstEuresysClass * klass)
 static void
 gst_euresys_init (GstEuresys * euresys, GstEuresysClass * euresys_class)
 {
-  euresys->srcpad = gst_pad_new_from_static_template (&gst_euresys_src_template
-      , "src");
+  euresys->srcpad =
+      gst_pad_new_from_static_template (&gst_euresys_src_template, "src");
 
   /* set source as live (no preroll) */
   gst_base_src_set_live (GST_BASE_SRC (euresys), TRUE);
@@ -314,8 +317,8 @@ gst_euresys_init (GstEuresys * euresys, GstEuresysClass * euresys_class)
 
   euresys->acq_started = FALSE;
 
-	euresys->last_time_code = -1;
-	euresys->dropped_frame_count = 0;
+  euresys->last_time_code = -1;
+  euresys->dropped_frame_count = 0;
 
 }
 
@@ -405,7 +408,9 @@ gst_euresys_get_caps (GstBaseSrc * src)
 
   /* return template caps if we don't know the actual camera caps */
   if (!euresys->caps) {
-    return gst_caps_copy (gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD (euresys)));
+    return
+        gst_caps_copy (gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD
+            (euresys)));
   }
 
   return gst_caps_copy (euresys->caps);
@@ -436,9 +441,7 @@ gst_euresys_set_caps (GstBaseSrc * src, GstCaps * caps)
   structure = gst_caps_get_structure (caps, 0);
 
   ret = gst_structure_get (structure,
-    "width", G_TYPE_INT, &width,
-    "height", G_TYPE_INT, &height,
-    NULL);
+      "width", G_TYPE_INT, &width, "height", G_TYPE_INT, &height, NULL);
 
   if (!ret) {
     GST_DEBUG ("Failed to retrieve width and height");
@@ -472,14 +475,16 @@ gst_euresys_start (GstBaseSrc * src)
   /* Open MultiCam driver */
   status = McOpenDriver (NULL);
   if (status != MC_OK) {
-      GST_ELEMENT_ERROR (euresys, LIBRARY, INIT, (NULL), (NULL));
-      return FALSE;
+    GST_ELEMENT_ERROR (euresys, LIBRARY, INIT, (NULL), (NULL));
+    return FALSE;
   }
 
-  status = McGetParamInt (MC_BOARD + euresys->boardIdx, MC_BoardType, &euresys->boardType);
+  status =
+      McGetParamInt (MC_BOARD + euresys->boardIdx, MC_BoardType,
+      &euresys->boardType);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
-      (_("Failed to get board type.")), (NULL));
+        (_("Failed to get board type.")), (NULL));
     return FALSE;
   }
 
@@ -488,9 +493,9 @@ gst_euresys_start (GstBaseSrc * src)
 
   /* Set error log file */
   /* McSetParamStr (MC_CONFIGURATION, MC_ErrorLog, "mc_error.log"); */
- 
+
   /* Create a channel */
-  status = McCreate(MC_CHANNEL, &euresys->hChannel);
+  status = McCreate (MC_CHANNEL, &euresys->hChannel);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, FAILED,
         (_("Failed to create channel.")), (NULL));
@@ -498,7 +503,7 @@ gst_euresys_start (GstBaseSrc * src)
   }
 
   /* Link the channel to a board */
-  status = McSetParamInt(euresys->hChannel, MC_DriverIndex, euresys->boardIdx);
+  status = McSetParamInt (euresys->hChannel, MC_DriverIndex, euresys->boardIdx);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
         (_("Failed to link channel to board.")), (NULL));
@@ -508,7 +513,7 @@ gst_euresys_start (GstBaseSrc * src)
   }
 
   /* Select the video connector */
-  status = McSetParamInt(euresys->hChannel, MC_Connector, euresys->connector);
+  status = McSetParamInt (euresys->hChannel, MC_Connector, euresys->connector);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
         (_("Failed to set connector to channel.")), (NULL));
@@ -518,7 +523,7 @@ gst_euresys_start (GstBaseSrc * src)
   }
 
   /* Select the video signal type */
-  status = McSetParamInt(euresys->hChannel, MC_Camera, euresys->cameraType);
+  status = McSetParamInt (euresys->hChannel, MC_Camera, euresys->cameraType);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
         (_("Failed to set camera type = %d."), euresys->cameraType), (NULL));
@@ -528,10 +533,10 @@ gst_euresys_start (GstBaseSrc * src)
   }
 
   /* Set the color format */
-  status = McSetParamInt(euresys->hChannel, MC_ColorFormat, MC_ColorFormat_Y8);
+  status = McSetParamInt (euresys->hChannel, MC_ColorFormat, MC_ColorFormat_Y8);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
-      (_("Failed to set color format = %d."), MC_ColorFormat_Y8), (NULL));
+        (_("Failed to set color format = %d."), MC_ColorFormat_Y8), (NULL));
     McDelete (euresys->hChannel);
     euresys->hChannel = 0;
     return FALSE;
@@ -548,11 +553,15 @@ gst_euresys_start (GstBaseSrc * src)
   }
 
   /* Enable signals */
-  status = McSetParamInt(euresys->hChannel, MC_SignalEnable + MC_SIG_SURFACE_PROCESSING, MC_SignalEnable_ON);
-  status |= McSetParamInt(euresys->hChannel, MC_SignalEnable + MC_SIG_ACQUISITION_FAILURE, MC_SignalEnable_ON);
+  status =
+      McSetParamInt (euresys->hChannel,
+      MC_SignalEnable + MC_SIG_SURFACE_PROCESSING, MC_SignalEnable_ON);
+  status |=
+      McSetParamInt (euresys->hChannel,
+      MC_SignalEnable + MC_SIG_ACQUISITION_FAILURE, MC_SignalEnable_ON);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
-      (_("Failed to enable signals.")), (NULL));
+        (_("Failed to enable signals.")), (NULL));
     McDelete (euresys->hChannel);
     euresys->hChannel = 0;
     return FALSE;
@@ -564,7 +573,7 @@ gst_euresys_start (GstBaseSrc * src)
   status |= McGetParamInt (euresys->hChannel, MC_ImageSizeY, &height);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
-      (_("Failed to get color format, width, and height.")), (NULL));
+        (_("Failed to get color format, width, and height.")), (NULL));
     McDelete (euresys->hChannel);
     euresys->hChannel = 0;
     return FALSE;
@@ -581,16 +590,17 @@ gst_euresys_start (GstBaseSrc * src)
 
   if (euresys->caps)
     gst_caps_unref (euresys->caps);
-  euresys->caps = gst_video_format_new_caps (videoFormat, width, height, 30, 1, 1, 1);
+  euresys->caps =
+      gst_video_format_new_caps (videoFormat, width, height, 30, 1, 1, 1);
 
   if (euresys->caps == NULL) {
     GST_ELEMENT_ERROR (euresys, STREAM, TOO_LAZY,
-      (_("Failed to generate caps from video format.")), (NULL));
+        (_("Failed to generate caps from video format.")), (NULL));
     McDelete (euresys->hChannel);
     euresys->hChannel = 0;
     return FALSE;
   }
-  
+
   return TRUE;
 }
 
@@ -606,18 +616,18 @@ gst_euresys_stop (GstBaseSrc * src)
   McSetParamInt (euresys->hChannel, MC_ChannelState, MC_ChannelState_IDLE);
 
   /* Close the MultiCam driver */
-  McCloseDriver();
+  McCloseDriver ();
 
   /* Delete the channel */
   if (euresys->hChannel)
-    McDelete(euresys->hChannel);
+    McDelete (euresys->hChannel);
   euresys->hChannel = 0;
 
   gst_caps_unref (euresys->caps);
   euresys->caps = NULL;
 
-	euresys->dropped_frame_count = 0;
-	euresys->last_time_code = -1;
+  euresys->dropped_frame_count = 0;
+  euresys->last_time_code = -1;
 
   return TRUE;
 }
@@ -691,11 +701,13 @@ gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
   INT64 timeStamp;
   int newsize;
   GstFlowReturn ret;
-	int dropped_frame_count;
+  int dropped_frame_count;
 
   /* Start acquisition */
   if (!euresys->acq_started) {
-    status = McSetParamInt(euresys->hChannel, MC_ChannelState, MC_ChannelState_ACTIVE);
+    status =
+        McSetParamInt (euresys->hChannel, MC_ChannelState,
+        MC_ChannelState_ACTIVE);
     if (status != MC_OK) {
       GST_ELEMENT_ERROR (euresys, RESOURCE, FAILED,
           (_("Failed to set channel state to ACTIVE.")), (NULL));
@@ -710,48 +722,47 @@ gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
     status = McWaitSignal (euresys->hChannel, MC_SIG_ANY, 5000, &siginfo);
     if (status == MC_TIMEOUT) {
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          (_("Timeout waiting for signal.")), (_("Timeout waiting for signal.")));
+          (_("Timeout waiting for signal.")),
+          (_("Timeout waiting for signal.")));
       return GST_FLOW_ERROR;
-    }
-    else if (siginfo.Signal == MC_SIG_ACQUISITION_FAILURE) {
+    } else if (siginfo.Signal == MC_SIG_ACQUISITION_FAILURE) {
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
           (_("Acquisition failure due to timeout.")), (NULL));
       return GST_FLOW_ERROR;
-    }
-    else if (siginfo.Signal == MC_SIG_SURFACE_PROCESSING) {
+    } else if (siginfo.Signal == MC_SIG_SURFACE_PROCESSING) {
       break;
-    }
-    else {
+    } else {
       continue;
     }
   }
 
-  /* Get pointer to image data and other info*/
+  /* Get pointer to image data and other info */
   hSurface = (MCHANDLE) siginfo.SignalInfo;
-	/* "number of bytes actually written into the surface" */
+  /* "number of bytes actually written into the surface" */
   status = McGetParamInt (hSurface, MC_FillCount, &newsize);
-	/* "Internal numbering of surface during acquisition sequence" (zero-based)*/
+  /* "Internal numbering of surface during acquisition sequence" (zero-based) */
   status |= McGetParamInt (hSurface, MC_TimeCode, &timeCode);
-	/* "number of microseconds elapsed since midnight (00:00:00), 
-	 * January 1, 1970, coordinated universal time (UTC), according
-	 * to the system clock when the surface is filled" */
+  /* "number of microseconds elapsed since midnight (00:00:00), 
+   * January 1, 1970, coordinated universal time (UTC), according
+   * to the system clock when the surface is filled" */
   status |= McGetParamInt64 (hSurface, MC_TimeStamp_us, &timeStamp);
-  status |= McGetParamPtr (hSurface, MC_SurfaceAddr, (PVOID*)&pImage);
+  status |= McGetParamPtr (hSurface, MC_SurfaceAddr, (PVOID *) & pImage);
   if (G_UNLIKELY (status != MC_OK)) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, FAILED,
-      (_("Failed to read surface parameter.")), (NULL));
+        (_("Failed to read surface parameter.")), (NULL));
     return GST_FLOW_ERROR;
   }
 
-	GST_INFO ("Got surface #%05d", timeCode);
+  GST_INFO ("Got surface #%05d", timeCode);
 
-	dropped_frame_count = timeCode - (euresys->last_time_code + 1);
-	if (dropped_frame_count != 0) {
-		euresys->dropped_frame_count += dropped_frame_count;
-		GST_WARNING ("Dropped %d frames (%d total)", dropped_frame_count, euresys->dropped_frame_count);
-		/* TODO: emit message here about dropped frames */
-	}
-	euresys->last_time_code = timeCode;
+  dropped_frame_count = timeCode - (euresys->last_time_code + 1);
+  if (dropped_frame_count != 0) {
+    euresys->dropped_frame_count += dropped_frame_count;
+    GST_WARNING ("Dropped %d frames (%d total)", dropped_frame_count,
+        euresys->dropped_frame_count);
+    /* TODO: emit message here about dropped frames */
+  }
+  euresys->last_time_code = timeCode;
 
 
   /* Create the buffer */
@@ -779,8 +790,8 @@ gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  GST_DEBUG_CATEGORY_INIT (gst_euresys_debug, "euresys", 0, \
-    "debug category for euresys element");
+  GST_DEBUG_CATEGORY_INIT (gst_euresys_debug, "euresys", 0,
+      "debug category for euresys element");
   gst_element_register (plugin, "euresys", GST_RANK_NONE,
       gst_euresys_get_type ());
 

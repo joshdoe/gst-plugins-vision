@@ -70,9 +70,9 @@ static GstFlowReturn gst_iotechdaqx_create (GstPushSrc * src, GstBuffer ** buf);
 
 enum
 {
-    PROP_0,
-    PROP_BOARD_INDEX
-    /* FILL ME */
+  PROP_0,
+  PROP_BOARD_INDEX
+      /* FILL ME */
 };
 
 #define DEFAULT_PROP_BOARD_INDEX 0
@@ -84,47 +84,72 @@ GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (
-				//GST_AUDIO_INT_PAD_TEMPLATE_CAPS)
-        "audio/x-raw-int, " \
-        "rate = (int) 10000, " \
-        "channels = (int) 1, " \
-        "endianness = (int) BYTE_ORDER, " \
-        "width = (int) 16, " \
-        "depth = (int) 16, " \
-        "signed = (boolean) true")
+        //GST_AUDIO_INT_PAD_TEMPLATE_CAPS)
+        "audio/x-raw-int, "
+        "rate = (int) 10000, "
+        "channels = (int) 1, "
+        "endianness = (int) BYTE_ORDER, "
+        "width = (int) 16, " "depth = (int) 16, " "signed = (boolean) true")
     );
 
 /* class initialization */
 
-GST_BOILERPLATE (GstIOtechDaqX, gst_iotechdaqx, GstPushSrc,
-    GST_TYPE_PUSH_SRC);
+GST_BOILERPLATE (GstIOtechDaqX, gst_iotechdaqx, GstPushSrc, GST_TYPE_PUSH_SRC);
 
 
-char* GetProtocol(DaqProtocol protocol){
-    /*This function is used to display the protcol name;  since the 
-    protcol itself is stored as a number, this function associates 
-    the protocol number with a string.
-    */
-    char* protocolName[64];
-        
-    switch (protocol)
-    {
-       case DaqProtocolNone: *protocolName="DaqProtocolNone";break;
-       case DaqProtocol4: *protocolName="DaqProtocol4";break;
-       case DaqProtocol8: *protocolName="DaqProtocol8";break;
-       case DaqProtocolSMC666: *protocolName="DaqProtocolSMC666";break;
-       case DaqProtocolFastEPP: *protocolName="DaqProtocolFastEPP";break;
-       case DaqProtocolECP: *protocolName="DaqProtocolECP";break;
-       case DaqProtocol8BitEPP: *protocolName="DaqProtocol8BitEPP";break;
-       case DaqProtocolTCPIP: *protocolName="DaqProtocolTCPIP";break;
-       case DaqProtocolISA: *protocolName="DaqProtocolISA";break;
-       case DaqProtocolPcCard: *protocolName="DaqProtocolPcCard";break;
-       case DaqProtocolUSB: *protocolName="DaqProtocolUSB";break;
-       case DaqProtocolPCI: *protocolName="DaqProtocolPCI";break;
-       case DaqProtocolCPCI: *protocolName="DaqProtocolCPCI";break;
-       default: *protocolName="Unknown";break;
-    }
-    return *protocolName;
+     char *GetProtocol (DaqProtocol protocol)
+{
+  /*This function is used to display the protcol name;  since the 
+     protcol itself is stored as a number, this function associates 
+     the protocol number with a string.
+   */
+  char *protocolName[64];
+
+  switch (protocol) {
+    case DaqProtocolNone:
+      *protocolName = "DaqProtocolNone";
+      break;
+    case DaqProtocol4:
+      *protocolName = "DaqProtocol4";
+      break;
+    case DaqProtocol8:
+      *protocolName = "DaqProtocol8";
+      break;
+    case DaqProtocolSMC666:
+      *protocolName = "DaqProtocolSMC666";
+      break;
+    case DaqProtocolFastEPP:
+      *protocolName = "DaqProtocolFastEPP";
+      break;
+    case DaqProtocolECP:
+      *protocolName = "DaqProtocolECP";
+      break;
+    case DaqProtocol8BitEPP:
+      *protocolName = "DaqProtocol8BitEPP";
+      break;
+    case DaqProtocolTCPIP:
+      *protocolName = "DaqProtocolTCPIP";
+      break;
+    case DaqProtocolISA:
+      *protocolName = "DaqProtocolISA";
+      break;
+    case DaqProtocolPcCard:
+      *protocolName = "DaqProtocolPcCard";
+      break;
+    case DaqProtocolUSB:
+      *protocolName = "DaqProtocolUSB";
+      break;
+    case DaqProtocolPCI:
+      *protocolName = "DaqProtocolPCI";
+      break;
+    case DaqProtocolCPCI:
+      *protocolName = "DaqProtocolCPCI";
+      break;
+    default:
+      *protocolName = "Unknown";
+      break;
+  }
+  return *protocolName;
 }
 
 
@@ -138,8 +163,7 @@ gst_iotechdaqx_base_init (gpointer g_class)
 
   gst_element_class_set_details_simple (element_class,
       "IOtechDaqX Data Source", "Source/Audio",
-      "IOtechDaqX data source",
-      "Joshua Doe <oss@nvl.army.mil>");
+      "IOtechDaqX data source", "Joshua Doe <oss@nvl.army.mil>");
 }
 
 static void
@@ -162,7 +186,8 @@ gst_iotechdaqx_class_init (GstIOtechDaqXClass * klass)
   base_src_class->get_size = GST_DEBUG_FUNCPTR (gst_iotechdaqx_get_size);
   base_src_class->is_seekable = GST_DEBUG_FUNCPTR (gst_iotechdaqx_is_seekable);
   base_src_class->query = GST_DEBUG_FUNCPTR (gst_iotechdaqx_query);
-  base_src_class->check_get_range = GST_DEBUG_FUNCPTR (gst_iotechdaqx_check_get_range);
+  base_src_class->check_get_range =
+      GST_DEBUG_FUNCPTR (gst_iotechdaqx_check_get_range);
   base_src_class->fixate = GST_DEBUG_FUNCPTR (gst_iotechdaqx_fixate);
 
   push_src_class->create = GST_DEBUG_FUNCPTR (gst_iotechdaqx_create);
@@ -176,10 +201,11 @@ gst_iotechdaqx_class_init (GstIOtechDaqXClass * klass)
 }
 
 static void
-gst_iotechdaqx_init (GstIOtechDaqX * iotechdaqx, GstIOtechDaqXClass * iotechdaqx_class)
+gst_iotechdaqx_init (GstIOtechDaqX * iotechdaqx,
+    GstIOtechDaqXClass * iotechdaqx_class)
 {
-  iotechdaqx->srcpad = gst_pad_new_from_static_template (&gst_iotechdaqx_src_template
-      , "src");
+  iotechdaqx->srcpad =
+      gst_pad_new_from_static_template (&gst_iotechdaqx_src_template, "src");
 
   /* set source as live (no preroll) */
   gst_base_src_set_live (GST_BASE_SRC (iotechdaqx), TRUE);
@@ -263,7 +289,9 @@ gst_iotechdaqx_get_caps (GstBaseSrc * src)
 
   /* return template caps if we don't know the actual camera caps */
   if (!iotechdaqx->caps) {
-    return gst_caps_copy (gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD (iotechdaqx)));
+    return
+        gst_caps_copy (gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD
+            (iotechdaqx)));
   }
 
   return gst_caps_copy (iotechdaqx->caps);
@@ -293,10 +321,9 @@ gst_iotechdaqx_set_caps (GstBaseSrc * src, GstCaps * caps)
   structure = gst_caps_get_structure (caps, 0);
 
   ret = gst_structure_get (structure,
-    "width", G_TYPE_INT, &iotechdaqx->width,
-    "rate", G_TYPE_INT, &iotechdaqx->rate,
-    "channels", G_TYPE_INT, &iotechdaqx->channels,
-    NULL);
+      "width", G_TYPE_INT, &iotechdaqx->width,
+      "rate", G_TYPE_INT, &iotechdaqx->rate,
+      "channels", G_TYPE_INT, &iotechdaqx->channels, NULL);
 
   if (!ret) {
     GST_DEBUG ("Failed to retrieve width and height");
@@ -328,18 +355,18 @@ gst_iotechdaqx_start (GstBaseSrc * src)
 
 
   // Find out how many devices are installed and allocate memory for device list
-  daqGetDeviceCount(&devCount);
-  devList = (DaqDeviceListT*)malloc(sizeof(DaqDeviceListT)*devCount);
+  daqGetDeviceCount (&devCount);
+  devList = (DaqDeviceListT *) malloc (sizeof (DaqDeviceListT) * devCount);
 
   GST_DEBUG ("Found %d devices", devCount);
 
   // Get the names of all installed devices and the device count
-  daqGetDeviceList(devList, &devCount);
+  daqGetDeviceList (devList, &devCount);
 
   deviceIndex = 0;
   do {
     // Get the device properties for each device
-    daqGetDeviceProperties(devList[deviceIndex].daqName, &devProps);
+    daqGetDeviceProperties (devList[deviceIndex].daqName, &devProps);
 
     GST_DEBUG ("Device %i: %s", deviceIndex, devList[deviceIndex].daqName);
     deviceIndex++;
@@ -348,14 +375,15 @@ gst_iotechdaqx_start (GstBaseSrc * src)
   } while (deviceIndex < devCount);
 
   // We are done with the device list
-  free(devList);
+  free (devList);
 
-  iotechdaqx->handle = daqOpen(devProps.daqName);
-  GST_DEBUG ("Connected to %s on LPT%d\n", devProps.daqName, devProps.basePortAddress+1);
-  GST_DEBUG ("Protocol: %s \n", GetProtocol(devProps.protocol));
+  iotechdaqx->handle = daqOpen (devProps.daqName);
+  GST_DEBUG ("Connected to %s on LPT%d\n", devProps.daqName,
+      devProps.basePortAddress + 1);
+  GST_DEBUG ("Protocol: %s \n", GetProtocol (devProps.protocol));
 
   //FIXME check for errors!
-  
+
   return TRUE;
 }
 
@@ -444,42 +472,46 @@ gst_iotechdaqx_create (GstPushSrc * src, GstBuffer ** buf)
   //GST_DEBUG ("create (handle=%d)", iotechdaqx->handle);
 
   if (!iotechdaqx->opened) {
-    DWORD channels[1] = {1};
-    DaqAdcGain gains[1] = {DgainX1};
-    DWORD flags[1] = {DafAnalog|DafBipolar};
+    DWORD channels[1] = { 1 };
+    DaqAdcGain gains[1] = { DgainX1 };
+    DWORD flags[1] = { DafAnalog | DafBipolar };
 
     GST_DEBUG ("Setting up acquisition: rate=%d", iotechdaqx->rate);
 
     daqAdcSetScan (iotechdaqx->handle, channels, gains, flags, 1);
     daqAdcSetAcq (iotechdaqx->handle, DaamInfinitePost, 0, 0);
-    daqSetTriggerEvent (iotechdaqx->handle, DatsSoftware, NULL, NULL, NULL, NULL, NULL, NULL, NULL, DaqStartEvent);
+    daqSetTriggerEvent (iotechdaqx->handle, DatsSoftware, NULL, NULL, NULL,
+        NULL, NULL, NULL, NULL, DaqStartEvent);
     //daqSetTriggerEvent (iotechdaqx->handle, DatsSoftware, NULL, NULL, NULL, NULL, NULL, NULL, NULL, DaqStopEvent);
-    daqAdcSetFreq (iotechdaqx->handle, (float)iotechdaqx->rate);
-    daqAdcTransferSetBuffer (iotechdaqx->handle, NULL, 44100, DatmCycleOn|DatmDriverBuf);
+    daqAdcSetFreq (iotechdaqx->handle, (float) iotechdaqx->rate);
+    daqAdcTransferSetBuffer (iotechdaqx->handle, NULL, 44100,
+        DatmCycleOn | DatmDriverBuf);
 
     daqAdcTransferStart (iotechdaqx->handle);
     daqAdcArm (iotechdaqx->handle);
-    daqAdcSoftTrig (iotechdaqx->handle); //FIXME: put in create() and use has_started flag
+    daqAdcSoftTrig (iotechdaqx->handle);        //FIXME: put in create() and use has_started flag
 
     iotechdaqx->opened = TRUE;
   }
 
-  gst_pad_alloc_buffer_and_set_caps (GST_BASE_SRC_PAD (GST_BASE_SRC (src)), 0, 2048*2, iotechdaqx->caps, buf);
+  gst_pad_alloc_buffer_and_set_caps (GST_BASE_SRC_PAD (GST_BASE_SRC (src)), 0,
+      2048 * 2, iotechdaqx->caps, buf);
 
-  daqAdcTransferBufData (iotechdaqx->handle, GST_BUFFER_DATA(*buf), 2048, DabtmOldest|DabtmWait, &retCount);
+  daqAdcTransferBufData (iotechdaqx->handle, GST_BUFFER_DATA (*buf), 2048,
+      DabtmOldest | DabtmWait, &retCount);
 
   //GST_DEBUG ("Asked for %d samples, got %d", 2048, retCount);
 
   //memcpy(GST_BUFFER_DATA (*buf), tmp, 16*sizeof(SHORT));
-  
+
   return GST_FLOW_OK;
 }
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  GST_DEBUG_CATEGORY_INIT (gst_iotechdaqx_debug, "iotechdaqx", 0, \
-    "debug category for iotechdaqx element");
+  GST_DEBUG_CATEGORY_INIT (gst_iotechdaqx_debug, "iotechdaqx", 0,
+      "debug category for iotechdaqx element");
   gst_element_register (plugin, "iotechdaqx", GST_RANK_NONE,
       gst_iotechdaqx_get_type ());
 

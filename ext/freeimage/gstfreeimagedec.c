@@ -59,9 +59,12 @@ static gboolean gst_freeimagedec_sink_setcaps (GstPad * pad, GstCaps * caps);
 
 static void gst_freeimagedec_task (GstPad * pad);
 
-static gboolean gst_freeimagedec_freeimage_init (GstFreeImageDec * freeimagedec);
-static gboolean gst_freeimagedec_freeimage_clear (GstFreeImageDec * freeimagedec);
-static GstFlowReturn gst_freeimagedec_caps_create_and_set (GstFreeImageDec * freeimagedec);
+static gboolean gst_freeimagedec_freeimage_init (GstFreeImageDec *
+    freeimagedec);
+static gboolean gst_freeimagedec_freeimage_clear (GstFreeImageDec *
+    freeimagedec);
+static GstFlowReturn gst_freeimagedec_caps_create_and_set (GstFreeImageDec *
+    freeimagedec);
 static GstFlowReturn gst_freeimagedec_push_dib (GstFreeImageDec * freeimagedec);
 
 static GstElementClass *parent_class = NULL;
@@ -76,7 +79,7 @@ static int DLL_CALLCONV
 gst_freeimagedec_user_seek (fi_handle handle, long offset, int origin)
 {
   GstFreeImageDec *freeimagedec = GST_FREEIMAGEDEC (handle);
-  
+
   switch (origin) {
     case SEEK_SET:
       freeimagedec->offset = offset;
@@ -100,7 +103,8 @@ gst_freeimagedec_user_tell (fi_handle handle)
 }
 
 unsigned DLL_CALLCONV
-gst_freeimagedec_user_read (void *data, unsigned elsize, unsigned elcount, fi_handle handle)
+gst_freeimagedec_user_read (void *data, unsigned elsize, unsigned elcount,
+    fi_handle handle)
 {
   GstFreeImageDec *freeimagedec;
   GstBuffer *buffer;
@@ -113,7 +117,9 @@ gst_freeimagedec_user_read (void *data, unsigned elsize, unsigned elcount, fi_ha
   GST_LOG ("reading %" G_GSIZE_FORMAT " bytes of data at offset %d", length,
       freeimagedec->offset);
 
-  ret = gst_pad_pull_range (freeimagedec->sinkpad, freeimagedec->offset, length, &buffer);
+  ret =
+      gst_pad_pull_range (freeimagedec->sinkpad, freeimagedec->offset, length,
+      &buffer);
   if (ret != GST_FLOW_OK)
     goto pause;
 
@@ -160,14 +166,14 @@ gst_freeimagedec_class_init (GstFreeImageDecClass * klass,
     GstFreeImageDecClassData * class_data)
 {
   GstElementClass *gstelement_class;
-  GstCaps * caps;
+  GstCaps *caps;
   GstPadTemplate *templ;
-  const gchar * mimetype;
-  const gchar * format;
-  const gchar * format_description;
-  const gchar * extensions;
-  gchar * description;
-  gchar * longname;
+  const gchar *mimetype;
+  const gchar *format;
+  const gchar *format_description;
+  const gchar *extensions;
+  gchar *description;
+  gchar *longname;
 
   klass->fif = class_data->fif;
 
@@ -199,8 +205,7 @@ gst_freeimagedec_class_init (GstFreeImageDecClass * klass,
       format_description, extensions);
   gst_element_class_set_details_simple (gstelement_class, longname,
       "Codec/Decoder/Image",
-      description,
-      "Joshua M. Doe <oss@nvl.army.mil>");
+      description, "Joshua M. Doe <oss@nvl.army.mil>");
   g_free (longname);
   g_free (description);
 
@@ -210,23 +215,28 @@ gst_freeimagedec_class_init (GstFreeImageDecClass * klass,
 static void
 gst_freeimagedec_init (GstFreeImageDec * freeimagedec)
 {
-  GstElementClass * klass = GST_ELEMENT_GET_CLASS (freeimagedec);
+  GstElementClass *klass = GST_ELEMENT_GET_CLASS (freeimagedec);
 
-  freeimagedec->sinkpad = gst_pad_new_from_template (
-      gst_element_class_get_pad_template (klass, "sink"), "sink");
+  freeimagedec->sinkpad =
+      gst_pad_new_from_template (gst_element_class_get_pad_template (klass,
+          "sink"), "sink");
 
-  gst_pad_set_activate_function (freeimagedec->sinkpad, gst_freeimagedec_sink_activate);
+  gst_pad_set_activate_function (freeimagedec->sinkpad,
+      gst_freeimagedec_sink_activate);
   gst_pad_set_activatepull_function (freeimagedec->sinkpad,
       gst_freeimagedec_sink_activate_pull);
   gst_pad_set_activatepush_function (freeimagedec->sinkpad,
       gst_freeimagedec_sink_activate_push);
   gst_pad_set_chain_function (freeimagedec->sinkpad, gst_freeimagedec_chain);
-  gst_pad_set_event_function (freeimagedec->sinkpad, gst_freeimagedec_sink_event);
-  gst_pad_set_setcaps_function (freeimagedec->sinkpad, gst_freeimagedec_sink_setcaps);
+  gst_pad_set_event_function (freeimagedec->sinkpad,
+      gst_freeimagedec_sink_event);
+  gst_pad_set_setcaps_function (freeimagedec->sinkpad,
+      gst_freeimagedec_sink_setcaps);
   gst_element_add_pad (GST_ELEMENT (freeimagedec), freeimagedec->sinkpad);
 
-  freeimagedec->srcpad = gst_pad_new_from_template (
-      gst_element_class_get_pad_template (klass, "src"), "src");
+  freeimagedec->srcpad =
+      gst_pad_new_from_template (gst_element_class_get_pad_template (klass,
+          "src"), "src");
   gst_pad_use_fixed_caps (freeimagedec->srcpad);
   gst_element_add_pad (GST_ELEMENT (freeimagedec), freeimagedec->srcpad);
 
@@ -261,12 +271,12 @@ gst_freeimagedec_caps_create_and_set (GstFreeImageDec * freeimagedec)
 
   if (caps == NULL) {
     /* we have an unsupported type, we'll try converting to RGB/RGBA */
-    FIBITMAP * dib;
+    FIBITMAP *dib;
     if (FreeImage_IsTransparent (freeimagedec->dib)) {
-      GST_DEBUG ("Image is non-standard format with transparency, convert to 32-bit RGB");
+      GST_DEBUG
+          ("Image is non-standard format with transparency, convert to 32-bit RGB");
       dib = FreeImage_ConvertTo32Bits (freeimagedec->dib);
-    }
-    else {
+    } else {
       GST_DEBUG ("Image is non-standard format, convert to 24-bit RGB");
       dib = FreeImage_ConvertTo24Bits (freeimagedec->dib);
     }
@@ -330,9 +340,11 @@ gst_freeimagedec_task (GstPad * pad)
   format = GST_FORMAT_BYTES;
   gst_pad_query_peer_duration (pad, &format, &freeimagedec->length);
 
-  imagetype = FreeImage_GetFileTypeFromHandle (&freeimagedec->fiio, freeimagedec, 0);
-  freeimagedec->dib = FreeImage_LoadFromHandle (imagetype, &freeimagedec->fiio,
-      freeimagedec, 0);
+  imagetype =
+      FreeImage_GetFileTypeFromHandle (&freeimagedec->fiio, freeimagedec, 0);
+  freeimagedec->dib =
+      FreeImage_LoadFromHandle (imagetype, &freeimagedec->fiio, freeimagedec,
+      0);
 
   ret = gst_freeimagedec_push_dib (freeimagedec);
   if (ret != GST_FLOW_OK)
@@ -346,12 +358,12 @@ gst_freeimagedec_task (GstPad * pad)
 pause:
   {
     GST_INFO_OBJECT (freeimagedec, "pausing task, reason %s",
-      gst_flow_get_name (ret));
+        gst_flow_get_name (ret));
     gst_pad_pause_task (freeimagedec->sinkpad);
     if (GST_FLOW_IS_FATAL (ret) || ret == GST_FLOW_NOT_LINKED) {
       GST_ELEMENT_ERROR (freeimagedec, STREAM, FAILED,
-        ("Internal data stream error."),
-        ("stream stopped, reason %s", gst_flow_get_name (ret)));
+          ("Internal data stream error."),
+          ("stream stopped, reason %s", gst_flow_get_name (ret)));
       gst_pad_push_event (freeimagedec->srcpad, gst_event_new_eos ());
     }
   }
@@ -362,12 +374,13 @@ gst_freeimagedec_chain (GstPad * pad, GstBuffer * buffer)
 {
   GstFreeImageDec *freeimagedec;
   GstFlowReturn ret = GST_FLOW_OK;
-  FIMEMORY * fimem;
+  FIMEMORY *fimem;
   FREE_IMAGE_FORMAT format;
 
   freeimagedec = GST_FREEIMAGEDEC (gst_pad_get_parent (pad));
 
-  GST_LOG_OBJECT (freeimagedec, "Got buffer, size=%u", GST_BUFFER_SIZE (buffer));
+  GST_LOG_OBJECT (freeimagedec, "Got buffer, size=%u",
+      GST_BUFFER_SIZE (buffer));
 
   if (G_UNLIKELY (!freeimagedec->setup))
     goto not_configured;
@@ -375,12 +388,14 @@ gst_freeimagedec_chain (GstPad * pad, GstBuffer * buffer)
   /* Return if we have bad flow conditions */
   ret = freeimagedec->ret;
   if (G_UNLIKELY (ret != GST_FLOW_OK)) {
-    GST_WARNING_OBJECT (freeimagedec, "we have a pending return code of %d", ret);
+    GST_WARNING_OBJECT (freeimagedec, "we have a pending return code of %d",
+        ret);
     goto beach;
   }
 
   /* Decode image to DIB */
-  fimem = FreeImage_OpenMemory (GST_BUFFER_DATA (buffer), GST_BUFFER_SIZE (buffer));
+  fimem =
+      FreeImage_OpenMemory (GST_BUFFER_DATA (buffer), GST_BUFFER_SIZE (buffer));
   format = FreeImage_GetFileTypeFromMemory (fimem, 0);
   GST_LOG ("FreeImage format is %d", format);
   freeimagedec->dib = FreeImage_LoadFromMemory (format, fimem, 0);
@@ -401,7 +416,8 @@ gst_freeimagedec_chain (GstPad * pad, GstBuffer * buffer)
     gst_freeimagedec_freeimage_init (freeimagedec);
   } else {
     GST_LOG_OBJECT (freeimagedec, "sending EOS");
-    freeimagedec->ret = gst_pad_push_event (freeimagedec->srcpad, gst_event_new_eos ());
+    freeimagedec->ret =
+        gst_pad_push_event (freeimagedec->srcpad, gst_event_new_eos ());
   }
 
   /* grab new return code */
@@ -474,10 +490,11 @@ gst_freeimagedec_sink_event (GstPad * pad, GstEvent * event)
       gst_event_parse_new_segment_full (event, &update, &rate, &arate, &fmt,
           &start, &stop, &position);
 
-      gst_segment_set_newsegment_full (&freeimagedec->segment, update, rate, arate,
-          fmt, start, stop, position);
+      gst_segment_set_newsegment_full (&freeimagedec->segment, update, rate,
+          arate, fmt, start, stop, position);
 
-      GST_LOG_OBJECT (freeimagedec, "NEWSEGMENT (%s)", gst_format_get_name (fmt));
+      GST_LOG_OBJECT (freeimagedec, "NEWSEGMENT (%s)",
+          gst_format_get_name (fmt));
 
       if (fmt == GST_FORMAT_TIME) {
         freeimagedec->need_newsegment = FALSE;
@@ -655,28 +672,27 @@ gst_freeimagedec_push_dib (GstFreeImageDec * freeimagedec)
   GST_LOG ("Buffer size must be %d", buffer_size);
 
   ret = gst_pad_alloc_buffer_and_set_caps (freeimagedec->srcpad,
-    GST_BUFFER_OFFSET_NONE, buffer_size,
-    GST_PAD_CAPS (freeimagedec->srcpad), &buffer);
+      GST_BUFFER_OFFSET_NONE, buffer_size,
+      GST_PAD_CAPS (freeimagedec->srcpad), &buffer);
   if (ret != GST_FLOW_OK)
     return ret;
 
   /* flip image and copy to buffer */
   for (i = 0; i < height; i++) {
     memcpy (GST_BUFFER_DATA (buffer) + i * pitch,
-        FreeImage_GetBits (freeimagedec->dib) + (height - i - 1) * pitch, pitch);
+        FreeImage_GetBits (freeimagedec->dib) + (height - i - 1) * pitch,
+        pitch);
   }
-  
+
   if (GST_BUFFER_TIMESTAMP_IS_VALID (freeimagedec->in_timestamp))
     GST_BUFFER_TIMESTAMP (buffer) = freeimagedec->in_timestamp;
-  else
-    if (freeimagedec->fps_d != 0)
-      GST_BUFFER_TIMESTAMP (buffer) =
-          (freeimagedec->in_offset * freeimagedec->fps_n) / freeimagedec->fps_d;
+  else if (freeimagedec->fps_d != 0)
+    GST_BUFFER_TIMESTAMP (buffer) =
+        (freeimagedec->in_offset * freeimagedec->fps_n) / freeimagedec->fps_d;
   if (GST_BUFFER_TIMESTAMP_IS_VALID (freeimagedec->in_duration))
-       GST_BUFFER_DURATION (buffer) = freeimagedec->in_duration;
-  else
-    if (freeimagedec->fps_n != 0)
-      GST_BUFFER_DURATION (buffer) = freeimagedec->fps_d / freeimagedec->fps_n;
+    GST_BUFFER_DURATION (buffer) = freeimagedec->in_duration;
+  else if (freeimagedec->fps_n != 0)
+    GST_BUFFER_DURATION (buffer) = freeimagedec->fps_d / freeimagedec->fps_n;
   GST_BUFFER_OFFSET (buffer) = freeimagedec->in_offset;
   GST_BUFFER_OFFSET_END (buffer) = freeimagedec->in_offset;
 
@@ -743,11 +759,13 @@ gst_freeimagedec_register_plugins (GstPlugin * plugin)
   gint i;
   gint nloaded = 0;
 
-  GST_LOG ("FreeImage indicates there are %d formats supported", FreeImage_GetFIFCount());
+  GST_LOG ("FreeImage indicates there are %d formats supported",
+      FreeImage_GetFIFCount ());
 
-  for (i = 0; i < FreeImage_GetFIFCount(); i++) {
-    if (FreeImage_FIFSupportsReading ((FREE_IMAGE_FORMAT)i)) {
-      if (gst_freeimagedec_register_plugin (plugin, (FREE_IMAGE_FORMAT)i) == TRUE)
+  for (i = 0; i < FreeImage_GetFIFCount (); i++) {
+    if (FreeImage_FIFSupportsReading ((FREE_IMAGE_FORMAT) i)) {
+      if (gst_freeimagedec_register_plugin (plugin,
+              (FREE_IMAGE_FORMAT) i) == TRUE)
         nloaded += 1;
     }
   }

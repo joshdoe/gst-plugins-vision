@@ -12,27 +12,22 @@ GST_DEBUG_CATEGORY_STATIC (GST_CAT_DEFAULT);
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-    GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "videoadjust", 0, "videoadjust");
+  GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "videoadjust", 0, "videoadjust");
 
-    GST_DEBUG ("plugin_init");
+  GST_DEBUG ("plugin_init");
 
-    GST_CAT_INFO (GST_CAT_DEFAULT, "registering videolevels element");
+  GST_CAT_INFO (GST_CAT_DEFAULT, "registering videolevels element");
 
-    if ( !gst_element_register (plugin, "videolevels", GST_RANK_NONE,
-        GST_TYPE_VIDEOLEVELS)) {
-        return FALSE;
-    }
-   
-    return TRUE;
+  if (!gst_element_register (plugin, "videolevels", GST_RANK_NONE,
+          GST_TYPE_VIDEOLEVELS)) {
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-                   GST_VERSION_MINOR,
-                   "videoadjust",
-                   "Filters that apply transform from 16-bit to 8-bit video",
-                   plugin_init,
-                   VERSION,
-                   GST_LICENSE,
-                   PACKAGE_NAME,
-                   GST_PACKAGE_ORIGIN
-                   );
+    GST_VERSION_MINOR,
+    "videoadjust",
+    "Filters that apply transform from 16-bit to 8-bit video",
+    plugin_init, VERSION, GST_LICENSE, PACKAGE_NAME, GST_PACKAGE_ORIGIN);

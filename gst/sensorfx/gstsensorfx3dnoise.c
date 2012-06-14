@@ -90,23 +90,28 @@ static void gst_sfx3dnoise_set_property (GObject * object, guint prop_id,
 static void gst_sfx3dnoise_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 
-static GstFlowReturn gst_sfx3dnoise_cv_transform (GstOpencvBaseTransform * filter,
-    GstBuffer * buf, IplImage * img, GstBuffer * outbuf, IplImage * outimg);
+static GstFlowReturn gst_sfx3dnoise_cv_transform (GstOpencvBaseTransform *
+    filter, GstBuffer * buf, IplImage * img, GstBuffer * outbuf,
+    IplImage * outimg);
 static gboolean gst_sfx3dnoise_cv_set_caps (GstOpencvBaseTransform * trans,
     gint in_width, gint in_height, gint in_depth, gint in_channels,
     gint out_width, gint out_height, gint out_depth, gint out_channels);
 
 void gst_sfx3dnoise_create_fixed_noise (GstSfx3DNoise * filter, CvMat * arr);
-void gst_sfx3dnoise_add_sigma_t (GstSfx3DNoise * filter, CvMat * arr, double sigma);
-void gst_sfx3dnoise_add_sigma_tv (GstSfx3DNoise * filter, CvMat * arr, double sigma);
-void gst_sfx3dnoise_add_sigma_th (GstSfx3DNoise * filter, CvMat * arr, double sigma);
-void gst_sfx3dnoise_add_sigma_tvh (GstSfx3DNoise * filter, CvMat * arr, double sigma);
+void gst_sfx3dnoise_add_sigma_t (GstSfx3DNoise * filter, CvMat * arr,
+    double sigma);
+void gst_sfx3dnoise_add_sigma_tv (GstSfx3DNoise * filter, CvMat * arr,
+    double sigma);
+void gst_sfx3dnoise_add_sigma_th (GstSfx3DNoise * filter, CvMat * arr,
+    double sigma);
+void gst_sfx3dnoise_add_sigma_tvh (GstSfx3DNoise * filter, CvMat * arr,
+    double sigma);
 
 /* Clean up */
 static void
 gst_sfx3dnoise_finalize (GObject * obj)
 {
-  GstSfx3DNoise * filter = GST_SFX3DNOISE (obj);
+  GstSfx3DNoise *filter = GST_SFX3DNOISE (obj);
 
   if (filter->fixed_noise)
     cvReleaseMat (&filter->fixed_noise);
@@ -129,9 +134,9 @@ gst_sfx3dnoise_base_init (gpointer gclass)
   GstPadTemplate *templ;
 
   /* add sink and source pad templates */
-  caps = gst_caps_from_string (GST_VIDEO_CAPS_GRAY16("1234"));
+  caps = gst_caps_from_string (GST_VIDEO_CAPS_GRAY16 ("1234"));
   templ = gst_pad_template_new ("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
-    gst_caps_ref (caps));
+      gst_caps_ref (caps));
   gst_element_class_add_pad_template (element_class, templ);
   templ = gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS, caps);
   gst_element_class_add_pad_template (element_class, templ);
@@ -139,8 +144,7 @@ gst_sfx3dnoise_base_init (gpointer gclass)
   gst_element_class_set_details_simple (element_class,
       "sfx3dnoise",
       "Transform/Effect/Video",
-      "Add 3D noise to video",
-      "Joshua M. Doe <oss@nvl.army.mil>");
+      "Add 3D noise to video", "Joshua M. Doe <oss@nvl.army.mil>");
 }
 
 static void
@@ -175,37 +179,37 @@ gst_sfx3dnoise_class_init (GstSfx3DNoiseClass * klass)
       g_param_spec_double ("sigma-v", "sigma-v",
           "Adds fixed row noise (horizontal lines)",
           0.0, 1.0, DEFAULT_SIGMA_T, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)
-    );
+      );
 
   g_object_class_install_property (gobject_class, PROP_SIGMA_H,
       g_param_spec_double ("sigma-h", "sigma-h",
           "Adds fixed column noise (vertical lines)",
           0.0, 1.0, DEFAULT_SIGMA_T, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)
-    );
+      );
 
   g_object_class_install_property (gobject_class, PROP_SIGMA_TV,
       g_param_spec_double ("sigma-tv", "sigma-tv",
           "Adds temporal row bounce (random horizontal lines)",
           0.0, 1.0, DEFAULT_SIGMA_T, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)
-    );
+      );
 
   g_object_class_install_property (gobject_class, PROP_SIGMA_TH,
       g_param_spec_double ("sigma-th", "sigma-th",
           "Adds temporal column bounce (random vertical lines)",
           0.0, 1.0, DEFAULT_SIGMA_T, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)
-    );
+      );
 
   g_object_class_install_property (gobject_class, PROP_SIGMA_VH,
       g_param_spec_double ("sigma-vh", "sigma-vh",
           "Adds random time-independent spatial noise (fixed pattern noise)",
           0.0, 1.0, DEFAULT_SIGMA_T, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)
-    );
+      );
 
   g_object_class_install_property (gobject_class, PROP_SIGMA_TVH,
       g_param_spec_double ("sigma-tvh", "sigma-tvh",
           "Adds random spatio-temporal noise",
           0.0, 1.0, DEFAULT_SIGMA_T, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)
-    );
+      );
 }
 
 static void
@@ -221,7 +225,7 @@ gst_sfx3dnoise_init (GstSfx3DNoise * filter, GstSfx3DNoiseClass * gclass)
   filter->sigma_vh = filter->sigma_vh_old = DEFAULT_SIGMA_VH;
   filter->sigma_tvh = DEFAULT_SIGMA_TVH;
 
-  filter->rng = cvRNG(-1);
+  filter->rng = cvRNG (-1);
   filter->fixed_noise = NULL;
   filter->intermediary = NULL;
 
@@ -239,25 +243,25 @@ gst_sfx3dnoise_set_property (GObject * object, guint prop_id,
 
   switch (prop_id) {
     case PROP_SIGMA_T:
-      filter->sigma_t= g_value_get_double (value);
+      filter->sigma_t = g_value_get_double (value);
       break;
     case PROP_SIGMA_V:
-      filter->sigma_v= g_value_get_double (value);
+      filter->sigma_v = g_value_get_double (value);
       break;
     case PROP_SIGMA_H:
-      filter->sigma_h= g_value_get_double (value);
+      filter->sigma_h = g_value_get_double (value);
       break;
     case PROP_SIGMA_TV:
-      filter->sigma_tv= g_value_get_double (value);
+      filter->sigma_tv = g_value_get_double (value);
       break;
     case PROP_SIGMA_TH:
-      filter->sigma_th= g_value_get_double (value);
+      filter->sigma_th = g_value_get_double (value);
       break;
     case PROP_SIGMA_VH:
-      filter->sigma_vh= g_value_get_double (value);
+      filter->sigma_vh = g_value_get_double (value);
       break;
     case PROP_SIGMA_TVH:
-      filter->sigma_tvh= g_value_get_double (value);
+      filter->sigma_tvh = g_value_get_double (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -320,20 +324,24 @@ gst_sfx3dnoise_cv_transform (GstOpencvBaseTransform * base, GstBuffer * buf,
     filter->sigma_vh_old = filter->sigma_vh;
   }
 
-  if (filter->sigma_h != 0.0 || filter->sigma_v != 0.0 || filter->sigma_vh != 0.0) {
+  if (filter->sigma_h != 0.0 || filter->sigma_v != 0.0
+      || filter->sigma_vh != 0.0) {
     cvAdd (filter->intermediary, filter->fixed_noise, filter->intermediary, 0);
   }
 
   if (filter->sigma_tvh > 0.0) {
-    gst_sfx3dnoise_add_sigma_tvh (filter, filter->intermediary, filter->sigma_tvh);
+    gst_sfx3dnoise_add_sigma_tvh (filter, filter->intermediary,
+        filter->sigma_tvh);
   }
 
   if (filter->sigma_tv > 0.0) {
-    gst_sfx3dnoise_add_sigma_tv (filter, filter->intermediary, filter->sigma_tv);
+    gst_sfx3dnoise_add_sigma_tv (filter, filter->intermediary,
+        filter->sigma_tv);
   }
 
   if (filter->sigma_th > 0.0) {
-    gst_sfx3dnoise_add_sigma_th (filter, filter->intermediary, filter->sigma_th);
+    gst_sfx3dnoise_add_sigma_th (filter, filter->intermediary,
+        filter->sigma_th);
   }
 
   if (filter->sigma_t > 0.0) {
@@ -347,8 +355,8 @@ gst_sfx3dnoise_cv_transform (GstOpencvBaseTransform * base, GstBuffer * buf,
 
 static gboolean
 gst_sfx3dnoise_cv_set_caps (GstOpencvBaseTransform * trans, gint in_width,
-                            gint in_height, gint in_depth, gint in_channels, gint out_width,
-                            gint out_height, gint out_depth, gint out_channels)
+    gint in_height, gint in_depth, gint in_channels, gint out_width,
+    gint out_height, gint out_depth, gint out_channels)
 {
   GstSfx3DNoise *filter = GST_SFX3DNOISE (trans);
 
@@ -400,12 +408,13 @@ gst_sfx3dnoise_create_fixed_noise (GstSfx3DNoise * filter, CvMat * arr)
 
 /* Add sigma-vh or sigma-tvh noise, which adds random noise to every pixel */
 void
-gst_sfx3dnoise_add_sigma_tvh (GstSfx3DNoise * filter, CvMat * arr, double sigma) {
-  CvMat * noise = cvCreateMat (filter->height, filter->width, CV_32F);
-  
+gst_sfx3dnoise_add_sigma_tvh (GstSfx3DNoise * filter, CvMat * arr, double sigma)
+{
+  CvMat *noise = cvCreateMat (filter->height, filter->width, CV_32F);
+
   /* TODO move scaling of sigma somewhere else? */
   cvRandArr (&filter->rng, noise, CV_RAND_NORMAL, cvScalarAll (0),
-      cvScalarAll (sigma*(G_MAXUINT16-1)));
+      cvScalarAll (sigma * (G_MAXUINT16 - 1)));
 
   cvAdd (arr, noise, arr, 0);
 
@@ -415,24 +424,25 @@ gst_sfx3dnoise_add_sigma_tvh (GstSfx3DNoise * filter, CvMat * arr, double sigma)
 
 /* Add sigma-v or sigma-tv noise, which adds random horizontal lines */
 void
-gst_sfx3dnoise_add_sigma_tv (GstSfx3DNoise * filter, CvMat * arr, double sigma) {
-  CvMat * noise = cvCreateMat (1, filter->height, CV_32F);
-  gfloat * data;
-  gfloat * noisedata;
+gst_sfx3dnoise_add_sigma_tv (GstSfx3DNoise * filter, CvMat * arr, double sigma)
+{
+  CvMat *noise = cvCreateMat (1, filter->height, CV_32F);
+  gfloat *data;
+  gfloat *noisedata;
   int step, x, y;
 
   /* TODO move scaling of sigma somewhere else? */
   cvRandArr (&filter->rng, noise, CV_RAND_NORMAL, cvScalarAll (0),
-      cvScalarAll (sigma*(G_MAXUINT16-1)));
+      cvScalarAll (sigma * (G_MAXUINT16 - 1)));
 
-  cvGetRawData (arr, (uchar**)&data, &step, NULL);
-  cvGetRawData (noise, (uchar**)&noisedata, NULL, NULL);
+  cvGetRawData (arr, (uchar **) & data, &step, NULL);
+  cvGetRawData (noise, (uchar **) & noisedata, NULL, NULL);
 
-  step /= sizeof(gfloat);
+  step /= sizeof (gfloat);
 
   for (y = 0; y < filter->height; y++) {
     for (x = 0; x < filter->width; x++) {
-      data[y*step + x] += noisedata[y];
+      data[y * step + x] += noisedata[y];
     }
   }
 
@@ -442,24 +452,25 @@ gst_sfx3dnoise_add_sigma_tv (GstSfx3DNoise * filter, CvMat * arr, double sigma) 
 
 /* Add sigma-h and sigma-th noise, which adds random vertical lines */
 void
-gst_sfx3dnoise_add_sigma_th (GstSfx3DNoise * filter, CvMat * arr, double sigma) {
-  CvMat * noise = cvCreateMat (1, filter->width, CV_32F);
-  gfloat * data;
-  gfloat * noisedata;
+gst_sfx3dnoise_add_sigma_th (GstSfx3DNoise * filter, CvMat * arr, double sigma)
+{
+  CvMat *noise = cvCreateMat (1, filter->width, CV_32F);
+  gfloat *data;
+  gfloat *noisedata;
   int step, x, y;
 
   /* TODO move scaling of sigma somewhere else? */
   cvRandArr (&filter->rng, noise, CV_RAND_NORMAL, cvScalarAll (0),
-    cvScalarAll (sigma*(G_MAXUINT16-1)));
+      cvScalarAll (sigma * (G_MAXUINT16 - 1)));
 
-  cvGetRawData (arr, (uchar**)&data, &step, NULL);
-  cvGetRawData (noise, (uchar**)&noisedata, NULL, NULL);
+  cvGetRawData (arr, (uchar **) & data, &step, NULL);
+  cvGetRawData (noise, (uchar **) & noisedata, NULL, NULL);
 
-  step /= sizeof(gfloat);
+  step /= sizeof (gfloat);
 
   for (y = 0; y < filter->height; y++) {
     for (x = 0; x < filter->width; x++) {
-      data[y*step + x] += noisedata[x];
+      data[y * step + x] += noisedata[x];
     }
   }
 
@@ -470,14 +481,14 @@ gst_sfx3dnoise_add_sigma_th (GstSfx3DNoise * filter, CvMat * arr, double sigma) 
 void
 gst_sfx3dnoise_add_sigma_t (GstSfx3DNoise * filter, CvMat * arr, double sigma)
 {
-  CvMat * noise = cvCreateMat (1, 1, CV_32F);
-  float * data;
+  CvMat *noise = cvCreateMat (1, 1, CV_32F);
+  float *data;
 
   /* TODO move scaling of sigma somewhere else? */
   cvRandArr (&filter->rng, noise, CV_RAND_NORMAL, cvScalarAll (0),
-    cvScalarAll (sigma*(G_MAXUINT16-1)));
+      cvScalarAll (sigma * (G_MAXUINT16 - 1)));
 
-  cvGetRawData (noise, (uchar**)&data, NULL, NULL);
+  cvGetRawData (noise, (uchar **) & data, NULL, NULL);
 
   cvAddS (arr, cvScalarAll (*data), arr, 0);
 
