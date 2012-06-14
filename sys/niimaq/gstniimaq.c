@@ -145,8 +145,12 @@ gst_niimaqsrc_frame_start_callback (SESSION_ID sid, IMG_ERR err,
 
   /* get clock time and set to frametime struct */
   clock = gst_element_get_clock (GST_ELEMENT (niimaqsrc));
-  frametime->time = gst_clock_get_time (clock);
-  gst_object_unref (clock);
+  if (G_LIKELY (clock)) {
+    frametime->time = gst_clock_get_time (clock);
+    gst_object_unref (clock);
+  } else {
+    frametime->time = GST_CLOCK_TIME_NONE;
+  }
 
   /* get current frame number */
   imgGetAttribute (sid, IMG_ATTR_FRAME_COUNT, &val);
@@ -536,12 +540,16 @@ gst_niimaqsrc_dispose (GObject * object)
   niimaqsrc->camera_name = NULL;
   g_free (niimaqsrc->interface_name);
   niimaqsrc->interface_name = NULL;
-
-  if (niimaqsrc->caps)
-    gst_caps_unref (niimaqsrc->caps);
   g_slist_free (niimaqsrc->timelist);
+  niimaqsrc->timelist = NULL;
   g_mutex_free (niimaqsrc->frametime_mutex);
+  niimaqsrc->frametime_mutex = NULL;
 
+  /* unref objects */
+  if (niimaqsrc->caps) {
+    gst_caps_unref (niimaqsrc->caps);
+    niimaqsrc->caps = NULL;
+  }
 
   /* chain dispose fuction of parent class */
   G_OBJECT_CLASS (parent_class)->dispose (object);
@@ -721,6 +729,7 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
 
   GST_DEBUG_OBJECT (niimaqsrc, "Copying IMAQ buffer %d", niimaqsrc->cumbufnum);
 
+  /* TODO: use ExamineBuffer instead and byteswap in transfer */
   rval =
       imgSessionCopyBufferByNumber (niimaqsrc->sid, niimaqsrc->cumbufnum, data,
       IMG_OVERWRITE_GET_OLDEST, &copied_number, &copied_index);
@@ -728,7 +737,7 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
     gst_niimaqsrc_report_imaq_error (rval);
     GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED,
         ("failed to copy buffer %d", niimaqsrc->cumbufnum),
-        ("failed to copy buffer %d, IMAQ error: \"%s\"", niimaqsrc->cumbufnum));
+        ("failed to copy buffer %d", niimaqsrc->cumbufnum));
     goto error;
   }
 
@@ -1093,6 +1102,8 @@ gst_niimaqsrc_stop (GstBaseSrc * src)
     gst_caps_unref (niimaqsrc->caps);
     niimaqsrc->caps = NULL;
   }
+
+  return TRUE;
 }
 
 /**
