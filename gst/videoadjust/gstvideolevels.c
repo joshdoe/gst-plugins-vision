@@ -549,6 +549,8 @@ gst_videolevels_transform (GstBaseTransform * base, GstBuffer * inbuf,
   gboolean ret;
   GstClockTimeDiff elapsed;
 
+  GST_DEBUG_OBJECT (videolevels, "Performing non-inplace transform");
+
   /* We need to lock our videolevels params to prevent segfaults */
   GST_BASE_TRANSFORM_LOCK (videolevels);
 
@@ -556,11 +558,13 @@ gst_videolevels_transform (GstBaseTransform * base, GstBuffer * inbuf,
   output = GST_BUFFER_DATA (outbuf);
 
   if (videolevels->auto_adjust == 1) {
+    GST_DEBUG_OBJECT (videolevels, "Auto adjusting levels (once)");
     gst_videolevels_auto_adjust (videolevels, input);
     videolevels->auto_adjust = 0;
     g_object_notify (G_OBJECT (videolevels), "auto");
   }
   else if (videolevels->auto_adjust == 2) {
+    GST_DEBUG_OBJECT (videolevels, "Auto adjusting levels (every %d ns)", videolevels->interval);
     elapsed = GST_CLOCK_DIFF (videolevels->last_auto_timestamp, inbuf->timestamp);
     if (videolevels->last_auto_timestamp == GST_CLOCK_TIME_NONE ||
         elapsed >= (GstClockTimeDiff)videolevels->interval ||
@@ -694,6 +698,7 @@ gst_videolevels_calculate_tables (GstVideoLevels * videolevels)
 #define GINT_CLAMP(x, low, high) ((gint)(CLAMP((x),(low),(high))))
 #define GUINT8_CLAMP(x, low, high) ((guint8)(CLAMP((x),(low),(high))))
 
+/* TODO: use orc */
 void
 gst_videolevels_convert_uint16le_to_uint8(GstVideoLevels * videolevels,
     guint16 * in, guint8 * out)
@@ -724,6 +729,7 @@ gst_videolevels_convert_uint16le_to_uint8(GstVideoLevels * videolevels,
     out[i] = GUINT8_CLAMP (m * GUINT16_FROM_LE (in[i]) + b, low_out, high_out);
 }
 
+/* TODO: use orc */
 void
 gst_videolevels_convert_uint16be_to_uint8(GstVideoLevels * videolevels,
                                           guint16 * in, guint8 * out)
