@@ -1,0 +1,26 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual C++ Express 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "niimaq", "niimaq\niimaq.vcxproj", "{C617FD30-1297-417A-99F0-4F45B48EA8DF}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "videoadjust", "videoadjust\videoadjust.vcxproj", "{B77B6B47-9CB4-4A0B-B76F-877E57F90ADD}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C617FD30-1297-417A-99F0-4F45B48EA8DF}.Debug|Win32.ActiveCfg = Debug|Win32
+		{C617FD30-1297-417A-99F0-4F45B48EA8DF}.Debug|Win32.Build.0 = Debug|Win32
+		{C617FD30-1297-417A-99F0-4F45B48EA8DF}.Release|Win32.ActiveCfg = Release|Win32
+		{C617FD30-1297-417A-99F0-4F45B48EA8DF}.Release|Win32.Build.0 = Release|Win32
+		{B77B6B47-9CB4-4A0B-B76F-877E57F90ADD}.Debug|Win32.ActiveCfg = Debug|Win32
+		{B77B6B47-9CB4-4A0B-B76F-877E57F90ADD}.Debug|Win32.Build.0 = Debug|Win32
+		{B77B6B47-9CB4-4A0B-B76F-877E57F90ADD}.Release|Win32.ActiveCfg = Release|Win32
+		{B77B6B47-9CB4-4A0B-B76F-877E57F90ADD}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
