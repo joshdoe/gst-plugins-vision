@@ -26,6 +26,7 @@
 #define __GST_VIDEO_LEVELS_H__
 
 #include <gst/video/gstvideofilter.h>
+#include <gst/video/video.h>
 
 G_BEGIN_DECLS
 
@@ -72,15 +73,10 @@ struct _GstVideoLevels
   gint width;
   gint height;
 
-  guint stride_in;
+  GstVideoFormat format_in;
+  GstVideoFormat format_out;
   gint bpp_in;
-  gint depth_in;
-  gint endianness_in;
-
-  guint stride_out;
   gint bpp_out;
-  gint depth_out;
-  gint endianness_out;
 
   /* properties */
   gdouble lower_input;

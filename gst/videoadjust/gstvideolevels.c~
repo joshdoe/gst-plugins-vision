@@ -445,6 +445,10 @@ gst_videolevels_set_caps (GstBaseTransform * base, GstCaps * incaps,
   if (!res) {
     GST_ERROR_OBJECT (levels, "Failed to parse caps");
   }
+
+  GST_DEBUG_OBJECT (levels,
+      "format_in=%d, format_out=%d, bpp_in=%d, bpp_out=%d", levels->format_in,
+      levels->format_out, levels->bpp_in, levels->bpp_out);
   //gst_videolevels_calculate_tables (levels);
 
   return res;
