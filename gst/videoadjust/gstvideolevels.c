@@ -60,13 +60,7 @@ enum
   PROP_LOWOUT,
   PROP_HIGHOUT,
   PROP_AUTO,
-  PROP_INTERVAL                 /*,
-                                   PROP_NPIXSAT_LOW,
-                                   PROP_NPIXSAT_HIGH,
-                                   PROP_ROI_X,
-                                   PROP_ROI_Y,
-                                   PROP_ROI_WIDTH,
-                                   PROP_ROI_HEIGHT */
+  PROP_INTERVAL
 };
 
 #define DEFAULT_PROP_LOWIN  0.0
@@ -75,10 +69,6 @@ enum
 #define DEFAULT_PROP_HIGHOUT  1.0
 #define DEFAULT_PROP_AUTO 0
 #define DEFAULT_PROP_INTERVAL (GST_SECOND / 2)
-#define DEFAULT_PROP_ROW_X 0
-#define DEFAULT_PROP_ROW_Y 0
-#define DEFAULT_PROP_ROW_WIDTH 0
-#define DEFAULT_PROP_ROW_HEIGHT 0
 
 static const GstElementDetails videolevels_details =
 GST_ELEMENT_DETAILS ("Video videolevels adjustment",
@@ -136,7 +126,7 @@ static void gst_videolevels_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec);
 static void gst_videolevels_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
-static void gst_videolevels_finalize (GObject * object);
+static void gst_videolevels_dispose (GObject * object);
 
 /* GstBaseTransform vmethod declarations */
 static GstCaps *gst_videolevels_transform_caps (GstBaseTransform * trans,
@@ -145,8 +135,6 @@ static gboolean gst_videolevels_set_caps (GstBaseTransform * base,
     GstCaps * incaps, GstCaps * outcaps);
 static GstFlowReturn gst_videolevels_transform (GstBaseTransform * base,
     GstBuffer * inbuf, GstBuffer * outbuf);
-static GstFlowReturn gst_videolevels_transform_ip (GstBaseTransform * base,
-    GstBuffer * buf);
 static gboolean gst_videolevels_get_unit_size (GstBaseTransform * base,
     GstCaps * caps, guint * size);
 
@@ -195,21 +183,21 @@ gst_videolevels_base_init (gpointer klass)
 }
 
 /**
- * gst_videolevels_finalize:
+ * gst_videolevels_dispose:
  * @object: #GObject.
  *
  */
 static void
-gst_videolevels_finalize (GObject * object)
+gst_videolevels_dispose (GObject * object)
 {
   GstVideoLevels *videolevels = GST_VIDEOLEVELS (object);
 
-  GST_DEBUG ("finalize");
+  GST_DEBUG ("dispose");
 
   gst_videolevels_reset (videolevels);
 
   /* chain up to the parent class */
-  G_OBJECT_CLASS (parent_class)->finalize (object);
+  G_OBJECT_CLASS (parent_class)->dispose (object);
 }
 
 /**
@@ -227,7 +215,7 @@ gst_videolevels_class_init (GstVideoLevelsClass * object)
 
 
   /* Register GObject vmethods */
-  obj_class->finalize = GST_DEBUG_FUNCPTR (gst_videolevels_finalize);
+  obj_class->dispose = GST_DEBUG_FUNCPTR (gst_videolevels_dispose);
   obj_class->set_property = GST_DEBUG_FUNCPTR (gst_videolevels_set_property);
   obj_class->get_property = GST_DEBUG_FUNCPTR (gst_videolevels_get_property);
 
@@ -261,7 +249,6 @@ gst_videolevels_class_init (GstVideoLevelsClass * object)
       GST_DEBUG_FUNCPTR (gst_videolevels_transform_caps);
   trans_class->set_caps = GST_DEBUG_FUNCPTR (gst_videolevels_set_caps);
   trans_class->transform = GST_DEBUG_FUNCPTR (gst_videolevels_transform);
-  trans_class->transform_ip = GST_DEBUG_FUNCPTR (gst_videolevels_transform_ip);
   trans_class->get_unit_size =
       GST_DEBUG_FUNCPTR (gst_videolevels_get_unit_size);
 
@@ -572,13 +559,6 @@ gst_videolevels_transform (GstBaseTransform * base, GstBuffer * inbuf,
     return GST_FLOW_OK;
   else
     return GST_FLOW_ERROR;
-}
-
-GstFlowReturn
-gst_videolevels_transform_ip (GstBaseTransform * base, GstBuffer * buf)
-{
-
-  return GST_FLOW_OK;
 }
 
 /************************************************************************/
