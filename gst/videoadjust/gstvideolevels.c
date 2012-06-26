@@ -546,9 +546,6 @@ gst_videolevels_transform (GstBaseTransform * base, GstBuffer * inbuf,
 
   GST_DEBUG_OBJECT (videolevels, "Performing non-inplace transform");
 
-  /* We need to lock our videolevels params to prevent segfaults */
-  GST_BASE_TRANSFORM_LOCK (videolevels);
-
   input = GST_BUFFER_DATA (inbuf);
   output = GST_BUFFER_DATA (outbuf);
 
@@ -570,8 +567,6 @@ gst_videolevels_transform (GstBaseTransform * base, GstBuffer * inbuf,
   }
 
   ret = gst_videolevels_do_levels (videolevels, input, output);
-
-  GST_BASE_TRANSFORM_UNLOCK (videolevels);
 
   if (ret)
     return GST_FLOW_OK;
