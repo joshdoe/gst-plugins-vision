@@ -69,19 +69,8 @@ enum
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("video/x-raw-gray, "
-        "bpp = (int) 8, "
-        "depth = (int) 8, "
-        "width = (int) [ 1, max ], "
-        "height = (int) [ 1, max ], "
-        "framerate = (fraction) [ 0, max ]"
-        ";"
-        "video/x-raw-gray, "
-        "bpp = (int) {10, 12, 14, 16}, "
-        "depth = (int) 16, "
-        "endianness = (int) LITTLE_ENDIAN, "
-        "width = (int) [ 1, max ], "
-        "height = (int) [ 1, max ], " "framerate = (fraction) [ 0, max ]")
+    GST_STATIC_CAPS (GST_VIDEO_CAPS_GRAY8 ";"
+        GST_VIDEO_CAPS_GRAY16 ("LITTLE_ENDIAN"))
     );
 
 static void gst_niimaqsrc_init_interfaces (GType type);
