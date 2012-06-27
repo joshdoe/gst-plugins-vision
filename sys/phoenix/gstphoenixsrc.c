@@ -43,7 +43,6 @@
 #include <gst/gst.h>
 #include <gst/base/gstpushsrc.h>
 #include <gst/video/video.h>
-#include <gst/gst-i18n-lib.h>
 
 #include "gstphoenixsrc.h"
 
@@ -581,7 +580,7 @@ gst_phoenixsrc_start (GstBaseSrc * src)
       gst_phoenixsrc_color_format_to_video_format (phx_format, phx_endian);
   if (videoFormat == GST_VIDEO_FORMAT_UNKNOWN) {
     GST_ELEMENT_ERROR (phoenixsrc, STREAM, WRONG_TYPE,
-        (_("Unknown or unsupported color format.")), (NULL));
+        (("Unknown or unsupported color format.")), (NULL));
     goto Error;
   }
 
@@ -592,7 +591,7 @@ gst_phoenixsrc_start (GstBaseSrc * src)
 
   if (phoenixsrc->caps == NULL) {
     GST_ELEMENT_ERROR (phoenixsrc, STREAM, TOO_LAZY,
-        (_("Failed to generate caps from video format.")), (NULL));
+        (("Failed to generate caps from video format.")), (NULL));
     goto Error;
   }
 
@@ -600,7 +599,7 @@ gst_phoenixsrc_start (GstBaseSrc * src)
 
 ResourceSettingsError:
   GST_ELEMENT_ERROR (phoenixsrc, RESOURCE, SETTINGS,
-      (_("Failed to get Phoenix parameters.")), (NULL));
+      (("Failed to get Phoenix parameters.")), (NULL));
 
 Error:
   /* Now cease all captures */
@@ -736,7 +735,7 @@ gst_phoenixsrc_create (GstPushSrc * src, GstBuffer ** buf)
     eStat = PHX_Acquire (phoenixsrc->hCamera, PHX_START, (void *) phx_callback);
     if (PHX_OK != eStat) {
       GST_ELEMENT_ERROR (phoenixsrc, RESOURCE, FAILED,
-          (_("Failed to start acquisition.")), (NULL));
+          (("Failed to start acquisition.")), (NULL));
       return GST_FLOW_ERROR;    /* TODO: make sure _stop is called if this happens to release resources */
     }
     phoenixsrc->acq_started = TRUE;
@@ -751,7 +750,7 @@ gst_phoenixsrc_create (GstPushSrc * src, GstBuffer ** buf)
   if (phoenixsrc->fifo_overflow_occurred) {
     /* TODO: we could offer to try and ABORT then re-START capture */
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-        (_("Acquisition failure due to FIFO overflow.")), (NULL));
+        (("Acquisition failure due to FIFO overflow.")), (NULL));
     g_mutex_unlock (phoenixsrc->mutex);
     return GST_FLOW_ERROR;
   }
@@ -759,14 +758,14 @@ gst_phoenixsrc_create (GstPushSrc * src, GstBuffer ** buf)
   if (phoenixsrc->timeout_occurred) {
     /* TODO: we could offer to try and ABORT then re-START capture */
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-        (_("Acquisition failure due to timeout.")), (NULL));
+        (("Acquisition failure due to timeout.")), (NULL));
     g_mutex_unlock (phoenixsrc->mutex);
     return GST_FLOW_ERROR;
   }
 
   if (!phoenixsrc->buffer_ready) {
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-        (_("You should not see this error, something very bad happened.")),
+        (("You should not see this error, something very bad happened.")),
         (NULL));
     g_mutex_unlock (phoenixsrc->mutex);
     return GST_FLOW_ERROR;
@@ -787,7 +786,7 @@ gst_phoenixsrc_create (GstPushSrc * src, GstBuffer ** buf)
   eStat = PHX_Acquire (phoenixsrc->hCamera, PHX_BUFFER_GET, &phx_buffer);
   if (PHX_OK != eStat) {
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-        (_("Failed to get buffer.")), (NULL));
+        (("Failed to get buffer.")), (NULL));
     return GST_FLOW_ERROR;
   }
 
