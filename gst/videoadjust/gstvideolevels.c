@@ -125,6 +125,8 @@ static GstFlowReturn gst_videolevels_transform (GstBaseTransform * base,
     GstBuffer * inbuf, GstBuffer * outbuf);
 static gboolean gst_videolevels_get_unit_size (GstBaseTransform * base,
     GstCaps * caps, guint * size);
+static GstFlowReturn gst_videolevels_prepare_output_buffer (GstBaseTransform *
+    base, GstBuffer * in_buf, gint size, GstCaps * caps, GstBuffer ** out_buf);
 
 /* GstVideoLevels method declarations */
 static void gst_videolevels_reset (GstVideoLevels * filter);
@@ -239,9 +241,8 @@ gst_videolevels_class_init (GstVideoLevelsClass * object)
   trans_class->transform = GST_DEBUG_FUNCPTR (gst_videolevels_transform);
   trans_class->get_unit_size =
       GST_DEBUG_FUNCPTR (gst_videolevels_get_unit_size);
-
-  /* simply pass the data through if in/out caps are the same */
-  trans_class->passthrough_on_same_caps = TRUE;
+  trans_class->prepare_output_buffer =
+      GST_DEBUG_FUNCPTR (gst_videolevels_prepare_output_buffer);
 }
 
 /**
@@ -473,6 +474,24 @@ gst_videolevels_get_unit_size (GstBaseTransform * base, GstCaps * caps,
 
   GST_DEBUG ("Frame size is %d bytes", *size);
   return TRUE;
+}
+
+static GstFlowReturn
+gst_videolevels_prepare_output_buffer (GstBaseTransform * base,
+    GstBuffer * in_buf, gint size, GstCaps * caps, GstBuffer ** out_buf)
+{
+  GstVideoLevels *levels = GST_VIDEOLEVELS (base);
+  GstFlowReturn ret = GST_FLOW_OK;
+
+  ret = gst_pad_alloc_buffer (base->srcpad, 0, size, caps, out_buf);
+
+  if (ret != GST_FLOW_OK) {
+    GST_DEBUG_OBJECT (levels,
+        "Couldn't get pad to alloc buffer, creating one directly");
+    *out_buf = gst_buffer_new_and_alloc (size);
+  }
+
+  return ret;
 }
 
 /**
