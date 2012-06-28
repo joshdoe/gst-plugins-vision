@@ -761,7 +761,8 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
 
   /* search linked list for frame time */
   g_mutex_lock (niimaqsrc->frametime_mutex);
-  {
+  if (G_LIKELY (niimaqsrc->timelist)
+      && g_slist_length (niimaqsrc->timelist) > 0) {
     /* remove all old frametimes from the list */
     frametime = niimaqsrc->timelist->data;
     while (frametime->number < copied_number) {
