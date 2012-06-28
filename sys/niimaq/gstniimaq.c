@@ -908,9 +908,7 @@ gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * niimaqsrc)
   Int32 rval;
   uInt32 val;
   gint width, height, depth, bpp;
-  GstStructure *gs;
-
-  gcaps = gst_caps_new_empty ();
+  GstVideoFormat format = GST_VIDEO_FORMAT_UNKNOWN;
 
   if (!niimaqsrc->iid) {
     GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED,
@@ -939,35 +937,17 @@ gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * niimaqsrc)
     goto error;
   }
 
-  /* create new structure and set caps we got from IMAQ */
-  gs = gst_structure_empty_new ("video/x-raw-gray");
-  gst_structure_set (gs,
-      "bpp", G_TYPE_INT, bpp,
-      "depth", G_TYPE_INT, depth,
-      "width", G_TYPE_INT, width, "height", G_TYPE_INT, height, NULL);
-  if (depth > 8) {
-    gst_structure_set (gs, "endianness", G_TYPE_INT, G_LITTLE_ENDIAN, NULL);
+  if (depth == 8)
+    format = GST_VIDEO_FORMAT_GRAY8;
+  else if (depth == 16)
+    format = GST_VIDEO_FORMAT_GRAY16_LE;
+  else {
+    GST_WARNING_OBJECT (niimaqsrc, "Depth %d not supported yet", depth);
+    goto error;
   }
 
-  /* hard code framerate to 30Hz as IMAQ doesn't tell us anything about it */
-  GST_DEBUG_OBJECT (niimaqsrc, "Setting framerate to 30 fps");
-  gst_structure_set (gs, "framerate", GST_TYPE_FRACTION, 30, 1, NULL);
-
-  GST_DEBUG_OBJECT (gs, "is the basic structure");
-
-  gst_caps_append_structure (gcaps, gst_structure_copy (gs));
-
-  /* if (8 < bpp < 16), then append structure with bpp=16 so ffmpegcolorspace
-   * and other elements can work directly with this src */
-  if (bpp > 8 && bpp < 16) {
-    GST_DEBUG_OBJECT (niimaqsrc, "Adding 16bpp caps for compatibility");
-    gst_structure_set (gs,
-        "bpp", G_TYPE_INT, 16,
-        "depth", G_TYPE_INT, 16,
-        "endianness", G_TYPE_INT, G_LITTLE_ENDIAN, NULL);
-    gst_caps_append_structure (gcaps, gst_structure_copy (gs));
-  }
-  gst_structure_free (gs);
+  /* hard code framerate and par as IMAQ doesn't tell us anything about it */
+  gcaps = gst_video_format_new_caps (format, width, height, 30, 1, 1, 1);
 
   GST_DEBUG_OBJECT (gcaps, "are the camera caps");
 
