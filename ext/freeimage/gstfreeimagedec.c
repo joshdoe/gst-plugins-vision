@@ -273,18 +273,20 @@ gst_freeimagedec_caps_create_and_set (GstFreeImageDec * freeimagedec)
     /* we have an unsupported type, we'll try converting to RGB/RGBA */
     FIBITMAP *dib;
     if (FreeImage_IsTransparent (freeimagedec->dib)) {
-      GST_DEBUG
-          ("Image is non-standard format with transparency, convert to 32-bit RGB");
+      GST_DEBUG_OBJECT (freeimagedec,
+          "Image is non-standard format with transparency, convert to 32-bit RGB");
       dib = FreeImage_ConvertTo32Bits (freeimagedec->dib);
     } else {
-      GST_DEBUG ("Image is non-standard format, convert to 24-bit RGB");
+      GST_DEBUG_OBJECT (freeimagedec,
+          "Image is non-standard format, convert to 24-bit RGB");
       dib = FreeImage_ConvertTo24Bits (freeimagedec->dib);
     }
 
     caps = gst_freeimageutils_caps_from_dib (freeimagedec->dib,
         freeimagedec->fps_n, freeimagedec->fps_d);
     if (caps == NULL) {
-      GST_DEBUG ("Image could not be converted to RGB/RGBA, try grayscale");
+      GST_DEBUG_OBJECT (freeimagedec,
+          "Image could not be converted to RGB/RGBA, try grayscale");
       if (dib)
         FreeImage_Unload (dib);
       dib = FreeImage_ConvertToStandardType (freeimagedec->dib, TRUE);
@@ -293,7 +295,7 @@ gst_freeimagedec_caps_create_and_set (GstFreeImageDec * freeimagedec)
           freeimagedec->fps_n, freeimagedec->fps_d);
 
       if (caps == NULL) {
-        GST_WARNING ("Failed to convert image");
+        GST_WARNING_OBJECT (freeimagedec, "Failed to convert image");
         if (dib)
           FreeImage_Unload (dib);
         ret = GST_FLOW_NOT_SUPPORTED;
