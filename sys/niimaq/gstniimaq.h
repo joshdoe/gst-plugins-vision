@@ -47,11 +47,6 @@ typedef struct _GstNiImaqSrcClass GstNiImaqSrcClass;
 struct _GstNiImaqSrc {
   GstPushSrc element;
 
-  /* video state */
-  gint width;
-  gint height;
-  gint depth; 
-  gint bpp;
   gint framesize;
 
   /* private */
@@ -70,8 +65,6 @@ struct _GstNiImaqSrc {
   SESSION_ID sid;
 
   gboolean session_started;
-
-  GstCaps *caps;
 
   GSList *timelist;
   GMutex *frametime_mutex;

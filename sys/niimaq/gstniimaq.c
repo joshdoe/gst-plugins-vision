@@ -59,7 +59,6 @@ enum
   PROP_INTERFACE,
   PROP_TIMESTAMP_OFFSET,
   PROP_BUFSIZE
-      /* FILL ME */
 };
 
 #define DEFAULT_PROP_INTERFACE "img0"
@@ -98,9 +97,6 @@ static GstFlowReturn gst_niimaqsrc_create (GstPushSrc * psrc,
     GstBuffer ** buffer);
 
 /* GstNiImaq methods */
-static gboolean gst_niimaqsrc_parse_caps (const GstCaps * caps,
-    gint * width, gint * height, gint * depth, gint * bpp);
-
 static GstCaps *gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * src);
 static void gst_niimaqsrc_close_interface (GstNiImaqSrc * niimaqsrc);
 
@@ -498,7 +494,6 @@ gst_niimaqsrc_init (GstNiImaqSrc * niimaqsrc, GstNiImaqSrcClass * g_class)
 
   /* initialize member variables */
   niimaqsrc->timestamp_offset = 0;
-  niimaqsrc->caps = NULL;
   niimaqsrc->bufsize = 10;
   niimaqsrc->n_frames = 0;
   niimaqsrc->cumbufnum = 0;
@@ -544,11 +539,6 @@ gst_niimaqsrc_dispose (GObject * object)
   if (niimaqsrc->start_time) {
     gst_date_time_unref (niimaqsrc->start_time);
     niimaqsrc->start_time = NULL;
-  }
-
-  if (niimaqsrc->caps) {
-    gst_caps_unref (niimaqsrc->caps);
-    niimaqsrc->caps = NULL;
   }
 
   /* chain dispose fuction of parent class */
@@ -610,48 +600,26 @@ gst_niimaqsrc_get_caps (GstBaseSrc * bsrc)
 
   GST_DEBUG_OBJECT (bsrc, "Entering function get_caps");
 
-  /* return template caps if we don't know the actual camera caps */
-  if (!niimaqsrc->caps) {
+  /* return template caps if the session hasn't started yet */
+  if (!niimaqsrc->sid) {
     return
         gst_caps_copy (gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD
             (niimaqsrc)));
   }
 
-  return gst_caps_copy (niimaqsrc->caps);
+  return gst_niimaqsrc_get_cam_caps (niimaqsrc);
 }
 
 
 static gboolean
 gst_niimaqsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 {
-
+  GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (bsrc);
   gboolean res = TRUE;
-  GstNiImaqSrc *niimaqsrc;
-  gint width, height;
-  gint bpp, depth;
 
-  niimaqsrc = GST_NIIMAQSRC (bsrc);
+  res = gst_video_get_size_from_caps (caps, &niimaqsrc->framesize);
 
-  GST_DEBUG_OBJECT (bsrc, "Entering function set_caps");
-
-  GST_DEBUG_OBJECT (caps, "are the caps being set");
-
-  if (niimaqsrc->caps) {
-    gst_caps_unref (niimaqsrc->caps);
-    niimaqsrc->caps = gst_caps_copy (caps);
-  }
-
-  res =
-      gst_niimaqsrc_parse_caps (niimaqsrc->caps, &width, &height, &depth, &bpp);
-
-  if (res) {
-    /* looks ok here */
-    niimaqsrc->width = width;
-    niimaqsrc->height = height;
-    niimaqsrc->depth = depth;
-    niimaqsrc->bpp = bpp;
-    niimaqsrc->framesize = width * height * (depth / 8);
-  }
+  GST_DEBUG_OBJECT (niimaqsrc, "Caps set, framesize=%d", niimaqsrc->framesize);
 
   return res;
 }
@@ -845,52 +813,17 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
     GstTagList *tl =
         gst_tag_list_new_full (GST_TAG_DATE_TIME, niimaqsrc->start_time, NULL);
     GstEvent *e = gst_event_new_tag (tl);
-    gst_pad_push_event (GST_PAD (GST_BASE_SRC_PAD (niimaqsrc)), e);
+    GST_DEBUG_OBJECT (niimaqsrc, "Sending start time event: %" GST_PTR_FORMAT,
+        e);
+    gst_pad_push_event (GST_BASE_SRC_PAD (niimaqsrc), e);
+    niimaqsrc->start_time_sent = TRUE;
   }
-
   return res;
 
 error:
   {
     return GST_FLOW_ERROR;
   }
-}
-
-/**
-* gst_niimaqsrc_parse_caps:
-* caps: a #GstCaps to parse
-* width:
-* height:
-* depth:
-* bpp:
-*
-* Parses a given caps and sets critical values.
-*
-* Returns: TRUE on success
-*/
-static gboolean
-gst_niimaqsrc_parse_caps (const GstCaps * caps, gint * width, gint * height,
-    gint * depth, gint * bpp)
-{
-  GstStructure *structure;
-  gboolean ret;
-
-  if (gst_caps_get_size (caps) < 1)
-    return FALSE;
-
-  structure = gst_caps_get_structure (caps, 0);
-
-  ret = gst_structure_get (structure,
-      "width", G_TYPE_INT, width,
-      "height", G_TYPE_INT, height,
-      "depth", G_TYPE_INT, depth, "bpp", G_TYPE_INT, bpp, NULL);
-
-  if (!ret) {
-    GST_DEBUG ("Failed to retrieve width, height, depth, or bpp");
-    return FALSE;
-  }
-
-  return TRUE;
 }
 
 /**
@@ -1006,21 +939,6 @@ gst_niimaqsrc_start (GstBaseSrc * src)
     goto error;
   }
 
-  if (niimaqsrc->caps) {
-    gst_caps_unref (niimaqsrc->caps);
-    niimaqsrc->caps = NULL;
-  }
-
-  GST_LOG_OBJECT (niimaqsrc, "Getting caps from camera");
-
-  /* get caps from camera and set to src pad */
-  niimaqsrc->caps = gst_niimaqsrc_get_cam_caps (niimaqsrc);
-  if (niimaqsrc->caps == NULL) {
-    GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED,
-        ("Failed to get caps from IMAQ"), ("Failed to get caps from IMAQ"));
-    goto error;
-  }
-
   GST_LOG_OBJECT (niimaqsrc, "Creating ring with %d buffers",
       niimaqsrc->bufsize);
 
@@ -1088,11 +1006,6 @@ gst_niimaqsrc_stop (GstBaseSrc * src)
   }
 
   gst_niimaqsrc_close_interface (niimaqsrc);
-
-  if (niimaqsrc->caps) {
-    gst_caps_unref (niimaqsrc->caps);
-    niimaqsrc->caps = NULL;
-  }
 
   return TRUE;
 }
