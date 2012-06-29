@@ -49,26 +49,28 @@ typedef struct _GstNiImaqSrcClass GstNiImaqSrcClass;
 struct _GstNiImaqSrc {
   GstPushSrc element;
 
+  /* properties */
+  gchar *interface_name;
+  gint bufsize;
+
+  /* image info */
   GstVideoFormat format;
   int width;
   int height;
   gint framesize;
   int rowpixels;
 
-  /* private */
-  GstClockTime running_time;    /* total running time */
   gint64 n_frames;      /* total frames sent */
   uInt32 cumbufnum;
   gint64 n_dropped_frames;
-  gboolean segment;
-  gint bufsize; 
+  
   guint32** buflist;
 
-  gchar *interface_name;
   INTERFACE_ID iid;
   SESSION_ID sid;
 
   gboolean session_started;
+  GstClockTime base_time;
 
   GSList *timelist;
   GMutex *frametime_mutex;
