@@ -504,6 +504,10 @@ gst_niimaqsrc_init (GstNiImaqSrc * niimaqsrc, GstNiImaqSrcClass * g_class)
   niimaqsrc->camera_name = g_strdup (DEFAULT_PROP_INTERFACE);
   niimaqsrc->interface_name = g_strdup (DEFAULT_PROP_INTERFACE);
   niimaqsrc->session_started = FALSE;
+  niimaqsrc->format = GST_VIDEO_FORMAT_UNKNOWN;
+  niimaqsrc->width = 0;
+  niimaqsrc->height = 0;
+  niimaqsrc->rowpixels = 0;
 
   niimaqsrc->timelist = NULL;
   niimaqsrc->frametime_mutex = g_mutex_new ();
@@ -616,10 +620,31 @@ gst_niimaqsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 {
   GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (bsrc);
   gboolean res = TRUE;
+  int depth;
 
-  res = gst_video_get_size_from_caps (caps, &niimaqsrc->framesize);
+  gst_video_format_parse_caps (caps, &niimaqsrc->format, &niimaqsrc->width,
+      &niimaqsrc->height);
 
-  GST_DEBUG_OBJECT (niimaqsrc, "Caps set, framesize=%d", niimaqsrc->framesize);
+  /* this will handle byte alignment (i.e. row multiple of 4 bytes) */
+  niimaqsrc->framesize =
+      gst_video_format_get_size (niimaqsrc->format, niimaqsrc->width,
+      niimaqsrc->height);
+
+  /* TODO: use gst_video_format_get_component once 0.10.37 is out */
+  if (niimaqsrc->format == GST_VIDEO_FORMAT_GRAY8)
+    depth = 8;
+  else if (niimaqsrc->format == GST_VIDEO_FORMAT_GRAY16_LE)
+    depth = 16;
+  else
+    g_assert_not_reached ();    /* negotiation failed? */
+
+  /* use this so NI can give us proper byte alignment */
+  niimaqsrc->rowpixels =
+      gst_video_format_get_row_stride (niimaqsrc->format, 0,
+      niimaqsrc->width) / (depth / 8);
+
+  GST_DEBUG_OBJECT (niimaqsrc, "Caps set, framesize=%d, rowpixels=%d",
+      niimaqsrc->framesize, niimaqsrc->rowpixels);
 
   return res;
 }
@@ -707,9 +732,16 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
 
   data = GST_BUFFER_DATA (*buffer);
   /* TODO: optionally use ExamineBuffer and byteswap in transfer (to offer BIG_ENDIAN) */
-  rval =
-      imgSessionCopyBufferByNumber (niimaqsrc->sid, niimaqsrc->cumbufnum, data,
-      IMG_OVERWRITE_GET_OLDEST, &copied_number, &copied_index);
+  if (niimaqsrc->width == niimaqsrc->rowpixels)
+    rval =
+        imgSessionCopyBufferByNumber (niimaqsrc->sid, niimaqsrc->cumbufnum,
+        data, IMG_OVERWRITE_GET_OLDEST, &copied_number, &copied_index);
+  else
+    rval =
+        imgSessionCopyAreaByNumber (niimaqsrc->sid, niimaqsrc->cumbufnum, 0, 0,
+        niimaqsrc->height, niimaqsrc->width, data, niimaqsrc->rowpixels,
+        IMG_OVERWRITE_GET_OLDEST, &copied_number, &copied_index);
+
   if (rval) {
     gst_niimaqsrc_report_imaq_error (rval);
     GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED,

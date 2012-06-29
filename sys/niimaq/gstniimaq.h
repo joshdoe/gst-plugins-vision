@@ -24,6 +24,8 @@
 
 #include <gst/gst.h>
 #include <gst/base/gstpushsrc.h>
+#include <gst/video/video.h>
+
 #include <niimaq.h>
 
 G_BEGIN_DECLS
@@ -47,7 +49,11 @@ typedef struct _GstNiImaqSrcClass GstNiImaqSrcClass;
 struct _GstNiImaqSrc {
   GstPushSrc element;
 
+  GstVideoFormat format;
+  int width;
+  int height;
   gint framesize;
+  int rowpixels;
 
   /* private */
   gint64 timestamp_offset;    /* base offset */
