@@ -56,7 +56,6 @@ struct _GstNiImaqSrc {
   int rowpixels;
 
   /* private */
-  gint64 timestamp_offset;    /* base offset */
   GstClockTime running_time;    /* total running time */
   gint64 n_frames;      /* total frames sent */
   uInt32 cumbufnum;
@@ -65,7 +64,6 @@ struct _GstNiImaqSrc {
   gint bufsize; 
   guint32** buflist;
 
-  gchar *camera_name;
   gchar *interface_name;
   INTERFACE_ID iid;
   SESSION_ID sid;

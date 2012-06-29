@@ -57,12 +57,10 @@ enum
 {
   PROP_0,
   PROP_INTERFACE,
-  PROP_TIMESTAMP_OFFSET,
   PROP_BUFSIZE
 };
 
 #define DEFAULT_PROP_INTERFACE "img0"
-#define DEFAULT_PROP_TIMESTAMP_OFFSET  0
 #define DEFAULT_PROP_BUFSIZE  10
 
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
@@ -452,11 +450,6 @@ gst_niimaqsrc_class_init (GstNiImaqSrcClass * klass)
           "Interface",
           "NI-IMAQ interface to open", DEFAULT_PROP_INTERFACE,
           G_PARAM_READWRITE));
-  g_object_class_install_property (G_OBJECT_CLASS (klass),
-      PROP_TIMESTAMP_OFFSET, g_param_spec_int64 ("timestamp-offset",
-          "Timestamp offset",
-          "An offset added to timestamps set on buffers (in ns)", G_MININT64,
-          G_MAXINT64, DEFAULT_PROP_TIMESTAMP_OFFSET, G_PARAM_READWRITE));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_BUFSIZE,
       g_param_spec_int ("buffer-size",
           "Number of frames in the IMAQ ringbuffer",
@@ -492,28 +485,11 @@ gst_niimaqsrc_init (GstNiImaqSrc * niimaqsrc, GstNiImaqSrcClass * g_class)
   /* override default of BYTES to operate in time mode */
   gst_base_src_set_format (GST_BASE_SRC (niimaqsrc), GST_FORMAT_TIME);
 
-  /* initialize member variables */
-  niimaqsrc->timestamp_offset = 0;
-  niimaqsrc->bufsize = 10;
-  niimaqsrc->n_frames = 0;
-  niimaqsrc->cumbufnum = 0;
-  niimaqsrc->n_dropped_frames = 0;
-  niimaqsrc->buflist = 0;
-  niimaqsrc->sid = 0;
-  niimaqsrc->iid = 0;
-  niimaqsrc->camera_name = g_strdup (DEFAULT_PROP_INTERFACE);
+  /* initialize properties */
+  niimaqsrc->bufsize = DEFAULT_PROP_BUFSIZE;
   niimaqsrc->interface_name = g_strdup (DEFAULT_PROP_INTERFACE);
-  niimaqsrc->session_started = FALSE;
-  niimaqsrc->format = GST_VIDEO_FORMAT_UNKNOWN;
-  niimaqsrc->width = 0;
-  niimaqsrc->height = 0;
-  niimaqsrc->rowpixels = 0;
 
-  niimaqsrc->timelist = NULL;
   niimaqsrc->frametime_mutex = g_mutex_new ();
-
-  niimaqsrc->start_time = NULL;
-  niimaqsrc->start_time_sent = FALSE;
 }
 
 /**
@@ -530,8 +506,6 @@ gst_niimaqsrc_dispose (GObject * object)
   gst_niimaqsrc_close_interface (niimaqsrc);
 
   /* free memory allocated */
-  g_free (niimaqsrc->camera_name);
-  niimaqsrc->camera_name = NULL;
   g_free (niimaqsrc->interface_name);
   niimaqsrc->interface_name = NULL;
   g_slist_free (niimaqsrc->timelist);
@@ -560,13 +534,6 @@ gst_niimaqsrc_set_property (GObject * object, guint prop_id,
       if (niimaqsrc->interface_name)
         g_free (niimaqsrc->interface_name);
       niimaqsrc->interface_name = g_strdup (g_value_get_string (value));
-
-      if (niimaqsrc->camera_name)
-        g_free (niimaqsrc->camera_name);
-      niimaqsrc->camera_name = g_strdup (g_value_get_string (value));
-      break;
-    case PROP_TIMESTAMP_OFFSET:
-      niimaqsrc->timestamp_offset = g_value_get_int64 (value);
       break;
     case PROP_BUFSIZE:
       niimaqsrc->bufsize = g_value_get_int (value);
@@ -584,9 +551,6 @@ gst_niimaqsrc_get_property (GObject * object, guint prop_id, GValue * value,
   switch (prop_id) {
     case PROP_INTERFACE:
       g_value_set_string (value, niimaqsrc->interface_name);
-      break;
-    case PROP_TIMESTAMP_OFFSET:
-      g_value_set_int64 (value, niimaqsrc->timestamp_offset);
       break;
     case PROP_BUFSIZE:
       g_value_set_int (value, niimaqsrc->bufsize);
@@ -670,6 +634,26 @@ gst_niimaqsrc_get_times (GstBaseSrc * basesrc, GstBuffer * buffer,
     *start = -1;
     *end = -1;
   }
+}
+
+static void
+gst_niimaqsrc_reset (GstNiImaqSrc * niimaqsrc)
+{
+  /* initialize member variables */
+  niimaqsrc->n_frames = 0;
+  niimaqsrc->cumbufnum = 0;
+  niimaqsrc->n_dropped_frames = 0;
+  niimaqsrc->buflist = 0;
+  niimaqsrc->sid = 0;
+  niimaqsrc->iid = 0;
+  niimaqsrc->session_started = FALSE;
+  niimaqsrc->format = GST_VIDEO_FORMAT_UNKNOWN;
+  niimaqsrc->width = 0;
+  niimaqsrc->height = 0;
+  niimaqsrc->rowpixels = 0;
+  niimaqsrc->timelist = NULL;
+  niimaqsrc->start_time = NULL;
+  niimaqsrc->start_time_sent = FALSE;
 }
 
 static gboolean
@@ -935,8 +919,7 @@ gst_niimaqsrc_start (GstBaseSrc * src)
   Int32 rval;
   gint i;
 
-  niimaqsrc->iid = 0;
-  niimaqsrc->sid = 0;
+  gst_niimaqsrc_reset (niimaqsrc);
 
   GST_DEBUG_OBJECT (niimaqsrc, "Opening IMAQ interface: %s",
       niimaqsrc->interface_name);
