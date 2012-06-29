@@ -651,14 +651,13 @@ static GstFlowReturn
 gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
 {
   GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (psrc);
-  gpointer data;
-  GstFlowReturn res = GST_FLOW_OK;
+  GstFlowReturn ret = GST_FLOW_OK;
   guint i;
   GstNiImaqSrcFrameTime *frametime;
   GstClockTime timestamp = GST_CLOCK_TIME_NONE;
   GstClockTime timestamp2 = GST_CLOCK_TIME_NONE;
   GstClockTime duration = GST_CLOCK_TIME_NONE;
-
+  guint8 *data;
   uInt32 copied_number;
   uInt32 copied_index;
   Int32 rval;
@@ -693,11 +692,21 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
     niimaqsrc->session_started = TRUE;
   }
 
-  data = g_malloc (niimaqsrc->framesize);
+  ret =
+      gst_pad_alloc_buffer (GST_BASE_SRC_PAD (niimaqsrc), 0,
+      niimaqsrc->framesize, GST_PAD_CAPS (GST_BASE_SRC_PAD (niimaqsrc)),
+      buffer);
+  if (ret != GST_FLOW_OK) {
+    GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED,
+        ("Failed to allocate buffer"),
+        ("Failed to get downstream pad to allocate buffer"));
+    goto error;
+  }
 
   GST_DEBUG_OBJECT (niimaqsrc, "Copying IMAQ buffer %d", niimaqsrc->cumbufnum);
 
-  /* TODO: use ExamineBuffer instead and byteswap in transfer */
+  data = GST_BUFFER_DATA (*buffer);
+  /* TODO: optionally use ExamineBuffer and byteswap in transfer (to offer BIG_ENDIAN) */
   rval =
       imgSessionCopyBufferByNumber (niimaqsrc->sid, niimaqsrc->cumbufnum, data,
       IMG_OVERWRITE_GET_OLDEST, &copied_number, &copied_index);
@@ -715,13 +724,6 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
      GST_CLOCK_DIFF (gst_element_get_base_time (GST_ELEMENT (niimaqsrc)), gst_clock_get_time (clock));
      gst_object_unref (clock); */
 
-  GST_DEBUG_OBJECT (niimaqsrc, "Creating buffer");
-
-  *buffer = gst_buffer_new ();
-
-  GST_BUFFER_DATA (*buffer) = data;
-  GST_BUFFER_MALLOCDATA (*buffer) = data;
-  GST_BUFFER_SIZE (*buffer) = niimaqsrc->framesize;
   GST_BUFFER_OFFSET (*buffer) = copied_number;
   GST_BUFFER_OFFSET_END (*buffer) = copied_number;
 
@@ -818,11 +820,11 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
     gst_pad_push_event (GST_BASE_SRC_PAD (niimaqsrc), e);
     niimaqsrc->start_time_sent = TRUE;
   }
-  return res;
+  return ret;
 
 error:
   {
-    return GST_FLOW_ERROR;
+    return ret;
   }
 }
 
