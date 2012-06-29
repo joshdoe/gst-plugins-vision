@@ -909,7 +909,8 @@ gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * niimaqsrc)
   else if (depth == 16)
     format = GST_VIDEO_FORMAT_GRAY16_LE;
   else {
-    GST_WARNING_OBJECT (niimaqsrc, "Depth %d not supported yet", depth);
+    GST_ERROR_OBJECT (niimaqsrc, "Depth %d (%d-bit) not supported yet", depth,
+        bpp);
     goto error;
   }
 
