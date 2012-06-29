@@ -725,7 +725,7 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
      gst_object_unref (clock); */
 
   GST_BUFFER_OFFSET (*buffer) = copied_number;
-  GST_BUFFER_OFFSET_END (*buffer) = copied_number;
+  GST_BUFFER_OFFSET_END (*buffer) = copied_number + 1;
 
   GST_DEBUG_OBJECT (niimaqsrc, "Associating time with buffer");
 
