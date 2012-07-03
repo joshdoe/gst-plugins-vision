@@ -72,6 +72,7 @@ struct _GstVideoLevels
   /* format */
   gint width;
   gint height;
+  int framesize;
 
   GstVideoFormat format_in;
   GstVideoFormat format_out;
