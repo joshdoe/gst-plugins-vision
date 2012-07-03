@@ -131,6 +131,8 @@ gst_niimaqsrc_frame_start_callback (SESSION_ID sid, IMG_ERR err,
   if (!niimaqsrc->session_started)
     return 1;
 
+  g_mutex_lock (niimaqsrc->frametime_mutex);
+
   if (G_UNLIKELY (niimaqsrc->start_time == NULL))
     niimaqsrc->start_time = gst_date_time_new_now_utc ();
 
@@ -151,7 +153,6 @@ gst_niimaqsrc_frame_start_callback (SESSION_ID sid, IMG_ERR err,
   frametime->time = abstime;
 
   /* append frame number and clock time to list */
-  g_mutex_lock (niimaqsrc->frametime_mutex);
   niimaqsrc->timelist = g_slist_append (niimaqsrc->timelist, frametime);
   g_mutex_unlock (niimaqsrc->frametime_mutex);
 
@@ -1067,6 +1068,7 @@ gst_niimaqsrc_query (GstBaseSrc * src, GstQuery * query)
       return TRUE;
     }
   }
+  /*FIXME: return what value? */
 }
 
 /**
