@@ -87,10 +87,9 @@ static void gst_niimaqsrc_get_property (GObject * object, guint prop_id,
 /* GstBaseSrc virtual methods */
 static GstCaps *gst_niimaqsrc_get_caps (GstBaseSrc * bsrc);
 static gboolean gst_niimaqsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps);
-static void gst_niimaqsrc_get_times (GstBaseSrc * basesrc,
-    GstBuffer * buffer, GstClockTime * start, GstClockTime * end);
 static gboolean gst_niimaqsrc_start (GstBaseSrc * src);
 static gboolean gst_niimaqsrc_stop (GstBaseSrc * src);
+static gboolean gst_niimaqsrc_query (GstBaseSrc * src, GstQuery * query);
 
 /* GstPushSrc virtual methods */
 static GstFlowReturn gst_niimaqsrc_create (GstPushSrc * psrc,
@@ -475,9 +474,9 @@ gst_niimaqsrc_class_init (GstNiImaqSrcClass * klass)
   /* install GstBaseSrc vmethod implementations */
   gstbasesrc_class->get_caps = gst_niimaqsrc_get_caps;
   gstbasesrc_class->set_caps = gst_niimaqsrc_set_caps;
-  gstbasesrc_class->get_times = gst_niimaqsrc_get_times;
   gstbasesrc_class->start = gst_niimaqsrc_start;
   gstbasesrc_class->stop = gst_niimaqsrc_stop;
+  gstbasesrc_class->query = gst_niimaqsrc_query;
 
   /* install GstPushSrc vmethod implementations */
   gstpushsrc_class->create = gst_niimaqsrc_create;
@@ -635,29 +634,6 @@ gst_niimaqsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
       niimaqsrc->framesize, niimaqsrc->rowpixels);
 
   return res;
-}
-
-static void
-gst_niimaqsrc_get_times (GstBaseSrc * basesrc, GstBuffer * buffer,
-    GstClockTime * start, GstClockTime * end)
-{
-  /* for live sources, sync on the timestamp of the buffer */
-  if (gst_base_src_is_live (basesrc)) {
-    GstClockTime timestamp = GST_BUFFER_TIMESTAMP (buffer);
-
-    if (GST_CLOCK_TIME_IS_VALID (timestamp)) {
-      /* get duration to calculate end time */
-      GstClockTime duration = GST_BUFFER_DURATION (buffer);
-
-      if (GST_CLOCK_TIME_IS_VALID (duration)) {
-        *end = timestamp + duration;
-      }
-      *start = timestamp;
-    }
-  } else {
-    *start = -1;
-    *end = -1;
-  }
 }
 
 static void
@@ -1061,6 +1037,36 @@ gst_niimaqsrc_stop (GstBaseSrc * src)
   gst_niimaqsrc_close_interface (niimaqsrc);
 
   return TRUE;
+}
+
+static gboolean
+gst_niimaqsrc_query (GstBaseSrc * src, GstQuery * query)
+{
+  GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (src);
+
+  switch (GST_QUERY_TYPE (query)) {
+    case GST_QUERY_LATENCY:{
+      GstClockTime min_latency, max_latency;
+
+      if (!niimaqsrc->session_started) {
+        GST_WARNING_OBJECT (niimaqsrc,
+            "Can't give latency since device isn't open!");
+        return FALSE;
+      }
+
+      /* TODO: this is a ballpark figure, estimate from FVAL times */
+      min_latency = 33 * GST_MSECOND;
+      max_latency = 33 * GST_MSECOND * niimaqsrc->bufsize;
+
+      GST_DEBUG_OBJECT (niimaqsrc,
+          "report latency min %" GST_TIME_FORMAT " max %" GST_TIME_FORMAT,
+          GST_TIME_ARGS (min_latency), GST_TIME_ARGS (max_latency));
+
+      gst_query_set_latency (query, TRUE, min_latency, max_latency);
+
+      return TRUE;
+    }
+  }
 }
 
 /**
