@@ -513,6 +513,8 @@ gst_videolevels_transform (GstBaseTransform * base, GstBuffer * inbuf,
   gpointer output;
   gboolean ret;
   GstClockTimeDiff elapsed;
+  GstClockTime start =
+      gst_clock_get_time (gst_element_get_clock (GST_ELEMENT (base)));
 
   GST_DEBUG_OBJECT (videolevels, "Performing non-inplace transform");
 
@@ -537,6 +539,11 @@ gst_videolevels_transform (GstBaseTransform * base, GstBuffer * inbuf,
   }
 
   ret = gst_videolevels_do_levels (videolevels, input, output);
+
+  GST_DEBUG_OBJECT (videolevels, "Processing took %" G_GINT64_FORMAT "ms",
+      GST_TIME_AS_MSECONDS (GST_CLOCK_DIFF (start,
+              gst_clock_get_time (gst_element_get_clock (GST_ELEMENT
+                      (videolevels))))));
 
   if (ret)
     return GST_FLOW_OK;
