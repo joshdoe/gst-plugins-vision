@@ -57,11 +57,13 @@ enum
 {
   PROP_0,
   PROP_INTERFACE,
-  PROP_BUFSIZE
+  PROP_BUFSIZE,
+  PROP_AVOID_COPY
 };
 
 #define DEFAULT_PROP_INTERFACE "img0"
 #define DEFAULT_PROP_BUFSIZE  10
+#define DEFAULT_PROP_AVOID_COPY FALSE
 
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
@@ -458,12 +460,17 @@ gst_niimaqsrc_class_init (GstNiImaqSrcClass * klass)
       PROP_INTERFACE, g_param_spec_string ("interface",
           "Interface",
           "NI-IMAQ interface to open", DEFAULT_PROP_INTERFACE,
-          G_PARAM_READWRITE));
+          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_BUFSIZE,
       g_param_spec_int ("buffer-size",
           "Number of frames in the IMAQ ringbuffer",
           "The number of frames in the IMAQ ringbuffer", 1, G_MAXINT,
-          DEFAULT_PROP_BUFSIZE, G_PARAM_READWRITE));
+          DEFAULT_PROP_BUFSIZE, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
+  g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_AVOID_COPY,
+      g_param_spec_boolean ("avoid-copy",
+          "Avoid copying",
+          "Whether to avoid copying (do not use with queues)",
+          DEFAULT_PROP_AVOID_COPY, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
 
   /* install GstBaseSrc vmethod implementations */
   gstbasesrc_class->get_caps = gst_niimaqsrc_get_caps;
@@ -497,6 +504,7 @@ gst_niimaqsrc_init (GstNiImaqSrc * niimaqsrc, GstNiImaqSrcClass * g_class)
   /* initialize properties */
   niimaqsrc->bufsize = DEFAULT_PROP_BUFSIZE;
   niimaqsrc->interface_name = g_strdup (DEFAULT_PROP_INTERFACE);
+  niimaqsrc->avoid_copy = DEFAULT_PROP_AVOID_COPY;
 
   niimaqsrc->frametime_mutex = g_mutex_new ();
 }
@@ -546,6 +554,10 @@ gst_niimaqsrc_set_property (GObject * object, guint prop_id,
       break;
     case PROP_BUFSIZE:
       niimaqsrc->bufsize = g_value_get_int (value);
+      break;
+    case PROP_AVOID_COPY:
+      niimaqsrc->avoid_copy = g_value_get_boolean (value);
+      break;
     default:
       break;
   }
@@ -563,6 +575,9 @@ gst_niimaqsrc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_BUFSIZE:
       g_value_set_int (value, niimaqsrc->bufsize);
+      break;
+    case PROP_AVOID_COPY:
+      g_value_set_boolean (value, niimaqsrc->avoid_copy);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -734,6 +749,13 @@ gst_niimaqsrc_get_timestamp_from_buffer_number (GstNiImaqSrc * niimaqsrc,
   return GST_CLOCK_DIFF (niimaqsrc->base_time, abstime);
 }
 
+static void
+gst_niimaqsrc_release_buffer (gpointer data)
+{
+  GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (data);
+  imgSessionReleaseBuffer (niimaqsrc->sid);
+}
+
 static GstFlowReturn
 gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
 {
@@ -741,41 +763,61 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
   GstFlowReturn ret = GST_FLOW_OK;
   GstClockTime timestamp;
   GstClockTime duration;
-  guint8 *data;
   uInt32 copied_number;
   uInt32 copied_index;
   Int32 rval;
   uInt32 dropped;
+  gboolean no_copy;
+
+  /* we can only do a no-copy if strides are property byte aligned */
+  no_copy = niimaqsrc->avoid_copy && niimaqsrc->width == niimaqsrc->rowpixels;
 
   /* start the IMAQ acquisition session if we haven't done so yet */
   if (!niimaqsrc->session_started) {
     gst_niimaqsrc_start_acquisition (niimaqsrc);
   }
 
-  ret =
-      gst_pad_alloc_buffer (GST_BASE_SRC_PAD (niimaqsrc), 0,
-      niimaqsrc->framesize, GST_PAD_CAPS (GST_BASE_SRC_PAD (niimaqsrc)),
-      buffer);
-  if (ret != GST_FLOW_OK) {
-    GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED,
-        ("Failed to allocate buffer"),
-        ("Failed to get downstream pad to allocate buffer"));
-    goto error;
+  if (no_copy) {
+    GST_DEBUG_OBJECT (niimaqsrc,
+        "Sending IMAQ buffer #%d along without copying", niimaqsrc->cumbufnum);
+    *buffer = gst_buffer_new ();
+    if (G_UNLIKELY (*buffer == NULL))
+      goto error;
+    GST_BUFFER_SIZE (*buffer) = niimaqsrc->framesize;
+  } else {
+    GST_DEBUG_OBJECT (niimaqsrc, "Copying IMAQ buffer #%d",
+        niimaqsrc->cumbufnum);
+    ret =
+        gst_pad_alloc_buffer (GST_BASE_SRC_PAD (niimaqsrc), 0,
+        niimaqsrc->framesize, GST_PAD_CAPS (GST_BASE_SRC_PAD (niimaqsrc)),
+        buffer);
+    if (ret != GST_FLOW_OK) {
+      GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED,
+          ("Failed to allocate buffer"),
+          ("Failed to get downstream pad to allocate buffer"));
+      goto error;
+    }
   }
 
-  GST_DEBUG_OBJECT (niimaqsrc, "Copying IMAQ buffer %d", niimaqsrc->cumbufnum);
-
-  data = GST_BUFFER_DATA (*buffer);
-  /* TODO: optionally use ExamineBuffer and byteswap in transfer (to offer BIG_ENDIAN) */
-  if (niimaqsrc->width == niimaqsrc->rowpixels)
+  if (no_copy) {
+    rval =
+        imgSessionExamineBuffer2 (niimaqsrc->sid, niimaqsrc->cumbufnum,
+        &copied_number, &GST_BUFFER_DATA (*buffer));
+    GST_BUFFER_FREE_FUNC (*buffer) = gst_niimaqsrc_release_buffer;
+    GST_BUFFER_MALLOCDATA (*buffer) = (guint8 *) niimaqsrc;
+  } else if (niimaqsrc->width == niimaqsrc->rowpixels) {
+    /* TODO: optionally use ExamineBuffer and byteswap in transfer (to offer BIG_ENDIAN) */
+    guint8 *data = GST_BUFFER_DATA (*buffer);
     rval =
         imgSessionCopyBufferByNumber (niimaqsrc->sid, niimaqsrc->cumbufnum,
         data, IMG_OVERWRITE_GET_OLDEST, &copied_number, &copied_index);
-  else
+  } else {
+    guint8 *data = GST_BUFFER_DATA (*buffer);
     rval =
         imgSessionCopyAreaByNumber (niimaqsrc->sid, niimaqsrc->cumbufnum, 0, 0,
         niimaqsrc->height, niimaqsrc->width, data, niimaqsrc->rowpixels,
         IMG_OVERWRITE_GET_OLDEST, &copied_number, &copied_index);
+  }
 
   if (rval) {
     gst_niimaqsrc_report_imaq_error (rval);

@@ -52,6 +52,7 @@ struct _GstNiImaqSrc {
   /* properties */
   gchar *interface_name;
   gint bufsize;
+  gboolean avoid_copy;
 
   /* image info */
   GstVideoFormat format;
