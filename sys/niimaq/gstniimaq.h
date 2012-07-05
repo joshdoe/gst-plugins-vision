@@ -66,15 +66,12 @@ struct _GstNiImaqSrc {
   gint64 n_dropped_frames;
   
   guint32** buflist;
-
+  GstClockTime *times;
   INTERFACE_ID iid;
   SESSION_ID sid;
 
   gboolean session_started;
   GstClockTime base_time;
-
-  GSList *timelist;
-  GMutex *frametime_mutex;
 
   GstDateTime *start_time;
   gboolean start_time_sent;

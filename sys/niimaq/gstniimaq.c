@@ -32,6 +32,8 @@
  * </refsect2>
  */
 
+/* FIXME: timestamps sent in GST_TAG_DATE_TIME are off, need to adjust for time of first buffer */
+
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -110,53 +112,52 @@ gst_niimaqsrc_report_imaq_error (uInt32 code)
   return code;
 }
 
-typedef struct _GstNiImaqSrcFrameTime GstNiImaqSrcFrameTime;
-
-struct _GstNiImaqSrcFrameTime
+uInt32
+gst_niimaqsrc_aq_in_progress_callback (SESSION_ID sid, IMG_ERR err,
+    IMG_SIGNAL_TYPE signal_type, uInt32 signal_identifier, void *userdata)
 {
-  guint32 number;
-  GstClockTime time;
-};
+  GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (userdata);
+  if (niimaqsrc->session_started)
+    GST_ERROR_OBJECT (niimaqsrc, "Session already started");
+  niimaqsrc->session_started = TRUE;
+  return 0;                     /* don't re-arm */
+}
 
+uInt32
+gst_niimaqsrc_aq_done_callback (SESSION_ID sid, IMG_ERR err,
+    IMG_SIGNAL_TYPE signal_type, uInt32 signal_identifier, void *userdata)
+{
+  GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (userdata);
+  if (!niimaqsrc->session_started)
+    GST_ERROR_OBJECT (niimaqsrc, "Session not started");
+  niimaqsrc->session_started = FALSE;
+  return 0;                     /* don't re-arm */
+}
+
+/* This will be called "at the start of acquisition into each image buffer."
+ * If acquisition blocks because we don't copy buffers fast enough, the number
+ * of times this function is called will be less than the IMAQ cumulative
+ * buffer count. */
 uInt32
 gst_niimaqsrc_frame_start_callback (SESSION_ID sid, IMG_ERR err,
     IMG_SIGNAL_TYPE signal_type, uInt32 signal_identifier, void *userdata)
 {
   GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (userdata);
-  GstClock *clock;
-  GstNiImaqSrcFrameTime *frametime;
-  guint32 bufnum;
   GstClockTime abstime;
+  static guint32 index = 0;
 
-  if (!niimaqsrc->session_started)
-    return 1;
-
-  g_mutex_lock (niimaqsrc->frametime_mutex);
+  /* get clock time */
+  abstime = gst_clock_get_time (GST_ELEMENT_CLOCK (niimaqsrc));
+  niimaqsrc->times[index % niimaqsrc->bufsize] = abstime;
 
   if (G_UNLIKELY (niimaqsrc->start_time == NULL))
     niimaqsrc->start_time = gst_date_time_new_now_utc ();
-
-  /* get clock time */
-  clock = gst_element_get_clock (GST_ELEMENT (niimaqsrc));
-  g_assert (clock != NULL);
-  abstime = gst_clock_get_time (clock);
-
-  /* get current frame number */
-  imgGetAttribute (sid, IMG_ATTR_FRAME_COUNT, &bufnum);
 
   /* first frame, use as element base time */
   if (niimaqsrc->base_time == GST_CLOCK_TIME_NONE)
     niimaqsrc->base_time = abstime;
 
-  frametime = g_new (GstNiImaqSrcFrameTime, 1);
-  frametime->number = bufnum;
-  frametime->time = abstime;
-
-  /* append frame number and clock time to list */
-  niimaqsrc->timelist = g_slist_append (niimaqsrc->timelist, frametime);
-  g_mutex_unlock (niimaqsrc->frametime_mutex);
-
-  gst_object_unref (clock);
+  index++;
 
   /* return 1 to rearm the callback */
   return 1;
@@ -505,8 +506,6 @@ gst_niimaqsrc_init (GstNiImaqSrc * niimaqsrc, GstNiImaqSrcClass * g_class)
   niimaqsrc->bufsize = DEFAULT_PROP_BUFSIZE;
   niimaqsrc->interface_name = g_strdup (DEFAULT_PROP_INTERFACE);
   niimaqsrc->avoid_copy = DEFAULT_PROP_AVOID_COPY;
-
-  niimaqsrc->frametime_mutex = g_mutex_new ();
 }
 
 /**
@@ -525,10 +524,6 @@ gst_niimaqsrc_dispose (GObject * object)
   /* free memory allocated */
   g_free (niimaqsrc->interface_name);
   niimaqsrc->interface_name = NULL;
-  g_slist_free (niimaqsrc->timelist);
-  niimaqsrc->timelist = NULL;
-  g_mutex_free (niimaqsrc->frametime_mutex);
-  niimaqsrc->frametime_mutex = NULL;
 
   /* unref objects */
   if (niimaqsrc->start_time) {
@@ -644,7 +639,6 @@ gst_niimaqsrc_reset (GstNiImaqSrc * niimaqsrc)
   niimaqsrc->n_frames = 0;
   niimaqsrc->cumbufnum = 0;
   niimaqsrc->n_dropped_frames = 0;
-  niimaqsrc->buflist = 0;
   niimaqsrc->sid = 0;
   niimaqsrc->iid = 0;
   niimaqsrc->session_started = FALSE;
@@ -652,10 +646,15 @@ gst_niimaqsrc_reset (GstNiImaqSrc * niimaqsrc)
   niimaqsrc->width = 0;
   niimaqsrc->height = 0;
   niimaqsrc->rowpixels = 0;
-  niimaqsrc->timelist = NULL;
   niimaqsrc->start_time = NULL;
   niimaqsrc->start_time_sent = FALSE;
   niimaqsrc->base_time = GST_CLOCK_TIME_NONE;
+
+  g_free (niimaqsrc->buflist);
+  niimaqsrc->buflist = NULL;
+
+  g_free (niimaqsrc->times);
+  niimaqsrc->times = NULL;
 }
 
 static gboolean
@@ -672,7 +671,7 @@ gst_niimaqsrc_start_acquisition (GstNiImaqSrc * niimaqsrc)
   for (i = 0; i < 5; i++) {
     rval = imgSessionStartAcquisition (niimaqsrc->sid);
     if (rval == IMG_ERR_GOOD) {
-      return niimaqsrc->session_started = TRUE;
+      return TRUE;
     } else {
       gst_niimaqsrc_report_imaq_error (rval);
       GST_LOG_OBJECT (niimaqsrc, "camera is still off , wait 50ms and retry");
@@ -694,36 +693,16 @@ static GstClockTime
 gst_niimaqsrc_get_timestamp_from_buffer_number (GstNiImaqSrc * niimaqsrc,
     guint32 buffer_number)
 {
-  GstClockTime abstime = GST_CLOCK_TIME_NONE;
-  GstNiImaqSrcFrameTime *frametime;
+  GstClockTime abstime;
 
-  /* search linked list for frame time */
-  g_mutex_lock (niimaqsrc->frametime_mutex);
+  abstime = niimaqsrc->times[(buffer_number) % niimaqsrc->bufsize];
+  niimaqsrc->times[(buffer_number) % niimaqsrc->bufsize] = GST_CLOCK_TIME_NONE;
 
-  g_assert (niimaqsrc->timelist != NULL);
-
-  /* remove all old frametimes from the list */
-  frametime = (GstNiImaqSrcFrameTime *) niimaqsrc->timelist->data;
-  while (frametime->number < buffer_number) {
-    niimaqsrc->timelist =
-        g_slist_delete_link (niimaqsrc->timelist, niimaqsrc->timelist);
-    frametime = (GstNiImaqSrcFrameTime *) niimaqsrc->timelist->data;
-  }
-
-  if (frametime->number == buffer_number) {
-    abstime = frametime->time;
-
-    /* remove frame time as we no longer need it */
-    niimaqsrc->timelist =
-        g_slist_delete_link (niimaqsrc->timelist, niimaqsrc->timelist);
-  } else {
+  if (abstime == GST_CLOCK_TIME_NONE)
     GST_WARNING_OBJECT (niimaqsrc,
-        "Did NOT find buffer date-timestamp in list generated by callback");
-  }
+        "No valid time found for buffer %d, callback failed?", buffer_number);
 
-  g_mutex_unlock (niimaqsrc->frametime_mutex);
-
-  return GST_CLOCK_DIFF (niimaqsrc->base_time, abstime);
+  return abstime;
 }
 
 static void
@@ -974,8 +953,10 @@ gst_niimaqsrc_start (GstBaseSrc * src)
 
   /* create array of pointers to give to IMAQ for creating internal buffers */
   niimaqsrc->buflist = g_new (guint32 *, niimaqsrc->bufsize);
+  niimaqsrc->times = g_new (GstClockTime, niimaqsrc->bufsize);
   for (i = 0; i < niimaqsrc->bufsize; i++) {
     niimaqsrc->buflist[i] = 0;
+    niimaqsrc->times[i] = GST_CLOCK_TIME_NONE;
   }
   rval =
       imgRingSetup (niimaqsrc->sid, niimaqsrc->bufsize,
@@ -992,11 +973,16 @@ gst_niimaqsrc_start (GstBaseSrc * src)
   rval = imgSessionWaitSignalAsync2 (niimaqsrc->sid, IMG_SIGNAL_STATUS,
       IMG_FRAME_START, IMG_SIGNAL_STATE_RISING,
       gst_niimaqsrc_frame_start_callback, niimaqsrc);
+  rval |= imgSessionWaitSignalAsync2 (niimaqsrc->sid, IMG_SIGNAL_STATUS,
+      IMG_AQ_IN_PROGRESS, IMG_SIGNAL_STATE_RISING,
+      gst_niimaqsrc_aq_in_progress_callback, niimaqsrc);
+  rval |= imgSessionWaitSignalAsync2 (niimaqsrc->sid, IMG_SIGNAL_STATUS,
+      IMG_AQ_DONE, IMG_SIGNAL_STATE_RISING,
+      gst_niimaqsrc_aq_done_callback, niimaqsrc);
   if (rval) {
     gst_niimaqsrc_report_imaq_error (rval);
     GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED,
-        ("Failed to register BUF_COMPLETE callback"),
-        ("Failed to register BUF_COMPLETE callback"));
+        ("Failed to register callback(s)"), ("Failed to register callback(s)"));
     goto error;
   }
 
