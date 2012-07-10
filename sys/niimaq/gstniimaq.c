@@ -788,7 +788,6 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
   /* set timestamp */
   timestamp =
       gst_niimaqsrc_get_timestamp_from_buffer_number (niimaqsrc, copied_number);
-  g_assert (timestamp != GST_CLOCK_TIME_NONE);
 
   /* make guess of duration from timestamp and cumulative buffer number */
   if (GST_CLOCK_TIME_IS_VALID (timestamp)) {
