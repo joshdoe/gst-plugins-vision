@@ -146,9 +146,17 @@ gst_niimaqsrc_frame_start_callback (SESSION_ID sid, IMG_ERR err,
   GstClockTime abstime;
   static guint32 index = 0;
 
+  g_mutex_lock (niimaqsrc->mutex);
+
+  /* time hasn't been read yet, this frame will be dropped */
+  if (niimaqsrc->times[index] != GST_CLOCK_TIME_NONE) {
+    g_mutex_unlock (niimaqsrc->mutex);
+    return 1;
+  }
+
   /* get clock time */
   abstime = gst_clock_get_time (GST_ELEMENT_CLOCK (niimaqsrc));
-  niimaqsrc->times[index % niimaqsrc->bufsize] = abstime;
+  niimaqsrc->times[index] = abstime;
 
   if (G_UNLIKELY (niimaqsrc->start_time == NULL))
     niimaqsrc->start_time = gst_date_time_new_now_utc ();
@@ -157,7 +165,9 @@ gst_niimaqsrc_frame_start_callback (SESSION_ID sid, IMG_ERR err,
   if (niimaqsrc->base_time == GST_CLOCK_TIME_NONE)
     niimaqsrc->base_time = abstime;
 
-  index++;
+  index = (index + 1) % niimaqsrc->bufsize;
+
+  g_mutex_unlock (niimaqsrc->mutex);
 
   /* return 1 to rearm the callback */
   return 1;
@@ -502,6 +512,8 @@ gst_niimaqsrc_init (GstNiImaqSrc * niimaqsrc, GstNiImaqSrcClass * g_class)
   /* override default of BYTES to operate in time mode */
   gst_base_src_set_format (GST_BASE_SRC (niimaqsrc), GST_FORMAT_TIME);
 
+  niimaqsrc->mutex = g_mutex_new ();
+
   /* initialize properties */
   niimaqsrc->bufsize = DEFAULT_PROP_BUFSIZE;
   niimaqsrc->interface_name = g_strdup (DEFAULT_PROP_INTERFACE);
@@ -755,7 +767,20 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
     }
   }
 
+  //{
+  // guint32 *data;
+  // int i;
+  //    rval = imgSessionExamineBuffer2 (niimaqsrc->sid, niimaqsrc->cumbufnum, &copied_number, &data);
+  // for (i=0; i<niimaqsrc->bufsize;i++)
+  //  if (data == niimaqsrc->buflist[i])
+  //        break;
+  // timestamp = niimaqsrc->times[i];
+  // memcpy (GST_BUFFER_DATA (*buffer), data, niimaqsrc->framesize);
+  // niimaqsrc->times[i] = GST_CLOCK_TIME_NONE;
+  // imgSessionReleaseBuffer (niimaqsrc->sid); //TODO: mutex here?
+  //}
   if (no_copy) {
+    /* FIXME: with callback change, is this broken now? mutex... */
     rval =
         imgSessionExamineBuffer2 (niimaqsrc->sid, niimaqsrc->cumbufnum,
         &copied_number, &GST_BUFFER_DATA (*buffer));
@@ -764,15 +789,23 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
   } else if (niimaqsrc->width == niimaqsrc->rowpixels) {
     /* TODO: optionally use ExamineBuffer and byteswap in transfer (to offer BIG_ENDIAN) */
     guint8 *data = GST_BUFFER_DATA (*buffer);
+    g_mutex_lock (niimaqsrc->mutex);
     rval =
         imgSessionCopyBufferByNumber (niimaqsrc->sid, niimaqsrc->cumbufnum,
         data, IMG_OVERWRITE_GET_OLDEST, &copied_number, &copied_index);
+    timestamp = niimaqsrc->times[copied_index];
+    niimaqsrc->times[copied_index] = GST_CLOCK_TIME_NONE;
+    g_mutex_unlock (niimaqsrc->mutex);
   } else {
     guint8 *data = GST_BUFFER_DATA (*buffer);
+    g_mutex_lock (niimaqsrc->mutex);
     rval =
         imgSessionCopyAreaByNumber (niimaqsrc->sid, niimaqsrc->cumbufnum, 0, 0,
         niimaqsrc->height, niimaqsrc->width, data, niimaqsrc->rowpixels,
         IMG_OVERWRITE_GET_OLDEST, &copied_number, &copied_index);
+    timestamp = niimaqsrc->times[copied_index];
+    niimaqsrc->times[copied_index] = GST_CLOCK_TIME_NONE;
+    g_mutex_unlock (niimaqsrc->mutex);
   }
 
   if (rval) {
@@ -782,12 +815,6 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
         ("failed to copy buffer %d", niimaqsrc->cumbufnum));
     goto error;
   }
-
-  GST_DEBUG_OBJECT (niimaqsrc, "Associating time with buffer");
-
-  /* set timestamp */
-  timestamp =
-      gst_niimaqsrc_get_timestamp_from_buffer_number (niimaqsrc, copied_number);
 
   /* make guess of duration from timestamp and cumulative buffer number */
   if (GST_CLOCK_TIME_IS_VALID (timestamp)) {
