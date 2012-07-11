@@ -223,7 +223,7 @@ gst_niimaqsrc_class_probe_interfaces (GstNiImaqSrcClass * klass, gboolean check)
       g_free (iface);
     }
 
-    GST_DEBUG_OBJECT (klass, "About to probe for IMAQ interfaces");
+    GST_LOG_OBJECT (klass, "About to probe for IMAQ interfaces");
 
     /* enumerate interfaces, limiting ourselves to the first 64 */
     for (n = 0; n < 64; n++) {
@@ -597,7 +597,7 @@ gst_niimaqsrc_get_caps (GstBaseSrc * bsrc)
 {
   GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (bsrc);
 
-  GST_DEBUG_OBJECT (bsrc, "Entering function get_caps");
+  GST_LOG_OBJECT (bsrc, "Entering function get_caps");
 
   /* return template caps if the session hasn't started yet */
   if (!niimaqsrc->sid) {
@@ -746,15 +746,14 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
   }
 
   if (no_copy) {
-    GST_DEBUG_OBJECT (niimaqsrc,
+    GST_LOG_OBJECT (niimaqsrc,
         "Sending IMAQ buffer #%d along without copying", niimaqsrc->cumbufnum);
     *buffer = gst_buffer_new ();
     if (G_UNLIKELY (*buffer == NULL))
       goto error;
     GST_BUFFER_SIZE (*buffer) = niimaqsrc->framesize;
   } else {
-    GST_DEBUG_OBJECT (niimaqsrc, "Copying IMAQ buffer #%d",
-        niimaqsrc->cumbufnum);
+    GST_LOG_OBJECT (niimaqsrc, "Copying IMAQ buffer #%d", niimaqsrc->cumbufnum);
     ret =
         gst_pad_alloc_buffer (GST_BASE_SRC_PAD (niimaqsrc), 0,
         niimaqsrc->framesize, GST_PAD_CAPS (GST_BASE_SRC_PAD (niimaqsrc)),
@@ -884,7 +883,7 @@ gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * niimaqsrc)
     goto error;
   }
 
-  GST_DEBUG_OBJECT (niimaqsrc, "Retrieving attributes from IMAQ interface");
+  GST_LOG_OBJECT (niimaqsrc, "Retrieving attributes from IMAQ interface");
   rval = imgGetAttribute (niimaqsrc->iid, IMG_ATTR_BITSPERPIXEL, &val);
   gst_niimaqsrc_report_imaq_error (rval);
   bpp = val;
@@ -948,7 +947,7 @@ gst_niimaqsrc_start (GstBaseSrc * src)
 
   gst_niimaqsrc_reset (niimaqsrc);
 
-  GST_DEBUG_OBJECT (niimaqsrc, "Opening IMAQ interface: %s",
+  GST_LOG_OBJECT (niimaqsrc, "Opening IMAQ interface: %s",
       niimaqsrc->interface_name);
 
   /* open IMAQ interface */
@@ -961,7 +960,7 @@ gst_niimaqsrc_start (GstBaseSrc * src)
     goto error;
   }
 
-  GST_DEBUG_OBJECT (niimaqsrc, "Opening IMAQ session: %s",
+  GST_LOG_OBJECT (niimaqsrc, "Opening IMAQ session: %s",
       niimaqsrc->interface_name);
 
   /* open IMAQ session */
@@ -1100,13 +1099,13 @@ gst_niimaqsrc_close_interface (GstNiImaqSrc * niimaqsrc)
     rval = imgClose (niimaqsrc->sid, TRUE);
     gst_niimaqsrc_report_imaq_error (rval);
     niimaqsrc->sid = 0;
-    GST_DEBUG_OBJECT (niimaqsrc, "IMAQ session closed");
+    GST_LOG_OBJECT (niimaqsrc, "IMAQ session closed");
   }
   if (niimaqsrc->iid) {
     rval = imgClose (niimaqsrc->iid, TRUE);
     gst_niimaqsrc_report_imaq_error (rval);
     niimaqsrc->iid = 0;
-    GST_DEBUG_OBJECT (niimaqsrc, "IMAQ interface closed");
+    GST_LOG_OBJECT (niimaqsrc, "IMAQ interface closed");
   }
 }
 
