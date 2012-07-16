@@ -99,7 +99,7 @@ static GstFlowReturn gst_niimaqsrc_create (GstPushSrc * psrc,
 
 /* GstNiImaq methods */
 static GstCaps *gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * src);
-static void gst_niimaqsrc_close_interface (GstNiImaqSrc * niimaqsrc);
+static gboolean gst_niimaqsrc_close_interface (GstNiImaqSrc * niimaqsrc);
 
 uInt32
 gst_niimaqsrc_report_imaq_error (uInt32 code)
@@ -1033,53 +1033,61 @@ gst_niimaqsrc_stop (GstBaseSrc * src)
 {
   GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (src);
   Int32 rval;
+  gboolean result = TRUE;
 
   /* stop IMAQ session */
   if (niimaqsrc->session_started) {
     rval = imgSessionStopAcquisition (niimaqsrc->sid);
-    if (rval) {
+    if (rval != IMG_ERR_GOOD) {
       gst_niimaqsrc_report_imaq_error (rval);
       GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED,
           ("Unable to stop acquisition"), ("Unable to stop acquisition"));
+      result = FALSE;
     }
     niimaqsrc->session_started = FALSE;
     GST_DEBUG_OBJECT (niimaqsrc, "Acquisition stopped");
   }
 
-  gst_niimaqsrc_close_interface (niimaqsrc);
+  result &= gst_niimaqsrc_close_interface (niimaqsrc);
 
-  return TRUE;
+  gst_niimaqsrc_reset (niimaqsrc);
+
+  return result;
 }
 
 static gboolean
 gst_niimaqsrc_query (GstBaseSrc * src, GstQuery * query)
 {
   GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (src);
+  gboolean res;
 
   switch (GST_QUERY_TYPE (query)) {
     case GST_QUERY_LATENCY:{
-      GstClockTime min_latency, max_latency;
-
       if (!niimaqsrc->session_started) {
         GST_WARNING_OBJECT (niimaqsrc,
             "Can't give latency since device isn't open!");
-        return FALSE;
+        res = FALSE;
+      } else {
+        GstClockTime min_latency, max_latency;
+        /* TODO: this is a ballpark figure, estimate from FVAL times */
+        min_latency = 33 * GST_MSECOND;
+        max_latency = 33 * GST_MSECOND * niimaqsrc->bufsize;
+
+        GST_DEBUG_OBJECT (niimaqsrc,
+            "report latency min %" GST_TIME_FORMAT " max %" GST_TIME_FORMAT,
+            GST_TIME_ARGS (min_latency), GST_TIME_ARGS (max_latency));
+
+        gst_query_set_latency (query, TRUE, min_latency, max_latency);
+
+        res = TRUE;
       }
-
-      /* TODO: this is a ballpark figure, estimate from FVAL times */
-      min_latency = 33 * GST_MSECOND;
-      max_latency = 33 * GST_MSECOND * niimaqsrc->bufsize;
-
-      GST_DEBUG_OBJECT (niimaqsrc,
-          "report latency min %" GST_TIME_FORMAT " max %" GST_TIME_FORMAT,
-          GST_TIME_ARGS (min_latency), GST_TIME_ARGS (max_latency));
-
-      gst_query_set_latency (query, TRUE, min_latency, max_latency);
-
-      return TRUE;
     }
+    default:
+      res = FALSE;
+      break;
   }
-  /*FIXME: return what value? */
+
+  return res;
 }
 
 /**
@@ -1089,24 +1097,34 @@ gst_niimaqsrc_query (GstBaseSrc * src, GstQuery * query)
 * Close IMAQ session and interface
 *
 */
-static void
+static gboolean
 gst_niimaqsrc_close_interface (GstNiImaqSrc * niimaqsrc)
 {
   Int32 rval;
+  gboolean result = TRUE;
 
   /* close IMAQ session and interface */
   if (niimaqsrc->sid) {
     rval = imgClose (niimaqsrc->sid, TRUE);
-    gst_niimaqsrc_report_imaq_error (rval);
+    if (rval != IMG_ERR_GOOD) {
+      gst_niimaqsrc_report_imaq_error (rval);
+      result = FALSE;
+    } else
+      GST_LOG_OBJECT (niimaqsrc, "IMAQ session closed");
     niimaqsrc->sid = 0;
-    GST_LOG_OBJECT (niimaqsrc, "IMAQ session closed");
   }
   if (niimaqsrc->iid) {
     rval = imgClose (niimaqsrc->iid, TRUE);
-    gst_niimaqsrc_report_imaq_error (rval);
+    if (rval != IMG_ERR_GOOD) {
+      gst_niimaqsrc_report_imaq_error (rval);
+      result = FALSE;
+    } else {
+      GST_LOG_OBJECT (niimaqsrc, "IMAQ interface closed");
+    }
     niimaqsrc->iid = 0;
-    GST_LOG_OBJECT (niimaqsrc, "IMAQ interface closed");
   }
+
+  return result;
 }
 
 /**
