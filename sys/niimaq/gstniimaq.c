@@ -647,6 +647,8 @@ gst_niimaqsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 static void
 gst_niimaqsrc_reset (GstNiImaqSrc * niimaqsrc)
 {
+  GST_LOG_OBJECT (niimaqsrc, "Resetting instance");
+
   /* initialize member variables */
   niimaqsrc->n_frames = 0;
   niimaqsrc->cumbufnum = 0;
@@ -824,7 +826,8 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
 
   GST_BUFFER_OFFSET (*buffer) = copied_number;
   GST_BUFFER_OFFSET_END (*buffer) = copied_number + 1;
-  GST_BUFFER_TIMESTAMP (*buffer) = timestamp;
+  GST_BUFFER_TIMESTAMP (*buffer) =
+      timestamp - gst_element_get_base_time (GST_ELEMENT (niimaqsrc));
   GST_BUFFER_DURATION (*buffer) = duration;
 
   /* the negotiate() method already set caps on the source pad */
