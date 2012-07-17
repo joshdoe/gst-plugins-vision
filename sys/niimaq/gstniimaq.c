@@ -638,7 +638,7 @@ gst_niimaqsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
       gst_video_format_get_row_stride (niimaqsrc->format, 0,
       niimaqsrc->width) / (depth / 8);
 
-  GST_DEBUG_OBJECT (niimaqsrc, "Caps set, framesize=%d, rowpixels=%d",
+  GST_LOG_OBJECT (niimaqsrc, "Caps set, framesize=%d, rowpixels=%d",
       niimaqsrc->framesize, niimaqsrc->rowpixels);
 
   return res;
@@ -920,7 +920,7 @@ gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * niimaqsrc)
   /* hard code framerate and par as IMAQ doesn't tell us anything about it */
   gcaps = gst_video_format_new_caps (format, width, height, 30, 1, 1, 1);
 
-  GST_DEBUG_OBJECT (gcaps, "are the camera caps");
+  GST_LOG_OBJECT (gcaps, "are the camera caps");
 
   return gcaps;
 
@@ -1076,7 +1076,7 @@ gst_niimaqsrc_query (GstBaseSrc * src, GstQuery * query)
         min_latency = 33 * GST_MSECOND;
         max_latency = 33 * GST_MSECOND * niimaqsrc->bufsize;
 
-        GST_DEBUG_OBJECT (niimaqsrc,
+        GST_LOG_OBJECT (niimaqsrc,
             "report latency min %" GST_TIME_FORMAT " max %" GST_TIME_FORMAT,
             GST_TIME_ARGS (min_latency), GST_TIME_ARGS (max_latency));
 
