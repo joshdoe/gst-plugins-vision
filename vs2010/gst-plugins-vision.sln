@@ -7,6 +7,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "videoadjust", "videoadjust\
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "phoenix", "phoenix\phoenix.vcxproj", "{55049618-6388-411C-818C-9140D6F8CE99}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "edt", "edt\edt.vcxproj", "{351947AF-6445-4644-987D-FFE4FDDD3B4C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -25,6 +27,10 @@ Global
 		{55049618-6388-411C-818C-9140D6F8CE99}.Debug|Win32.Build.0 = Debug|Win32
 		{55049618-6388-411C-818C-9140D6F8CE99}.Release|Win32.ActiveCfg = Release|Win32
 		{55049618-6388-411C-818C-9140D6F8CE99}.Release|Win32.Build.0 = Release|Win32
+		{351947AF-6445-4644-987D-FFE4FDDD3B4C}.Debug|Win32.ActiveCfg = Debug|Win32
+		{351947AF-6445-4644-987D-FFE4FDDD3B4C}.Debug|Win32.Build.0 = Debug|Win32
+		{351947AF-6445-4644-987D-FFE4FDDD3B4C}.Release|Win32.ActiveCfg = Release|Win32
+		{351947AF-6445-4644-987D-FFE4FDDD3B4C}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

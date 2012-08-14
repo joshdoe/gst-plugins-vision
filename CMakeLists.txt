@@ -28,6 +28,9 @@ macro_log_feature(FREEIMAGE_FOUND "FreeImage" "Required to build FreeImage plugi
 find_package(OpenCV)
 macro_log_feature(OPENCV_FOUND "OpenCV" "Required to build sensorfx plugin" "http://opencv.willowgarage.com/" FALSE)
 
+find_package(EDT)
+macro_log_feature(EDT_FOUND "EDT" "Required to build EDT PDV source element" "http://www.edt.com/" FALSE)
+
 find_package(Euresys)
 macro_log_feature(EURESYS_FOUND "Euresys" "Required to build Euresys source element" "http://www.euresys.com/" FALSE)
 

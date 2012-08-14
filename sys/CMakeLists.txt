@@ -1,3 +1,7 @@
+if (EDT_FOUND)
+	add_subdirectory(edt)
+endif (EDT_FOUND)
+
 if (EURESYS_FOUND)
 	add_subdirectory (euresys)
 endif (EURESYS_FOUND)
