@@ -46,6 +46,9 @@
 #include <gst/interfaces/propertyprobe.h>
 #include <gst/video/video.h>
 
+/* prototype for private function to disable 32-bit memory check */
+USER_FUNC niimaquDisable32bitPhysMemLimitEnforcement (SESSION_ID sid);
+
 GST_DEBUG_CATEGORY (niimaqsrc_debug);
 #define GST_CAT_DEFAULT niimaqsrc_debug
 
@@ -976,6 +979,10 @@ gst_niimaqsrc_start (GstBaseSrc * src)
     goto error;
   }
 
+  /* Allow use of 1428 and other 32-bit DMA cards on 64-bit systems with
+     greater than 3GB of memory. */
+  niimaquDisable32bitPhysMemLimitEnforcement (niimaqsrc->sid);
+
   GST_LOG_OBJECT (niimaqsrc, "Creating ring with %d buffers",
       niimaqsrc->bufsize);
 
@@ -986,6 +993,10 @@ gst_niimaqsrc_start (GstBaseSrc * src)
     niimaqsrc->buflist[i] = 0;
     niimaqsrc->times[i] = GST_CLOCK_TIME_NONE;
   }
+  /* CAUTION: if this is ever changed to manually allocate memory, we must
+     be careful about allocating 64-bit addresses, as some IMAQ cards don't
+     support this, and can give a runtime error. See above call to
+     niimaquDisable32bitPhysMemLimitEnforcement */
   rval =
       imgRingSetup (niimaqsrc->sid, niimaqsrc->bufsize,
       (void **) (niimaqsrc->buflist), 0, FALSE);
