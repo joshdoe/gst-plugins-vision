@@ -74,7 +74,7 @@ static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (GST_VIDEO_CAPS_GRAY8 ";"
-        GST_VIDEO_CAPS_GRAY16 ("LITTLE_ENDIAN"))
+        GST_VIDEO_CAPS_GRAY16 ("LITTLE_ENDIAN") ";" GST_VIDEO_CAPS_BGRA)
     );
 
 static void gst_niimaqsrc_init_interfaces (GType type);
@@ -633,6 +633,8 @@ gst_niimaqsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
     depth = 8;
   else if (niimaqsrc->format == GST_VIDEO_FORMAT_GRAY16_LE)
     depth = 16;
+  else if (niimaqsrc->format == GST_VIDEO_FORMAT_BGRA)
+    depth = 32;
   else
     g_assert_not_reached ();    /* negotiation failed? */
 
@@ -914,6 +916,8 @@ gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * niimaqsrc)
     format = GST_VIDEO_FORMAT_GRAY8;
   else if (depth == 16)
     format = GST_VIDEO_FORMAT_GRAY16_LE;
+  else if (depth == 32)
+    format = GST_VIDEO_FORMAT_BGRA;
   else {
     GST_ERROR_OBJECT (niimaqsrc, "Depth %d (%d-bit) not supported yet", depth,
         bpp);
