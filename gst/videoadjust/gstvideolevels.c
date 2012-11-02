@@ -58,8 +58,11 @@ enum
   PROP_LOWOUT,
   PROP_HIGHOUT,
   PROP_AUTO,
-  PROP_INTERVAL
+  PROP_INTERVAL,
+  PROP_LAST
 };
+
+static GParamSpec *properties[PROP_LAST];
 
 #define DEFAULT_PROP_LOWIN  0.0
 #define DEFAULT_PROP_HIGHIN  1.0
@@ -210,22 +213,30 @@ gst_videolevels_class_init (GstVideoLevelsClass * object)
   obj_class->get_property = GST_DEBUG_FUNCPTR (gst_videolevels_get_property);
 
   /* Install GObject properties */
-  g_object_class_install_property (obj_class, PROP_LOWIN,
+  properties[PROP_LOWIN] =
       g_param_spec_double ("lower-input-level", "Lower Input Level",
-          "Lower Input Level", 0.0, 1.0, DEFAULT_PROP_LOWIN,
-          G_PARAM_READWRITE));
-  g_object_class_install_property (obj_class, PROP_HIGHIN,
+      "Lower Input Level", 0.0, 1.0, DEFAULT_PROP_LOWIN,
+      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+  properties[PROP_HIGHIN] =
       g_param_spec_double ("upper-input-level", "Upper Input Level",
-          "Upper Input Level", 0.0, 1.0, DEFAULT_PROP_HIGHIN,
-          G_PARAM_READWRITE));
-  g_object_class_install_property (obj_class, PROP_LOWOUT,
+      "Upper Input Level", 0.0, 1.0, DEFAULT_PROP_HIGHIN,
+      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+  properties[PROP_LOWOUT] =
       g_param_spec_double ("lower-output-level", "Lower Output Level",
-          "Lower Output Level", 0.0, 1.0, DEFAULT_PROP_LOWOUT,
-          G_PARAM_READWRITE));
-  g_object_class_install_property (obj_class, PROP_HIGHOUT,
+      "Lower Output Level", 0.0, 1.0, DEFAULT_PROP_LOWOUT,
+      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+  properties[PROP_HIGHOUT] =
       g_param_spec_double ("upper-output-level", "Upper Output Level",
-          "Upper Output Level", 0.0, 1.0, DEFAULT_PROP_HIGHOUT,
-          G_PARAM_READWRITE));
+      "Upper Output Level", 0.0, 1.0, DEFAULT_PROP_HIGHOUT,
+      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+  g_object_class_install_property (obj_class, PROP_LOWIN,
+      properties[PROP_LOWIN]);
+  g_object_class_install_property (obj_class, PROP_HIGHIN,
+      properties[PROP_HIGHIN]);
+  g_object_class_install_property (obj_class, PROP_LOWOUT,
+      properties[PROP_LOWOUT]);
+  g_object_class_install_property (obj_class, PROP_HIGHOUT,
+      properties[PROP_HIGHOUT]);
   g_object_class_install_property (obj_class, PROP_AUTO,
       g_param_spec_enum ("auto", "Auto Adjust", "Auto adjust contrast",
           GST_TYPE_VIDEOLEVELS_AUTO, DEFAULT_PROP_AUTO, G_PARAM_READWRITE));
@@ -800,11 +811,11 @@ gst_videolevels_auto_adjust (GstVideoLevels * videolevels, guint16 * data)
 
   gst_videolevels_calculate_lut (videolevels);
 
-  GST_DEBUG ("Contrast stretch with npixsat=%d, (%.6f, %.6f)", npixsat,
-      videolevels->lower_input, videolevels->upper_input);
+  GST_LOG_OBJECT (videolevels, "Contrast stretch with npixsat=%d, (%.6f, %.6f)",
+      npixsat, videolevels->lower_input, videolevels->upper_input);
 
-  g_object_notify (G_OBJECT (videolevels), "lower-input-level");
-  g_object_notify (G_OBJECT (videolevels), "upper-input-level");
+  g_object_notify_by_pspec (G_OBJECT (videolevels), properties[PROP_LOWIN]);
+  g_object_notify_by_pspec (G_OBJECT (videolevels), properties[PROP_HIGHIN]);
 
   return TRUE;
 }
