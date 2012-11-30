@@ -699,10 +699,6 @@ gst_niimaqsrc_start_acquisition (GstNiImaqSrc * niimaqsrc)
   }
 
   /* we tried five times and failed, so we error */
-  GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED,
-      ("Camera doesn't seem to want to turn on!"),
-      ("Camera doesn't seem to want to turn on!"));
-
   gst_niimaqsrc_close_interface (niimaqsrc);
 
   return FALSE;
@@ -749,7 +745,11 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
 
   /* start the IMAQ acquisition session if we haven't done so yet */
   if (!niimaqsrc->session_started) {
-    gst_niimaqsrc_start_acquisition (niimaqsrc);
+    if (!gst_niimaqsrc_start_acquisition (niimaqsrc)) {
+      GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED,
+          ("Unable to start acquisition."), (NULL));
+      return GST_FLOW_ERROR;
+    }
   }
 
   if (no_copy) {
