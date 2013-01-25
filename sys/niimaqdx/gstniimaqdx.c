@@ -63,7 +63,7 @@ enum
 };
 
 #define DEFAULT_PROP_DEVICE "cam0"
-#define DEFAULT_PROP_BUFSIZE 3
+#define DEFAULT_PROP_RING_BUFFER_COUNT 3
 
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
@@ -439,7 +439,7 @@ gst_niimaqdxsrc_class_init (GstNiImaqDxSrcClass * klass)
       PROP_RING_BUFFER_COUNT, g_param_spec_int ("ring-buffer-count",
           "Ring Buffer Count",
           "The number of buffers in the internal IMAQdx ringbuffer", 1,
-          G_MAXINT, DEFAULT_PROP_BUFSIZE,
+          G_MAXINT, DEFAULT_PROP_RING_BUFFER_COUNT,
           G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
 
   /* install GstBaseSrc vmethod implementations */
@@ -475,7 +475,7 @@ gst_niimaqdxsrc_init (GstNiImaqDxSrc * niimaqdxsrc,
   niimaqdxsrc->mutex = g_mutex_new ();
 
   /* initialize properties */
-  niimaqdxsrc->ringbuffer_count = DEFAULT_PROP_BUFSIZE;
+  niimaqdxsrc->ringbuffer_count = DEFAULT_PROP_RING_BUFFER_COUNT;
   niimaqdxsrc->device_name = g_strdup (DEFAULT_PROP_DEVICE);
 }
 
