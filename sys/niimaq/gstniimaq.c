@@ -62,12 +62,12 @@ enum
 {
   PROP_0,
   PROP_INTERFACE,
-  PROP_BUFSIZE,
+  PROP_RING_BUFFER_COUNT,
   PROP_AVOID_COPY
 };
 
 #define DEFAULT_PROP_INTERFACE "img0"
-#define DEFAULT_PROP_BUFSIZE  10
+#define DEFAULT_PROP_RING_BUFFER_COUNT  3
 #define DEFAULT_PROP_AVOID_COPY FALSE
 
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
@@ -475,14 +475,14 @@ gst_niimaqsrc_class_init (GstNiImaqSrcClass * klass)
           "Interface",
           "NI-IMAQ interface to open", DEFAULT_PROP_INTERFACE,
           G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
-  g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_BUFSIZE,
-      g_param_spec_int ("buffer-size",
+  g_object_class_install_property (G_OBJECT_CLASS (klass),
+      PROP_RING_BUFFER_COUNT, g_param_spec_int ("ring-buffer-count",
           "Number of frames in the IMAQ ringbuffer",
           "The number of frames in the IMAQ ringbuffer", 1, G_MAXINT,
-          DEFAULT_PROP_BUFSIZE, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
+          DEFAULT_PROP_RING_BUFFER_COUNT,
+          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_AVOID_COPY,
-      g_param_spec_boolean ("avoid-copy",
-          "Avoid copying",
+      g_param_spec_boolean ("avoid-copy", "Avoid copying",
           "Whether to avoid copying (do not use with queues)",
           DEFAULT_PROP_AVOID_COPY, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
 
@@ -518,7 +518,7 @@ gst_niimaqsrc_init (GstNiImaqSrc * niimaqsrc, GstNiImaqSrcClass * g_class)
   niimaqsrc->mutex = g_mutex_new ();
 
   /* initialize properties */
-  niimaqsrc->bufsize = DEFAULT_PROP_BUFSIZE;
+  niimaqsrc->bufsize = DEFAULT_PROP_RING_BUFFER_COUNT;
   niimaqsrc->interface_name = g_strdup (DEFAULT_PROP_INTERFACE);
   niimaqsrc->avoid_copy = DEFAULT_PROP_AVOID_COPY;
 }
@@ -562,7 +562,7 @@ gst_niimaqsrc_set_property (GObject * object, guint prop_id,
         g_free (niimaqsrc->interface_name);
       niimaqsrc->interface_name = g_strdup (g_value_get_string (value));
       break;
-    case PROP_BUFSIZE:
+    case PROP_RING_BUFFER_COUNT:
       niimaqsrc->bufsize = g_value_get_int (value);
       break;
     case PROP_AVOID_COPY:
@@ -583,7 +583,7 @@ gst_niimaqsrc_get_property (GObject * object, guint prop_id, GValue * value,
     case PROP_INTERFACE:
       g_value_set_string (value, niimaqsrc->interface_name);
       break;
-    case PROP_BUFSIZE:
+    case PROP_RING_BUFFER_COUNT:
       g_value_set_int (value, niimaqsrc->bufsize);
       break;
     case PROP_AVOID_COPY:
