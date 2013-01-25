@@ -10,6 +10,10 @@ if (NIIMAQ_FOUND)
 	add_subdirectory (niimaq)
 endif (NIIMAQ_FOUND)
 
+if (NIIMAQDX_FOUND)
+	add_subdirectory (niimaqdx)
+endif (NIIMAQDX_FOUND)
+
 if (IOTECHDAQX_FOUND)
 	add_subdirectory (iotechdaqx)
 endif (IOTECHDAQX_FOUND)
