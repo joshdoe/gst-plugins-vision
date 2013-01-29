@@ -61,6 +61,7 @@ struct _GstNiImaqDxSrc {
   /* properties */
   gchar *device_name;
   gint ringbuffer_count;
+  gchar *attributes;
 
   /* image info */
   int width;

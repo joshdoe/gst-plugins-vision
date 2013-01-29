@@ -59,11 +59,13 @@ enum
 {
   PROP_0,
   PROP_DEVICE,
-  PROP_RING_BUFFER_COUNT
+  PROP_RING_BUFFER_COUNT,
+  PROP_ATTRIBUTES
 };
 
 #define DEFAULT_PROP_DEVICE "cam0"
 #define DEFAULT_PROP_RING_BUFFER_COUNT 3
+#define DEFAULT_PROP_ATTRIBUTES ""
 
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
@@ -555,6 +557,10 @@ gst_niimaqdxsrc_class_init (GstNiImaqDxSrcClass * klass)
           "The number of buffers in the internal IMAQdx ringbuffer", 1,
           G_MAXINT, DEFAULT_PROP_RING_BUFFER_COUNT,
           G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
+  g_object_class_install_property (G_OBJECT_CLASS (klass),
+      PROP_ATTRIBUTES, g_param_spec_string ("attributes",
+          "Attributes", "Initial attributes to set", DEFAULT_PROP_ATTRIBUTES,
+          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
 
   /* install GstBaseSrc vmethod implementations */
   gstbasesrc_class->get_caps = gst_niimaqdxsrc_get_caps;
@@ -591,6 +597,7 @@ gst_niimaqdxsrc_init (GstNiImaqDxSrc * niimaqdxsrc,
   /* initialize properties */
   niimaqdxsrc->ringbuffer_count = DEFAULT_PROP_RING_BUFFER_COUNT;
   niimaqdxsrc->device_name = g_strdup (DEFAULT_PROP_DEVICE);
+  niimaqdxsrc->attributes = g_strdup (DEFAULT_PROP_ATTRIBUTES);
 
   /* initialize pointers, then call reset to initialize the rest */
   niimaqdxsrc->times = NULL;
@@ -640,6 +647,11 @@ gst_niimaqdxsrc_set_property (GObject * object, guint prop_id,
     case PROP_RING_BUFFER_COUNT:
       niimaqdxsrc->ringbuffer_count = g_value_get_int (value);
       break;
+    case PROP_ATTRIBUTES:
+      if (niimaqdxsrc->attributes)
+        g_free (niimaqdxsrc->attributes);
+      niimaqdxsrc->attributes = g_strdup (g_value_get_string (value));
+      break;
     default:
       break;
   }
@@ -657,6 +669,9 @@ gst_niimaqdxsrc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_RING_BUFFER_COUNT:
       g_value_set_int (value, niimaqdxsrc->ringbuffer_count);
+      break;
+    case PROP_ATTRIBUTES:
+      g_value_set_string (value, niimaqdxsrc->attributes);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -1034,6 +1049,38 @@ error:
   return NULL;
 }
 
+void
+gst_niimaqdxsrc_set_dx_attributes (GstNiImaqDxSrc * niimaqdxsrc)
+{
+  gchar **pairs;
+  int i;
+  IMAQdxError rval;
+
+  pairs = g_strsplit (niimaqdxsrc->attributes, ";", 0);
+
+  for (i = 0;; i++) {
+    gchar **pair;
+
+    if (!pairs[i])
+      break;
+
+    pair = g_strsplit (pairs[i], "=", 2);
+
+    g_assert (pair[0]);
+    g_assert (pair[1]);
+    GST_DEBUG_OBJECT (niimaqdxsrc, "Setting attribute, '%s'='%s'", pair[0],
+        pair[1]);
+
+    IMAQdxSetAttribute (niimaqdxsrc->session, pair[0], IMAQdxValueTypeString,
+        (const char *) pair[1]);
+    if (rval != IMAQdxErrorSuccess) {
+      gst_niimaqdxsrc_report_imaq_error (rval);
+    }
+    g_strfreev (pair);
+  }
+  g_strfreev (pairs);
+}
+
 /**
 * gst_niimaqdxsrc_start:
 * src: #GstBaseSrc instance
@@ -1094,6 +1141,8 @@ gst_niimaqdxsrc_start (GstBaseSrc * src)
         ("Failed to register callback(s)"), (NULL));
     goto error;
   }
+
+  gst_niimaqdxsrc_set_dx_attributes (niimaqdxsrc);
 
   return TRUE;
 
