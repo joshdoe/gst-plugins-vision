@@ -68,8 +68,7 @@ enum
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_VIDEO_CAPS_GRAY8 ";"
-        GST_VIDEO_CAPS_GRAY16 ("BIG_ENDIAN"))
+    GST_STATIC_CAPS ("ANY")
     );
 
 static void gst_niimaqdxsrc_init_interfaces (GType type);
@@ -160,12 +159,11 @@ typedef struct
 } ImaqDxCapsInfo;
 
 ImaqDxCapsInfo imaq_dx_caps_infos[] = {
-  {
-        "Mono 8",
-      GST_VIDEO_CAPS_GRAY8, 8, 8},
-  {
-        "Mono 16",
-      GST_VIDEO_CAPS_GRAY16 ("BIG_ENDIAN"), 16, 16}
+  {"Mono 8", GST_VIDEO_CAPS_GRAY8, 8, 8},
+  //TODO: for packed formats, should we unpack?
+  //{"Mono 12 Packed", GST_VIDEO_CAPS_GRAY16 ("BIG_ENDIAN"), 16, 16},
+  {"Mono 16", GST_VIDEO_CAPS_GRAY16 ("BIG_ENDIAN"), 16, 16},
+  {"YUV 422 Packed", GST_VIDEO_CAPS_YUV ("UYVY"), 16, 16}
 };
 
 static const char *
