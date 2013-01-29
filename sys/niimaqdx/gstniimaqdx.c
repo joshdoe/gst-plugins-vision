@@ -108,7 +108,7 @@ gst_niimaqdxsrc_report_imaq_error (IMAQdxError code)
   if (code) {
     IMAQdxGetErrorString (code, imaqdx_error_string,
         IMAQDX_MAX_API_STRING_LENGTH);
-    GST_ERROR ("IMAQdx error: %s", imaqdx_error_string);
+    GST_ERROR ("IMAQdx error %d: %s", code, imaqdx_error_string);
   }
   return code;
 }
