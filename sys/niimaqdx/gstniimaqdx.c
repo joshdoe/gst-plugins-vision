@@ -963,13 +963,17 @@ listAttributes (IMAQdxSession session)
     IMAQdxAttributeInformation *info = attributeInfoArray + i;
     g_assert (info);
 
-    rval =
-        IMAQdxGetAttribute (session, info->Name, IMAQdxValueTypeString,
-        attributeString);
-    if (rval != IMAQdxErrorSuccess) {
-      GST_WARNING ("Failed to read value of attribute %s", info->Name);
-      continue;
-    }
+    if (info->Readable) {
+      rval =
+          IMAQdxGetAttribute (session, info->Name, IMAQdxValueTypeString,
+          attributeString);
+      if (rval != IMAQdxErrorSuccess) {
+        GST_WARNING ("Failed to read value of attribute %s", info->Name);
+        continue;
+      }
+    } else
+      attributeString[0] = 0;
+
     printf ("%s, %s/%s, %s, %s\n", info->Name, info->Readable ? "R" : "-",
         info->Writable ? "W" : "-", attributeTypeStrings[info->Type],
         attributeString);
