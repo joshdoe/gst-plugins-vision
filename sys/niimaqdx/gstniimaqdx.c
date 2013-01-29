@@ -150,21 +150,39 @@ gst_niimaqdxsrc_frame_done_callback (IMAQdxSession session, uInt32 bufferNumber,
   return 1;
 }
 
-typedef struct
-{
-  const char *pixel_format;
-  const char *gst_caps_string;
-  int bpp;
-  int depth;
-} ImaqDxCapsInfo;
+#define GST_VIDEO_CAPS_BAYER(format)                                \
+    "video/x-raw-bayer, "                                           \
+    "format = " format ","                                          \
+    "width = " GST_VIDEO_SIZE_RANGE ", "                            \
+    "height = " GST_VIDEO_SIZE_RANGE ", "                           \
+    "framerate = " GST_VIDEO_FPS_RANGE
 
 ImaqDxCapsInfo imaq_dx_caps_infos[] = {
-  {"Mono 8", GST_VIDEO_CAPS_GRAY8, 8, 8},
+  {"Mono 8", GST_VIDEO_CAPS_GRAY8, 8, 8, 4}
+  ,
   //TODO: for packed formats, should we unpack?
   //{"Mono 12 Packed", GST_VIDEO_CAPS_GRAY16 ("BIG_ENDIAN"), 16, 16},
-  {"Mono 16", GST_VIDEO_CAPS_GRAY16 ("BIG_ENDIAN"), 16, 16},
-  {"YUV 422 Packed", GST_VIDEO_CAPS_YUV ("UYVY"), 16, 16}
+  {"Mono 16", GST_VIDEO_CAPS_GRAY16 ("BIG_ENDIAN"), 16, 16, 4}
+  ,
+  {"YUV 422 Packed", GST_VIDEO_CAPS_YUV ("UYVY"), 16, 16, 4}
+  ,
+  {"Bayer BG 8", GST_VIDEO_CAPS_BAYER ("bggr"), 8, 8, 1}
+  ,
+  //TODO: use a caps string that agrees with Aravis
+  {"Bayer BG 16", GST_VIDEO_CAPS_BAYER ("bggr16"), 16, 16, 1}
 };
+
+static ImaqDxCapsInfo *
+gst_niimaqdxsrc_get_caps_info (const char *pixel_format)
+{
+  int i;
+
+  for (i = 0; i < G_N_ELEMENTS (imaq_dx_caps_infos); i++) {
+    if (g_strcmp0 (pixel_format, imaq_dx_caps_infos[i].pixel_format) == 0)
+      return &imaq_dx_caps_infos[i];
+  }
+  return NULL;
+}
 
 static const char *
 gst_niimaqdxsrc_pixel_format_to_caps_string (const char *pixel_format)
@@ -680,6 +698,8 @@ gst_niimaqdxsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
   pixel_format = gst_niimaqdxsrc_pixel_format_from_caps (caps);
   g_assert (pixel_format);
 
+  niimaqdxsrc->caps_info = gst_niimaqdxsrc_get_caps_info (pixel_format);
+
   niimaqdxsrc->dx_row_stride =
       gst_niimaqdxsrc_pixel_format_get_stride (pixel_format,
       niimaqdxsrc->width);
@@ -771,6 +791,8 @@ gst_niimaqdxsrc_get_timestamp_from_buffer_number (GstNiImaqDxSrc * niimaqdxsrc,
   return abstime;
 }
 
+#define ROUND_UP_N(num, n)  (((num)+((n)-1))&~((n)-1))
+
 static GstFlowReturn
 gst_niimaqdxsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
 {
@@ -781,6 +803,7 @@ gst_niimaqdxsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
   uInt32 copied_number;
   IMAQdxError rval;
   uInt32 dropped;
+  gboolean do_align_stride;
 
   /* start the IMAQ acquisition session if we haven't done so yet */
   if (!niimaqdxsrc->session_started) {
@@ -803,8 +826,11 @@ gst_niimaqdxsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
     goto error;
   }
 
+  do_align_stride =
+      (niimaqdxsrc->dx_row_stride % niimaqdxsrc->caps_info->row_multiple) != 0;
+
   g_mutex_lock (niimaqdxsrc->mutex);
-  if ((niimaqdxsrc->dx_row_stride & 0x3) == 0) {
+  if (!do_align_stride) {
     // we have properly aligned strides, copy directly to buffer
     rval = IMAQdxGetImageData (niimaqdxsrc->session, GST_BUFFER_DATA (*buffer),
         GST_BUFFER_SIZE (*buffer), IMAQdxBufferNumberModeBufferNumber,
@@ -822,16 +848,17 @@ gst_niimaqdxsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
   g_mutex_unlock (niimaqdxsrc->mutex);
 
   // adjust for row stride if needed (must be multiple of 4)
-  if ((niimaqdxsrc->dx_row_stride & 0x3) != 0) {
+  if (do_align_stride) {
     int i;
     int dx_row_stride = niimaqdxsrc->dx_row_stride;
-    int gst_row_stride = GST_ROUND_UP_4 (dx_row_stride);
+    int gst_row_stride =
+        ROUND_UP_N (dx_row_stride, niimaqdxsrc->caps_info->row_multiple);
     guint8 *src = niimaqdxsrc->temp_buffer;
     guint8 *dst = GST_BUFFER_DATA (*buffer);
 
     GST_LOG_OBJECT (niimaqdxsrc,
-        "Row stride (%d) not a multiple of 4, need to copy data",
-        dx_row_stride);
+        "Row stride not aligned, copying %d -> %d",
+        dx_row_stride, gst_row_stride);
     for (i = 0; i < niimaqdxsrc->height; i++)
       memcpy (dst + i * gst_row_stride, src + i * dx_row_stride, dx_row_stride);
   }

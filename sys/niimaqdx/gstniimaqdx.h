@@ -46,6 +46,15 @@ G_BEGIN_DECLS
 typedef struct _GstNiImaqDxSrc GstNiImaqDxSrc;
 typedef struct _GstNiImaqDxSrcClass GstNiImaqDxSrcClass;
 
+typedef struct
+{
+    const char *pixel_format;
+    const char *gst_caps_string;
+    int bpp;
+    int depth;
+    int row_multiple;
+} ImaqDxCapsInfo;
+
 struct _GstNiImaqDxSrc {
   GstPushSrc element;
 
@@ -59,6 +68,7 @@ struct _GstNiImaqDxSrc {
   int dx_row_stride;
   gint framesize;
   guint8 *temp_buffer;
+  const ImaqDxCapsInfo *caps_info;
 
   gint64 n_frames;      /* total frames sent */
   uInt32 cumbufnum;
