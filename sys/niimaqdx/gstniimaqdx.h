@@ -54,10 +54,11 @@ struct _GstNiImaqDxSrc {
   gint ringbuffer_count;
 
   /* image info */
-  GstVideoFormat format;
   int width;
   int height;
+  int dx_row_stride;
   gint framesize;
+  guint8 *temp_buffer;
 
   gint64 n_frames;      /* total frames sent */
   uInt32 cumbufnum;

@@ -98,6 +98,7 @@ static GstFlowReturn gst_niimaqdxsrc_create (GstPushSrc * psrc,
 /* GstNiImaqDx methods */
 static GstCaps *gst_niimaqdxsrc_get_cam_caps (GstNiImaqDxSrc * src);
 static gboolean gst_niimaqdxsrc_close_interface (GstNiImaqDxSrc * niimaqdxsrc);
+static void gst_niimaqdxsrc_reset (GstNiImaqDxSrc * niimaqdxsrc);
 
 IMAQdxError
 gst_niimaqdxsrc_report_imaq_error (IMAQdxError code)
@@ -149,6 +150,103 @@ gst_niimaqdxsrc_frame_done_callback (IMAQdxSession session, uInt32 bufferNumber,
   /* return 1 to rearm the callback */
   return 1;
 }
+
+typedef struct
+{
+  const char *pixel_format;
+  const char *gst_caps_string;
+  int bpp;
+  int depth;
+} ImaqDxCapsInfo;
+
+ImaqDxCapsInfo imaq_dx_caps_infos[] = {
+  {
+        "Mono 8",
+      GST_VIDEO_CAPS_GRAY8, 8, 8},
+  {
+        "Mono 16",
+      GST_VIDEO_CAPS_GRAY16 ("BIG_ENDIAN"), 16, 16}
+};
+
+static const char *
+gst_niimaqdxsrc_pixel_format_to_caps_string (const char *pixel_format)
+{
+  int i;
+
+  for (i = 0; i < G_N_ELEMENTS (imaq_dx_caps_infos); i++) {
+    if (g_strcmp0 (pixel_format, imaq_dx_caps_infos[i].pixel_format) == 0)
+      break;
+  }
+
+  if (i == G_N_ELEMENTS (imaq_dx_caps_infos)) {
+    GST_WARNING ("PixelFormat '%s' is not supported",
+        imaq_dx_caps_infos[i].pixel_format);
+    return NULL;
+  }
+
+  return imaq_dx_caps_infos[i].gst_caps_string;
+}
+
+static const char *
+gst_niimaqdxsrc_pixel_format_from_caps (const GstCaps * caps)
+{
+  int i;
+
+  for (i = 0; i < G_N_ELEMENTS (imaq_dx_caps_infos); i++) {
+    GstCaps *super_caps;
+    super_caps = gst_caps_from_string (imaq_dx_caps_infos[i].gst_caps_string);
+    if (gst_caps_is_subset (caps, super_caps))
+      return imaq_dx_caps_infos[i].pixel_format;
+  }
+
+  return NULL;
+}
+
+static int
+gst_niimaqdxsrc_pixel_format_get_bpp (const char *pixel_format)
+{
+  int i;
+
+  for (i = 0; i < G_N_ELEMENTS (imaq_dx_caps_infos); i++) {
+    if (g_strcmp0 (pixel_format, imaq_dx_caps_infos[i].pixel_format) == 0) {
+      return imaq_dx_caps_infos[i].bpp;
+    }
+  }
+  return 0;
+}
+
+static int
+gst_niimaqdxsrc_pixel_format_get_stride (const char *pixel_format, int width)
+{
+  return width * gst_niimaqdxsrc_pixel_format_get_bpp (pixel_format) / 8;
+}
+
+static GstCaps *
+gst_niimaqdxsrc_new_caps_from_pixel_format (const char *pixel_format,
+    int width, int height,
+    int framerate_n, int framerate_d, int par_n, int par_d)
+{
+  const char *caps_string;
+  GstCaps *caps;
+  GstStructure *structure;
+
+  caps_string = gst_niimaqdxsrc_pixel_format_to_caps_string (pixel_format);
+  if (caps_string == NULL)
+    return NULL;
+
+  structure = gst_structure_from_string (caps_string, NULL);
+  gst_structure_set (structure,
+      "width", G_TYPE_INT, width,
+      "height", G_TYPE_INT, height,
+      "framerate", GST_TYPE_FRACTION, framerate_n, framerate_d,
+      "par", GST_TYPE_FRACTION, par_n, par_d, NULL);
+
+  caps = gst_caps_new_empty ();
+  gst_caps_append_structure (caps, structure);
+
+  return caps;
+}
+
 
 static void _____BEGIN_FUNCTIONS_____ ();
 
@@ -477,6 +575,11 @@ gst_niimaqdxsrc_init (GstNiImaqDxSrc * niimaqdxsrc,
   /* initialize properties */
   niimaqdxsrc->ringbuffer_count = DEFAULT_PROP_RING_BUFFER_COUNT;
   niimaqdxsrc->device_name = g_strdup (DEFAULT_PROP_DEVICE);
+
+  /* initialize pointers, then call reset to initialize the rest */
+  niimaqdxsrc->times = NULL;
+  niimaqdxsrc->temp_buffer = NULL;
+  gst_niimaqdxsrc_reset (niimaqdxsrc);
 }
 
 /**
@@ -558,7 +661,7 @@ gst_niimaqdxsrc_get_caps (GstBaseSrc * bsrc)
         gst_caps_copy (gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD
             (niimaqdxsrc)));
   }
-
+  //TODO: should also call this when first opening the camera, in case format isn't supported
   return gst_niimaqdxsrc_get_cam_caps (niimaqdxsrc);
 }
 
@@ -568,14 +671,30 @@ gst_niimaqdxsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 {
   GstNiImaqDxSrc *niimaqdxsrc = GST_NIIMAQDXSRC (bsrc);
   gboolean res = TRUE;
+  GstStructure *structure;
+  const char *pixel_format;
 
-  gst_video_format_parse_caps (caps, &niimaqdxsrc->format, &niimaqdxsrc->width,
-      &niimaqdxsrc->height);
+  structure = gst_caps_get_structure (caps, 0);
 
-  /* this will handle byte alignment (i.e. row multiple of 4 bytes) */
+  gst_structure_get_int (structure, "width", &niimaqdxsrc->width);
+  gst_structure_get_int (structure, "height", &niimaqdxsrc->height);
+
+  pixel_format = gst_niimaqdxsrc_pixel_format_from_caps (caps);
+  g_assert (pixel_format);
+
+  niimaqdxsrc->dx_row_stride =
+      gst_niimaqdxsrc_pixel_format_get_stride (pixel_format,
+      niimaqdxsrc->width);
+
   niimaqdxsrc->framesize =
-      gst_video_format_get_size (niimaqdxsrc->format, niimaqdxsrc->width,
-      niimaqdxsrc->height);
+      GST_ROUND_UP_4 (niimaqdxsrc->dx_row_stride) * niimaqdxsrc->height;
+
+  if (niimaqdxsrc->temp_buffer)
+    g_free (niimaqdxsrc->temp_buffer);
+
+  niimaqdxsrc->temp_buffer = g_malloc (niimaqdxsrc->framesize);
+
+  GST_DEBUG ("Size %dx%d", niimaqdxsrc->width, niimaqdxsrc->height);
 
   GST_LOG_OBJECT (niimaqdxsrc, "Caps set, framesize=%d",
       niimaqdxsrc->framesize);
@@ -594,12 +713,15 @@ gst_niimaqdxsrc_reset (GstNiImaqDxSrc * niimaqdxsrc)
   niimaqdxsrc->n_dropped_frames = 0;
   niimaqdxsrc->session = 0;
   niimaqdxsrc->session_started = FALSE;
-  niimaqdxsrc->format = GST_VIDEO_FORMAT_UNKNOWN;
   niimaqdxsrc->width = 0;
   niimaqdxsrc->height = 0;
+  niimaqdxsrc->dx_row_stride = 0;
   niimaqdxsrc->start_time = NULL;
   niimaqdxsrc->start_time_sent = FALSE;
   niimaqdxsrc->base_time = GST_CLOCK_TIME_NONE;
+
+  g_free (niimaqdxsrc->temp_buffer);
+  niimaqdxsrc->temp_buffer = NULL;
 
   g_free (niimaqdxsrc->times);
   niimaqdxsrc->times = NULL;
@@ -684,14 +806,37 @@ gst_niimaqdxsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
   }
 
   g_mutex_lock (niimaqdxsrc->mutex);
-  rval = IMAQdxGetImageData (niimaqdxsrc->session, GST_BUFFER_DATA (*buffer),
-      GST_BUFFER_SIZE (*buffer), IMAQdxBufferNumberModeBufferNumber,
-      niimaqdxsrc->cumbufnum, &copied_number);
+  if ((niimaqdxsrc->dx_row_stride & 0x3) == 0) {
+    // we have properly aligned strides, copy directly to buffer
+    rval = IMAQdxGetImageData (niimaqdxsrc->session, GST_BUFFER_DATA (*buffer),
+        GST_BUFFER_SIZE (*buffer), IMAQdxBufferNumberModeBufferNumber,
+        niimaqdxsrc->cumbufnum, &copied_number);
+  } else {
+    // we don't have aligned strides, copy to temp buffer
+    rval = IMAQdxGetImageData (niimaqdxsrc->session, niimaqdxsrc->temp_buffer,
+        GST_BUFFER_SIZE (*buffer), IMAQdxBufferNumberModeBufferNumber,
+        niimaqdxsrc->cumbufnum, &copied_number);
+  }
+
   //FIXME: handle timestamps
   //timestamp = niimaqdxsrc->times[copied_index];
   //niimaqdxsrc->times[copied_index] = GST_CLOCK_TIME_NONE;
   g_mutex_unlock (niimaqdxsrc->mutex);
 
+  // adjust for row stride if needed (must be multiple of 4)
+  if ((niimaqdxsrc->dx_row_stride & 0x3) != 0) {
+    int i;
+    int dx_row_stride = niimaqdxsrc->dx_row_stride;
+    int gst_row_stride = GST_ROUND_UP_4 (dx_row_stride);
+    guint8 *src = niimaqdxsrc->temp_buffer;
+    guint8 *dst = GST_BUFFER_DATA (*buffer);
+
+    GST_LOG_OBJECT (niimaqdxsrc,
+        "Row stride (%d) not a multiple of 4, need to copy data",
+        dx_row_stride);
+    for (i = 0; i < niimaqdxsrc->height; i++)
+      memcpy (dst + i * gst_row_stride, src + i * dx_row_stride, dx_row_stride);
+  }
 
   if (rval) {
     gst_niimaqdxsrc_report_imaq_error (rval);
@@ -796,18 +941,6 @@ listAttributes (IMAQdxSession session)
   g_free (attributeInfoArray);
 }
 
-
-GstVideoFormat
-convert_PixelFormat_to_VideoFormat (char *pixelFormat)
-{
-  if (g_strcmp0 (pixelFormat, "Mono 8") == 0)
-    return GST_VIDEO_FORMAT_GRAY8;
-  else if (g_strcmp0 (pixelFormat, "Mono 16") == 0)
-    return GST_VIDEO_FORMAT_GRAY16_BE;  //TODO: always BE?
-  else
-    return GST_VIDEO_FORMAT_UNKNOWN;
-}
-
 /**
 * gst_niimaqdxsrc_get_cam_caps:
 * src: #GstNiImaqDx instance
@@ -819,12 +952,11 @@ convert_PixelFormat_to_VideoFormat (char *pixelFormat)
 GstCaps *
 gst_niimaqdxsrc_get_cam_caps (GstNiImaqDxSrc * niimaqdxsrc)
 {
-  GstCaps *gcaps = NULL;
+  GstCaps *caps = NULL;
   IMAQdxError rval;
   uInt32 val;
-  char pixelFormat[IMAQDX_MAX_API_STRING_LENGTH];
+  char pixel_format[IMAQDX_MAX_API_STRING_LENGTH];
   gint width, height;
-  GstVideoFormat format = GST_VIDEO_FORMAT_UNKNOWN;
 
   if (!niimaqdxsrc->session) {
     GST_ELEMENT_ERROR (niimaqdxsrc, RESOURCE, FAILED,
@@ -837,11 +969,8 @@ gst_niimaqdxsrc_get_cam_caps (GstNiImaqDxSrc * niimaqdxsrc)
   listAttributes (niimaqdxsrc->session);
 
   rval = IMAQdxGetAttribute (niimaqdxsrc->session, IMAQdxAttributePixelFormat,
-      IMAQdxValueTypeString, &pixelFormat);
+      IMAQdxValueTypeString, &pixel_format);
   gst_niimaqdxsrc_report_imaq_error (rval);
-
-  format = convert_PixelFormat_to_VideoFormat (pixelFormat);
-
   rval &= IMAQdxGetAttribute (niimaqdxsrc->session, IMAQdxAttributeWidth,
       IMAQdxValueTypeU32, &val);
   gst_niimaqdxsrc_report_imaq_error (rval);
@@ -857,24 +986,24 @@ gst_niimaqdxsrc_get_cam_caps (GstNiImaqDxSrc * niimaqdxsrc)
         ("attempt to read attributes failed"));
     goto error;
   }
-
-  if (format == GST_VIDEO_FORMAT_UNKNOWN) {
+  //TODO: add all available caps by enumerating PixelFormat's available, and query for framerate
+  caps =
+      gst_niimaqdxsrc_new_caps_from_pixel_format (pixel_format, width, height,
+      30, 1, 1, 1);
+  if (!caps) {
     GST_ERROR_OBJECT (niimaqdxsrc, "PixelFormat '%s' not supported yet",
-        pixelFormat);
+        pixel_format);
     goto error;
   }
 
-  /* hard code framerate and par as IMAQ doesn't tell us anything about it */
-  gcaps = gst_video_format_new_caps (format, width, height, 30, 1, 1, 1);
+  GST_LOG_OBJECT (caps, "are the camera caps");
 
-  GST_LOG_OBJECT (gcaps, "are the camera caps");
-
-  return gcaps;
+  return caps;
 
 error:
 
-  if (gcaps) {
-    gst_caps_unref (gcaps);
+  if (caps) {
+    gst_caps_unref (caps);
   }
 
   return NULL;
