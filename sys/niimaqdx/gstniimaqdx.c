@@ -160,95 +160,100 @@ gst_niimaqdxsrc_frame_done_callback (IMAQdxSession session, uInt32 bufferNumber,
     "framerate = " GST_VIDEO_FPS_RANGE
 
 ImaqDxCapsInfo imaq_dx_caps_infos[] = {
-  {"Mono 8", GST_VIDEO_CAPS_GRAY8, 8, 8, 4}
+  {"Mono 8", 0, GST_VIDEO_CAPS_GRAY8, 8, 8, 4}
   ,
   //TODO: for packed formats, should we unpack?
   //{"Mono 12 Packed", GST_VIDEO_CAPS_GRAY16 ("BIG_ENDIAN"), 16, 16},
-  {"Mono 16", GST_VIDEO_CAPS_GRAY16 ("BIG_ENDIAN"), 16, 16, 4}
+  {"Mono 16", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_GRAY16 ("LITTLE_ENDIAN"), 16, 16,
+      4}
   ,
-  {"YUV 422 Packed", GST_VIDEO_CAPS_YUV ("UYVY"), 16, 16, 4}
+  {"Mono 16", G_BIG_ENDIAN, GST_VIDEO_CAPS_GRAY16 ("BIG_ENDIAN"), 16, 16, 4}
   ,
-  {"Bayer BG 8", GST_VIDEO_CAPS_BAYER ("bggr"), 8, 8, 1}
+  {"YUV 422 Packed", 0, GST_VIDEO_CAPS_YUV ("UYVY"), 16, 16, 4}
+  ,
+  {"Bayer BG 8", 0, GST_VIDEO_CAPS_BAYER ("bggr"), 8, 8, 1}
   ,
   //TODO: use a caps string that agrees with Aravis
-  {"Bayer BG 16", GST_VIDEO_CAPS_BAYER ("bggr16"), 16, 16, 1}
+  {"Bayer BG 16", 0, GST_VIDEO_CAPS_BAYER ("bggr16"), 16, 16, 1}
 };
 
 static ImaqDxCapsInfo *
-gst_niimaqdxsrc_get_caps_info (const char *pixel_format)
+gst_niimaqdxsrc_get_caps_info (const char *pixel_format, int endianness)
 {
   int i;
 
   for (i = 0; i < G_N_ELEMENTS (imaq_dx_caps_infos); i++) {
-    if (g_strcmp0 (pixel_format, imaq_dx_caps_infos[i].pixel_format) == 0)
-      return &imaq_dx_caps_infos[i];
+    ImaqDxCapsInfo *info = &imaq_dx_caps_infos[i];
+    if (g_strcmp0 (pixel_format, info->pixel_format) == 0 &&
+        (info->endianness == endianness || info->endianness == 0))
+      return info;
   }
+
+  GST_WARNING ("PixelFormat '%s' is not supported", pixel_format);
   return NULL;
 }
 
 static const char *
-gst_niimaqdxsrc_pixel_format_to_caps_string (const char *pixel_format)
+gst_niimaqdxsrc_pixel_format_to_caps_string (const char *pixel_format,
+    int endianness)
 {
-  int i;
+  ImaqDxCapsInfo *info =
+      gst_niimaqdxsrc_get_caps_info (pixel_format, endianness);
 
-  for (i = 0; i < G_N_ELEMENTS (imaq_dx_caps_infos); i++) {
-    if (g_strcmp0 (pixel_format, imaq_dx_caps_infos[i].pixel_format) == 0)
-      break;
-  }
-
-  if (i == G_N_ELEMENTS (imaq_dx_caps_infos)) {
-    GST_WARNING ("PixelFormat '%s' is not supported",
-        imaq_dx_caps_infos[i].pixel_format);
+  if (!info)
     return NULL;
-  }
 
-  return imaq_dx_caps_infos[i].gst_caps_string;
+  return info->gst_caps_string;
 }
 
 static const char *
-gst_niimaqdxsrc_pixel_format_from_caps (const GstCaps * caps)
+gst_niimaqdxsrc_pixel_format_from_caps (const GstCaps * caps, int *endianness)
 {
   int i;
 
   for (i = 0; i < G_N_ELEMENTS (imaq_dx_caps_infos); i++) {
     GstCaps *super_caps;
     super_caps = gst_caps_from_string (imaq_dx_caps_infos[i].gst_caps_string);
-    if (gst_caps_is_subset (caps, super_caps))
+    if (gst_caps_is_subset (caps, super_caps)) {
+      *endianness = imaq_dx_caps_infos[i].endianness;
       return imaq_dx_caps_infos[i].pixel_format;
+    }
   }
 
   return NULL;
 }
 
 static int
-gst_niimaqdxsrc_pixel_format_get_bpp (const char *pixel_format)
+gst_niimaqdxsrc_pixel_format_get_bpp (const char *pixel_format, int endianness)
 {
-  int i;
+  ImaqDxCapsInfo *info =
+      gst_niimaqdxsrc_get_caps_info (pixel_format, endianness);
 
-  for (i = 0; i < G_N_ELEMENTS (imaq_dx_caps_infos); i++) {
-    if (g_strcmp0 (pixel_format, imaq_dx_caps_infos[i].pixel_format) == 0) {
-      return imaq_dx_caps_infos[i].bpp;
-    }
-  }
-  return 0;
+  if (!info)
+    return 0;
+
+  return info->bpp;
 }
 
 static int
-gst_niimaqdxsrc_pixel_format_get_stride (const char *pixel_format, int width)
+gst_niimaqdxsrc_pixel_format_get_stride (const char *pixel_format,
+    int endianness, int width)
 {
-  return width * gst_niimaqdxsrc_pixel_format_get_bpp (pixel_format) / 8;
+  return width * gst_niimaqdxsrc_pixel_format_get_bpp (pixel_format,
+      endianness) / 8;
 }
 
 static GstCaps *
 gst_niimaqdxsrc_new_caps_from_pixel_format (const char *pixel_format,
-    int width, int height,
-    int framerate_n, int framerate_d, int par_n, int par_d)
+    int endianness, int width, int height, int framerate_n, int framerate_d,
+    int par_n, int par_d)
 {
   const char *caps_string;
   GstCaps *caps;
   GstStructure *structure;
 
-  caps_string = gst_niimaqdxsrc_pixel_format_to_caps_string (pixel_format);
+  caps_string =
+      gst_niimaqdxsrc_pixel_format_to_caps_string (pixel_format, endianness);
   if (caps_string == NULL)
     return NULL;
 
@@ -704,19 +709,21 @@ gst_niimaqdxsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
   gboolean res = TRUE;
   GstStructure *structure;
   const char *pixel_format;
+  int endianness;
 
   structure = gst_caps_get_structure (caps, 0);
 
   gst_structure_get_int (structure, "width", &niimaqdxsrc->width);
   gst_structure_get_int (structure, "height", &niimaqdxsrc->height);
 
-  pixel_format = gst_niimaqdxsrc_pixel_format_from_caps (caps);
+  pixel_format = gst_niimaqdxsrc_pixel_format_from_caps (caps, &endianness);
   g_assert (pixel_format);
 
-  niimaqdxsrc->caps_info = gst_niimaqdxsrc_get_caps_info (pixel_format);
+  niimaqdxsrc->caps_info =
+      gst_niimaqdxsrc_get_caps_info (pixel_format, endianness);
 
   niimaqdxsrc->dx_row_stride =
-      gst_niimaqdxsrc_pixel_format_get_stride (pixel_format,
+      gst_niimaqdxsrc_pixel_format_get_stride (pixel_format, endianness,
       niimaqdxsrc->width);
 
   niimaqdxsrc->framesize =
@@ -1000,6 +1007,8 @@ gst_niimaqdxsrc_get_cam_caps (GstNiImaqDxSrc * niimaqdxsrc)
   IMAQdxError rval;
   uInt32 val;
   char pixel_format[IMAQDX_MAX_API_STRING_LENGTH];
+  int endianness;
+  char bus_type[IMAQDX_MAX_API_STRING_LENGTH];
   gint width, height;
 
   if (!niimaqdxsrc->session) {
@@ -1014,6 +1023,9 @@ gst_niimaqdxsrc_get_cam_caps (GstNiImaqDxSrc * niimaqdxsrc)
 
   rval = IMAQdxGetAttribute (niimaqdxsrc->session, IMAQdxAttributePixelFormat,
       IMAQdxValueTypeString, &pixel_format);
+  gst_niimaqdxsrc_report_imaq_error (rval);
+  rval &= IMAQdxGetAttribute (niimaqdxsrc->session, IMAQdxAttributeBusType,
+      IMAQdxValueTypeString, &bus_type);
   gst_niimaqdxsrc_report_imaq_error (rval);
   rval &= IMAQdxGetAttribute (niimaqdxsrc->session, IMAQdxAttributeWidth,
       IMAQdxValueTypeU32, &val);
@@ -1030,10 +1042,16 @@ gst_niimaqdxsrc_get_cam_caps (GstNiImaqDxSrc * niimaqdxsrc)
         ("attempt to read attributes failed"));
     goto error;
   }
+
+  if (g_strcmp0 (bus_type, "Ethernet") == 0)
+    endianness = G_LITTLE_ENDIAN;
+  else
+    endianness = G_BIG_ENDIAN;
+
   //TODO: add all available caps by enumerating PixelFormat's available, and query for framerate
   caps =
-      gst_niimaqdxsrc_new_caps_from_pixel_format (pixel_format, width, height,
-      30, 1, 1, 1);
+      gst_niimaqdxsrc_new_caps_from_pixel_format (pixel_format, endianness,
+      width, height, 30, 1, 1, 1);
   if (!caps) {
     GST_ERROR_OBJECT (niimaqdxsrc, "PixelFormat '%s' not supported yet",
         pixel_format);

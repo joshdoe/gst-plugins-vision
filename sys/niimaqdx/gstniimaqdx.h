@@ -49,6 +49,7 @@ typedef struct _GstNiImaqDxSrcClass GstNiImaqDxSrcClass;
 typedef struct
 {
     const char *pixel_format;
+    int endianness;
     const char *gst_caps_string;
     int bpp;
     int depth;
