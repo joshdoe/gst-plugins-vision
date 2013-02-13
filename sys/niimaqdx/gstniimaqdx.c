@@ -941,12 +941,13 @@ error:
 }
 
 void
-listAttributes (IMAQdxSession session)
+gst_niimaqdxsrc_list_attributes (GstNiImaqDxSrc * niimaqdxsrc)
 {
   IMAQdxAttributeInformation *attributeInfoArray = NULL;
   uInt32 attributeCount;
   int i;
   IMAQdxError rval;
+  IMAQdxSession session = niimaqdxsrc->session;
   char *attributeTypeStrings[] = { "U32", "I64",
     "F64",
     "String",
@@ -960,12 +961,11 @@ listAttributes (IMAQdxSession session)
   rval =
       IMAQdxEnumerateAttributes2 (session, NULL, &attributeCount, "",
       IMAQdxAttributeVisibilityAdvanced);
-  GST_DEBUG ("Found %d attributes", attributeCount);
   attributeInfoArray = g_new (IMAQdxAttributeInformation, attributeCount);
   rval =
       IMAQdxEnumerateAttributes2 (session, attributeInfoArray, &attributeCount,
       "", IMAQdxAttributeVisibilityAdvanced);
-  GST_DEBUG ("Enumerating %d attributes", attributeCount);
+  GST_DEBUG_OBJECT (niimaqdxsrc, "Enumerating %d attributes", attributeCount);
   for (i = 0; i < attributeCount; i++) {
     IMAQdxAttributeInformation *info = attributeInfoArray + i;
     g_assert (info);
@@ -975,19 +975,17 @@ listAttributes (IMAQdxSession session)
           IMAQdxGetAttribute (session, info->Name, IMAQdxValueTypeString,
           attributeString);
       if (rval != IMAQdxErrorSuccess) {
-        GST_WARNING ("Failed to read value of attribute %s", info->Name);
+        GST_WARNING_OBJECT (niimaqdxsrc,
+            "Failed to read value of attribute %s", info->Name);
         continue;
       }
     } else
       attributeString[0] = 0;
 
-    printf ("%s, %s/%s, %s, %s\n", info->Name, info->Readable ? "R" : "-",
-        info->Writable ? "W" : "-", attributeTypeStrings[info->Type],
-        attributeString);
-    //gchar *newOutput = g_strconcat(output, line, NULL);
-    //g_free (output);
-    //g_free (line);
-    //output = newOutput;
+    GST_DEBUG_OBJECT (niimaqdxsrc, "%s, %s/%s, %s, %s\n",
+        info->Name, info->Readable ? "R" : "-",
+        info->Writable ? "W" : "-",
+        attributeTypeStrings[info->Type], attributeString);
   }
   g_free (attributeInfoArray);
 }
@@ -1018,8 +1016,6 @@ gst_niimaqdxsrc_get_cam_caps (GstNiImaqDxSrc * niimaqdxsrc)
   }
 
   GST_LOG_OBJECT (niimaqdxsrc, "Retrieving attributes from IMAQdx device");
-
-  listAttributes (niimaqdxsrc->session);
 
   rval = IMAQdxGetAttribute (niimaqdxsrc->session, IMAQdxAttributePixelFormat,
       IMAQdxValueTypeString, &pixel_format);
@@ -1133,6 +1129,8 @@ gst_niimaqdxsrc_start (GstBaseSrc * src)
         ("Failed to open camera interface %s", niimaqdxsrc->device_name));
     goto error;
   }
+
+  gst_niimaqdxsrc_list_attributes (niimaqdxsrc);
 
   GST_LOG_OBJECT (niimaqdxsrc, "Creating ring with %d buffers",
       niimaqdxsrc->ringbuffer_count);
