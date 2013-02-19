@@ -242,12 +242,21 @@ gst_niimaqdxsrc_new_caps_from_pixel_format (const char *pixel_format,
   GstCaps *caps;
   GstStructure *structure;
 
+  GST_DEBUG
+      ("Trying to create caps from: %s, endianness=%d, %dx%d, fps=%d/%d, par=%d/%d",
+      pixel_format, endianness, width, height, framerate_n, framerate_d, par_n,
+      par_d);
+
   caps_string =
       gst_niimaqdxsrc_pixel_format_to_caps_string (pixel_format, endianness);
   if (caps_string == NULL)
     return NULL;
 
+  GST_DEBUG ("Got caps string: %s", caps_string);
+
   structure = gst_structure_from_string (caps_string, NULL);
+  if (structure == NULL)
+    return NULL;
   gst_structure_set (structure,
       "width", G_TYPE_INT, width,
       "height", G_TYPE_INT, height,
