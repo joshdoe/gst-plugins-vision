@@ -9,7 +9,8 @@
 			<AdditionalIncludeDirectories>C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
 		</ClCompile>
 		<Link>
-			<AdditionalLibraryDirectories>C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\Lib32\MSVC;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+			<AdditionalLibraryDirectories Condition="'$(Platform)' == 'Win32'">C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\Lib32\MSVC;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+			<AdditionalLibraryDirectories Condition="'$(Platform)' == 'x64'">C:\Program Files (x86)\National Instruments\Shared\ExternalCompilerSupport\C\Lib64\MSVC;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
 			<AdditionalDependencies>imaq.lib;%(AdditionalDependencies)</AdditionalDependencies>
 		</Link>
 	</ItemDefinitionGroup>
