@@ -28,6 +28,6 @@ plugin_init (GstPlugin * plugin)
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    "videoadjust",
+    videoadjust,
     "Filters that apply transform from 16-bit to 8-bit video",
     plugin_init, VERSION, GST_LICENSE, PACKAGE_NAME, GST_PACKAGE_ORIGIN);

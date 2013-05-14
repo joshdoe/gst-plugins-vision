@@ -70,14 +70,8 @@ struct _GstVideoLevels
   GstVideoFilter element;
 
   /* format */
-  gint width;
-  gint height;
-  int framesize;
-
-  GstVideoFormat format_in;
-  GstVideoFormat format_out;
-  gint bpp_in;
-  gint bpp_out;
+  GstVideoInfo info_in;
+  GstVideoInfo info_out;
 
   /* properties */
   gdouble lower_input;

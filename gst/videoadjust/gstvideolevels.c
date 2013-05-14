@@ -40,8 +40,7 @@
 
 #include "gstvideolevels.h"
 
-#include <string.h>
-#include <math.h>
+#include <gst/video/video.h>
 
 /* GstVideoLevels signals and args */
 enum
@@ -71,26 +70,19 @@ static GParamSpec *properties[PROP_LAST];
 #define DEFAULT_PROP_AUTO 0
 #define DEFAULT_PROP_INTERVAL (GST_SECOND / 2)
 
-static const GstElementDetails videolevels_details =
-GST_ELEMENT_DETAILS ("Video videolevels adjustment",
-    "Filter/Effect/Video",
-    "Adjusts videolevels on a video stream",
-    "Joshua Doe <oss@nvl.army.mil");
-
 /* the capabilities of the inputs and outputs */
 static GstStaticPadTemplate gst_videolevels_src_template =
-    GST_STATIC_PAD_TEMPLATE ("sink",
+GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_VIDEO_CAPS_GRAY16 ("BIG_ENDIAN") ";"
-        GST_VIDEO_CAPS_GRAY16 ("LITTLE_ENDIAN"))
+    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("{ GRAY16_LE, GRAY16_BE }"))
     );
 
 static GstStaticPadTemplate gst_videolevels_sink_template =
 GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_VIDEO_CAPS_GRAY8)
+    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("GRAY8"))
     );
 
 #define GST_TYPE_VIDEOLEVELS_AUTO (gst_videolevels_auto_get_type())
@@ -121,21 +113,18 @@ static void gst_videolevels_dispose (GObject * object);
 
 /* GstBaseTransform vmethod declarations */
 static GstCaps *gst_videolevels_transform_caps (GstBaseTransform * trans,
-    GstPadDirection direction, GstCaps * caps);
-static gboolean gst_videolevels_set_caps (GstBaseTransform * base,
-    GstCaps * incaps, GstCaps * outcaps);
-static GstFlowReturn gst_videolevels_transform (GstBaseTransform * base,
-    GstBuffer * inbuf, GstBuffer * outbuf);
-static gboolean gst_videolevels_get_unit_size (GstBaseTransform * base,
-    GstCaps * caps, guint * size);
-static GstFlowReturn gst_videolevels_prepare_output_buffer (GstBaseTransform *
-    base, GstBuffer * in_buf, gint size, GstCaps * caps, GstBuffer ** out_buf);
+    GstPadDirection direction, GstCaps * caps, GstCaps * filter_caps);
+
+/* GstVideoFilter vmethod declarations */
+static gboolean gst_videolevels_set_info (GstVideoFilter * filter,
+    GstCaps * incaps, GstVideoInfo * in_info, GstCaps * outcaps,
+    GstVideoInfo * out_info);
+static GstFlowReturn gst_videolevels_transform_frame (GstVideoFilter * filter,
+    GstVideoFrame * in_frame, GstVideoFrame * out_frame);
 
 /* GstVideoLevels method declarations */
 static void gst_videolevels_reset (GstVideoLevels * filter);
 static gboolean gst_videolevels_calculate_lut (GstVideoLevels * videolevels);
-static gboolean gst_videolevels_do_levels (GstVideoLevels * videolevels,
-    gpointer indata, gpointer outdata);
 static gboolean gst_videolevels_calculate_histogram (GstVideoLevels *
     videolevels, guint16 * data);
 static gboolean gst_videolevels_auto_adjust (GstVideoLevels * videolevels,
@@ -144,36 +133,12 @@ static gboolean gst_videolevels_auto_adjust (GstVideoLevels * videolevels,
 /* setup debug */
 GST_DEBUG_CATEGORY_STATIC (videolevels_debug);
 #define GST_CAT_DEFAULT videolevels_debug
-#define DEBUG_INIT(bla) \
-    GST_DEBUG_CATEGORY_INIT (videolevels_debug, "videolevels", 0, \
-    "Video Levels Filter");
 
-GST_BOILERPLATE_FULL (GstVideoLevels, gst_videolevels, GstVideoFilter,
-    GST_TYPE_VIDEO_FILTER, DEBUG_INIT);
+G_DEFINE_TYPE (GstVideoLevels, gst_videolevels, GST_TYPE_VIDEO_FILTER);
 
 /************************************************************************/
 /* GObject vmethod implementations                                      */
 /************************************************************************/
-
-/**
- * gst_videolevels_base_init:
- * @klass: #GstElementClass.
- *
- */
-static void
-gst_videolevels_base_init (gpointer klass)
-{
-  GstElementClass *element_class = GST_ELEMENT_CLASS (klass);
-
-  GST_DEBUG ("base init");
-
-  gst_element_class_set_details (element_class, &videolevels_details);
-
-  gst_element_class_add_pad_template (element_class,
-      gst_static_pad_template_get (&gst_videolevels_sink_template));
-  gst_element_class_add_pad_template (element_class,
-      gst_static_pad_template_get (&gst_videolevels_src_template));
-}
 
 /**
  * gst_videolevels_dispose:
@@ -190,7 +155,7 @@ gst_videolevels_dispose (GObject * object)
   gst_videolevels_reset (videolevels);
 
   /* chain up to the parent class */
-  G_OBJECT_CLASS (parent_class)->dispose (object);
+  G_OBJECT_CLASS (gst_videolevels_parent_class)->dispose (object);
 }
 
 /**
@@ -199,18 +164,25 @@ gst_videolevels_dispose (GObject * object)
  *
  */
 static void
-gst_videolevels_class_init (GstVideoLevelsClass * object)
+gst_videolevels_class_init (GstVideoLevelsClass * klass)
 {
-  GObjectClass *obj_class = G_OBJECT_CLASS (object);
-  GstBaseTransformClass *trans_class = GST_BASE_TRANSFORM_CLASS (object);
+  GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
+  GstElementClass *gstelement_class = GST_ELEMENT_CLASS (klass);
+  GstBaseTransformClass *gstbasetransform_class =
+      GST_BASE_TRANSFORM_CLASS (klass);
+  GstVideoFilterClass *gstvideofilter_class = GST_VIDEO_FILTER_CLASS (klass);
+
+  GST_DEBUG_CATEGORY_INIT (videolevels_debug, "videolevels", 0,
+      "Video Levels Filter");
 
   GST_DEBUG ("class init");
 
-
   /* Register GObject vmethods */
-  obj_class->dispose = GST_DEBUG_FUNCPTR (gst_videolevels_dispose);
-  obj_class->set_property = GST_DEBUG_FUNCPTR (gst_videolevels_set_property);
-  obj_class->get_property = GST_DEBUG_FUNCPTR (gst_videolevels_get_property);
+  gobject_class->dispose = GST_DEBUG_FUNCPTR (gst_videolevels_dispose);
+  gobject_class->set_property =
+      GST_DEBUG_FUNCPTR (gst_videolevels_set_property);
+  gobject_class->get_property =
+      GST_DEBUG_FUNCPTR (gst_videolevels_get_property);
 
   /* Install GObject properties */
   properties[PROP_LOWIN] =
@@ -229,31 +201,39 @@ gst_videolevels_class_init (GstVideoLevelsClass * object)
       g_param_spec_double ("upper-output-level", "Upper Output Level",
       "Upper Output Level", 0.0, 1.0, DEFAULT_PROP_HIGHOUT,
       G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
-  g_object_class_install_property (obj_class, PROP_LOWIN,
+  g_object_class_install_property (gobject_class, PROP_LOWIN,
       properties[PROP_LOWIN]);
-  g_object_class_install_property (obj_class, PROP_HIGHIN,
+  g_object_class_install_property (gobject_class, PROP_HIGHIN,
       properties[PROP_HIGHIN]);
-  g_object_class_install_property (obj_class, PROP_LOWOUT,
+  g_object_class_install_property (gobject_class, PROP_LOWOUT,
       properties[PROP_LOWOUT]);
-  g_object_class_install_property (obj_class, PROP_HIGHOUT,
+  g_object_class_install_property (gobject_class, PROP_HIGHOUT,
       properties[PROP_HIGHOUT]);
-  g_object_class_install_property (obj_class, PROP_AUTO,
+  g_object_class_install_property (gobject_class, PROP_AUTO,
       g_param_spec_enum ("auto", "Auto Adjust", "Auto adjust contrast",
           GST_TYPE_VIDEOLEVELS_AUTO, DEFAULT_PROP_AUTO, G_PARAM_READWRITE));
-  g_object_class_install_property (obj_class, PROP_INTERVAL,
+  g_object_class_install_property (gobject_class, PROP_INTERVAL,
       g_param_spec_uint64 ("interval", "Interval",
           "Interval of time between adjustments (in nanoseconds)", 1,
           G_MAXUINT64, DEFAULT_PROP_INTERVAL, G_PARAM_READWRITE));
 
+  gst_element_class_add_pad_template (gstelement_class,
+      gst_static_pad_template_get (&gst_videolevels_sink_template));
+  gst_element_class_add_pad_template (gstelement_class,
+      gst_static_pad_template_get (&gst_videolevels_src_template));
+
+  gst_element_class_set_static_metadata (gstelement_class,
+      "Video levels adjustment", "Filter/Effect/Video",
+      "Adjusts videolevels on a video stream",
+      "Joshua M. Doe <oss@nvl.army.mil>");
+
   /* Register GstBaseTransform vmethods */
-  trans_class->transform_caps =
+  gstbasetransform_class->transform_caps =
       GST_DEBUG_FUNCPTR (gst_videolevels_transform_caps);
-  trans_class->set_caps = GST_DEBUG_FUNCPTR (gst_videolevels_set_caps);
-  trans_class->transform = GST_DEBUG_FUNCPTR (gst_videolevels_transform);
-  trans_class->get_unit_size =
-      GST_DEBUG_FUNCPTR (gst_videolevels_get_unit_size);
-  trans_class->prepare_output_buffer =
-      GST_DEBUG_FUNCPTR (gst_videolevels_prepare_output_buffer);
+
+  gstvideofilter_class->set_info = GST_DEBUG_FUNCPTR (gst_videolevels_set_info);
+  gstvideofilter_class->transform_frame =
+      GST_DEBUG_FUNCPTR (gst_videolevels_transform_frame);
 }
 
 /**
@@ -264,13 +244,11 @@ gst_videolevels_class_init (GstVideoLevelsClass * object)
 * Initialize the new element
 */
 static void
-gst_videolevels_init (GstVideoLevels * videolevels,
-    GstVideoLevelsClass * g_class)
+gst_videolevels_init (GstVideoLevels * videolevels)
 {
   GST_DEBUG_OBJECT (videolevels, "init class instance");
 
   gst_videolevels_reset (videolevels);
-
 }
 
 /**
@@ -375,139 +353,65 @@ gst_videolevels_get_property (GObject * object, guint prop_id, GValue * value,
  *
  * Returns: #GstCaps allowed on other pad
  */
-static GstCaps *
-gst_videolevels_transform_caps (GstBaseTransform * base,
-    GstPadDirection direction, GstCaps * caps)
+GstCaps *
+gst_videolevels_transform_caps (GstBaseTransform * trans,
+    GstPadDirection direction, GstCaps * caps, GstCaps * filter_caps)
 {
-  GstVideoLevels *videolevels;
-  GstCaps *newcaps;
-  GstStructure *structure;
+  GstVideoLevels *videolevels = GST_VIDEOLEVELS (trans);
+  GstCaps *other_caps;
+  GstStructure *st;
+  gint i, n;
 
-  videolevels = GST_VIDEOLEVELS (base);
+  videolevels = GST_VIDEOLEVELS (trans);
 
-  GST_DEBUG_OBJECT (caps, "transforming caps (from)");
+  GST_LOG_OBJECT (videolevels, "transforming caps %" GST_PTR_FORMAT, caps);
 
-  newcaps = gst_caps_copy (caps);
+  other_caps = gst_caps_new_empty ();
 
-  /* finish settings caps of the opposite pad */
-  if (direction == GST_PAD_SINK) {
-    GST_DEBUG_OBJECT (videolevels, "Pad direction is sink");
-    gst_caps_set_simple (newcaps,
-        "bpp", G_TYPE_INT, 8, "depth", G_TYPE_INT, 8, NULL);
-    structure = gst_caps_get_structure (newcaps, 0);
-    gst_structure_remove_field (structure, "endianness");
-  } else {
-    GValue endianness = { 0 };
-    GValue ival = { 0 };
+  n = gst_caps_get_size (caps);
+  for (i = 0; i < n; ++i) {
+    st = gst_caps_get_structure (caps, i);
 
-    GST_DEBUG_OBJECT (videolevels, "Pad direction is src");
+    if (gst_caps_is_subset_structure (other_caps, st))
+      continue;
 
-    gst_caps_set_simple (newcaps,
-        "bpp", GST_TYPE_INT_RANGE, 1, 16, "depth", G_TYPE_INT, 16, NULL);
-    structure = gst_caps_get_structure (newcaps, 0);
+    st = gst_structure_copy (st);
+    gst_structure_remove_fields (st, "format", NULL);
 
-    /* add BIG/LITTLE endianness to caps */
-    g_value_init (&ival, G_TYPE_INT);
-    g_value_init (&endianness, GST_TYPE_LIST);
-    g_value_set_int (&ival, G_LITTLE_ENDIAN);
-    gst_value_list_append_value (&endianness, &ival);
-    g_value_set_int (&ival, G_BIG_ENDIAN);
-    gst_value_list_append_value (&endianness, &ival);
-    gst_structure_set_value (structure, "endianness", &endianness);
+    gst_caps_append_structure (other_caps, st);
   }
 
-  GST_DEBUG_OBJECT (newcaps, "allowed caps are");
+  /* finish settings caps of the opposite pad */
+  //if (direction == GST_PAD_SINK) {
+  //  "GRAY8";
 
-  return newcaps;
+
+  if (!gst_caps_is_empty (other_caps) && filter_caps) {
+    GstCaps *tmp = gst_caps_intersect_full (filter_caps, other_caps,
+        GST_CAPS_INTERSECT_FIRST);
+    gst_caps_replace (&other_caps, tmp);
+    gst_caps_unref (tmp);
+  }
+
+  return other_caps;
 }
 
-/**
- * gst_videolevels_set_caps:
- * base: #GstBaseTransform
- * incaps: #GstCaps
- * outcaps: #GstCaps
- * 
- * Notification of the actual caps set.
- *
- * Returns: TRUE on success
- */
 static gboolean
-gst_videolevels_set_caps (GstBaseTransform * base, GstCaps * incaps,
-    GstCaps * outcaps)
+gst_videolevels_set_info (GstVideoFilter * filter, GstCaps * incaps,
+    GstVideoInfo * in_info, GstCaps * outcaps, GstVideoInfo * out_info)
 {
-  GstVideoLevels *levels = GST_VIDEOLEVELS (base);
-  GstStructure *structure;
+  GstVideoLevels *levels = GST_VIDEOLEVELS (filter);
   gboolean res;
 
   GST_DEBUG_OBJECT (levels,
       "set_caps: in %" GST_PTR_FORMAT " out %" GST_PTR_FORMAT, incaps, outcaps);
 
-  /* retrieve caps info */
-  res = gst_video_format_parse_caps (incaps, &levels->format_in, &levels->width,
-      &levels->height);
-  res &= gst_video_format_parse_caps (outcaps, &levels->format_out, NULL, NULL);
+  memcpy (&levels->info_in, in_info, sizeof (GstVideoInfo));
+  memcpy (&levels->info_out, out_info, sizeof (GstVideoInfo));
 
-  /* FIXME: gst_video_format_get_component_depth is broken in 0.10.36
-     levels->bpp_in = gst_video_format_get_component_depth (levels->format_in, 0);
-     levels->bpp_out = gst_video_format_get_component_depth (levels->format_out, 0); */
-  structure = gst_caps_get_structure (incaps, 0);
-  res &= gst_structure_get_int (structure, "bpp", &levels->bpp_in);
-  structure = gst_caps_get_structure (outcaps, 0);
-  res &= gst_structure_get_int (structure, "bpp", &levels->bpp_out);
-
-  levels->framesize = gst_video_format_get_size (levels->format_out,
-      levels->width, levels->height);
-
-  if (!res || levels->framesize <= 0) {
-    GST_ERROR_OBJECT (levels, "Failed to parse caps");
-  }
-
-  gst_videolevels_calculate_lut (levels);
+  res = gst_videolevels_calculate_lut (levels);
 
   return res;
-}
-
-/**
- * gst_videolevels_get_unit_size:
- * @base: #GstBaseTransform
- * @caps: #GstCaps
- * @size: guint size of unit (one frame for video)
- *
- * Tells GstBaseTransform the size in bytes of an output frame from the given
- * caps.
- *
- * Returns: TRUE on success
- */
-static gboolean
-gst_videolevels_get_unit_size (GstBaseTransform * base, GstCaps * caps,
-    guint * size)
-{
-  if (!gst_video_get_size_from_caps (caps, size)) {
-    GST_ELEMENT_ERROR (base, CORE, NEGOTIATION,
-        ("Unable to determine frame size from caps"), (NULL));
-    return FALSE;
-  }
-
-  GST_DEBUG ("Frame size is %d bytes", *size);
-  return TRUE;
-}
-
-static GstFlowReturn
-gst_videolevels_prepare_output_buffer (GstBaseTransform * base,
-    GstBuffer * in_buf, gint size, GstCaps * caps, GstBuffer ** out_buf)
-{
-  GstVideoLevels *levels = GST_VIDEOLEVELS (base);
-  GstFlowReturn ret = GST_FLOW_OK;
-
-  ret = gst_pad_alloc_buffer (base->srcpad, 0, size, caps, out_buf);
-
-  if (ret != GST_FLOW_OK) {
-    GST_DEBUG_OBJECT (levels,
-        "Couldn't get pad to alloc buffer, creating one directly");
-    *out_buf = gst_buffer_new_and_alloc (size);
-  }
-
-  return ret;
 }
 
 /**
@@ -521,50 +425,65 @@ gst_videolevels_prepare_output_buffer (GstBaseTransform * base,
  * Returns: GST_FLOW_OK on success
  */
 static GstFlowReturn
-gst_videolevels_transform (GstBaseTransform * base, GstBuffer * inbuf,
-    GstBuffer * outbuf)
+gst_videolevels_transform_frame (GstVideoFilter * filter,
+    GstVideoFrame * in_frame, GstVideoFrame * out_frame)
 {
-  GstVideoLevels *videolevels = GST_VIDEOLEVELS (base);
-  gpointer input;
-  gpointer output;
-  gboolean ret;
+  GstVideoLevels *videolevels = GST_VIDEOLEVELS (filter);
   GstClockTimeDiff elapsed;
   GstClockTime start =
-      gst_clock_get_time (gst_element_get_clock (GST_ELEMENT (base)));
+      gst_clock_get_time (gst_element_get_clock (GST_ELEMENT (videolevels)));
+  gint r, c;
+  gint in_stride, out_stride;
+  guint8 *in_data, *out_data;
+  guint8 *lut;
 
   GST_LOG_OBJECT (videolevels, "Performing non-inplace transform");
 
-  input = GST_BUFFER_DATA (inbuf);
-  output = GST_BUFFER_DATA (outbuf);
+  in_data = GST_VIDEO_FRAME_PLANE_DATA (in_frame, 0);
+  out_data = GST_VIDEO_FRAME_PLANE_DATA (out_frame, 0);
 
   if (videolevels->auto_adjust == 1) {
     GST_DEBUG_OBJECT (videolevels, "Auto adjusting levels (once)");
-    gst_videolevels_auto_adjust (videolevels, input);
+    gst_videolevels_auto_adjust (videolevels, in_data);
     videolevels->auto_adjust = 0;
     g_object_notify (G_OBJECT (videolevels), "auto");
   } else if (videolevels->auto_adjust == 2) {
     elapsed =
-        GST_CLOCK_DIFF (videolevels->last_auto_timestamp, inbuf->timestamp);
+        GST_CLOCK_DIFF (videolevels->last_auto_timestamp,
+        GST_BUFFER_TIMESTAMP (in_frame->buffer));
     if (videolevels->last_auto_timestamp == GST_CLOCK_TIME_NONE
         || elapsed >= (GstClockTimeDiff) videolevels->interval || elapsed < 0) {
       GST_LOG_OBJECT (videolevels, "Auto adjusting levels (%d ns since last)",
           elapsed);
-      gst_videolevels_auto_adjust (videolevels, input);
-      videolevels->last_auto_timestamp = GST_BUFFER_TIMESTAMP (inbuf);
+      gst_videolevels_auto_adjust (videolevels, in_data);
+      videolevels->last_auto_timestamp =
+          GST_BUFFER_TIMESTAMP (in_frame->buffer);
     }
   }
 
-  ret = gst_videolevels_do_levels (videolevels, input, output);
+  in_stride = GST_VIDEO_FRAME_PLANE_STRIDE (in_frame, 0);
+  out_stride = GST_VIDEO_FRAME_PLANE_STRIDE (out_frame, 0);
+
+  lut = videolevels->lookup_table;
+  for (r = 0; r < in_frame->info.height; r++) {
+    guint16 *src = (guint16 *) in_data;
+    guint8 *dst = out_data;
+
+    for (c = 0; c < in_frame->info.width; c++) {
+      //GST_LOG_OBJECT (videolevels, "Converting pixel (%d, %d), %d->%d", c, r, *src, lut[*src]);
+      *dst++ = lut[*src++];
+    }
+
+    in_data += in_stride;
+    out_data += out_stride;
+  }
 
   GST_LOG_OBJECT (videolevels, "Processing took %" G_GINT64_FORMAT "ms",
       GST_TIME_AS_MSECONDS (GST_CLOCK_DIFF (start,
               gst_clock_get_time (gst_element_get_clock (GST_ELEMENT
                       (videolevels))))));
 
-  if (ret)
-    return GST_FLOW_OK;
-  else
-    return GST_FLOW_ERROR;
+  return GST_FLOW_OK;
 }
 
 /************************************************************************/
@@ -580,12 +499,8 @@ gst_videolevels_transform (GstBaseTransform * base, GstBuffer * inbuf,
 static void
 gst_videolevels_reset (GstVideoLevels * videolevels)
 {
-  videolevels->width = 0;
-  videolevels->height = 0;
-  videolevels->format_in = GST_VIDEO_FORMAT_UNKNOWN;
-  videolevels->format_out = GST_VIDEO_FORMAT_UNKNOWN;
-  videolevels->bpp_in = 0;
-  videolevels->bpp_out = 0;
+  gst_video_info_init (&videolevels->info_in);
+  gst_video_info_init (&videolevels->info_out);
 
   videolevels->lower_input = DEFAULT_PROP_LOWIN;
   videolevels->upper_input = DEFAULT_PROP_HIGHIN;
@@ -619,13 +534,12 @@ gst_videolevels_calculate_lut_uint16_to_uint8 (GstVideoLevels * videolevels,
   gdouble m;
   gdouble b;
   guint8 *lut = (guint8 *) videolevels->lookup_table;
-  const guint16 max_in = (1 << videolevels->bpp_in) - 1;
+  const guint16 max_in = (1 << videolevels->info_in.finfo->bits) - 1;
   const guint16 low_in = (guint16) (videolevels->lower_input * max_in);
   const guint16 high_in = (guint16) (videolevels->upper_input * max_in);
-  const guint8 max_out = (1 << videolevels->bpp_out) - 1;
+  const guint8 max_out = (1 << videolevels->info_out.finfo->bits) - 1;
   const guint8 low_out = (guint8) (videolevels->lower_output * max_out);
   const guint8 high_out = (guint8) (videolevels->upper_output * max_out);
-
 
   GST_LOG_OBJECT (videolevels, "Applying linear mapping (%d, %d) -> (%d, %d)",
       low_in, high_in, low_out, high_out);
@@ -660,43 +574,24 @@ gst_videolevels_calculate_lut (GstVideoLevels * videolevels)
     videolevels->lookup_table = g_new (guint8, G_MAXUINT16);
   }
 
-  if (videolevels->format_in == GST_VIDEO_FORMAT_GRAY16_LE) {
-    GST_LOG_OBJECT (videolevels, "Calculating lookup table uint16le -> uint8");
-    gst_videolevels_calculate_lut_uint16_to_uint8 (videolevels,
-        G_LITTLE_ENDIAN);
-  } else if (videolevels->format_in == GST_VIDEO_FORMAT_GRAY16_BE) {
-    GST_LOG_OBJECT (videolevels, "Calculating lookup table uint16be -> uint8");
-    gst_videolevels_calculate_lut_uint16_to_uint8 (videolevels, G_BIG_ENDIAN);
-  } else
-    return FALSE;
-
-  return TRUE;
-}
-
-/**
- * gst_videolevels_do_levels
- * @videolevels: #GstVideoLevels
- * @indata: input data
- * @outdata: output data
- * @size: size of data
- *
- * Convert frame using previously calculated LUT
- *
- * Returns: TRUE on success
- */
-static gboolean
-gst_videolevels_do_levels (GstVideoLevels * videolevels, gpointer indata,
-    gpointer outdata)
-{
-  guint8 *dst = (guint8 *) outdata;
-  guint16 *src = (guint16 *) indata;
-  guint8 *lut = (guint8 *) videolevels->lookup_table;
-  int i;
-
-  GST_LOG_OBJECT (videolevels, "Converting frame using LUT");
-
-  for (i = 0; i < videolevels->framesize; i++)
-    dst[i] = lut[src[i]];
+  switch (videolevels->info_in.finfo->format) {
+    case GST_VIDEO_FORMAT_UNKNOWN:
+      /* no format set yet, don't do anything */
+      break;
+    case GST_VIDEO_FORMAT_GRAY16_LE:
+      GST_LOG_OBJECT (videolevels,
+          "Calculating lookup table uint16le -> uint8");
+      gst_videolevels_calculate_lut_uint16_to_uint8 (videolevels,
+          G_LITTLE_ENDIAN);
+      break;
+    case GST_VIDEO_FORMAT_GRAY16_BE:
+      GST_LOG_OBJECT (videolevels,
+          "Calculating lookup table uint16be -> uint8");
+      gst_videolevels_calculate_lut_uint16_to_uint8 (videolevels, G_BIG_ENDIAN);
+      break;
+    default:
+      g_assert_not_reached ();
+  }
 
   return TRUE;
 }
@@ -719,20 +614,18 @@ gst_videolevels_calculate_histogram (GstVideoLevels * videolevels,
   gint r;
   gint c;
   gfloat factor;
-  gint stride = gst_video_format_get_row_stride (videolevels->format_in, 0,
-      videolevels->width);
+  gint stride = GST_VIDEO_INFO_COMP_STRIDE (&videolevels->info_in, 0);
   gint endianness;
 
-  /* TODO: add gst_video_format_get_endianness to video library */
-  if (videolevels->format_in == GST_VIDEO_FORMAT_GRAY16_BE)
+  if (videolevels->info_in.finfo->format == GST_VIDEO_FORMAT_GRAY16_BE)
     endianness = G_BIG_ENDIAN;
-  else if (videolevels->format_in == GST_VIDEO_FORMAT_GRAY16_LE)
+  else if (videolevels->info_in.finfo->format == GST_VIDEO_FORMAT_GRAY16_LE)
     endianness = G_LITTLE_ENDIAN;
   else
     endianness = G_BYTE_ORDER;
 
 
-  factor = nbins / (gfloat) (1 << videolevels->bpp_in);
+  factor = nbins / (gfloat) (1 << videolevels->info_in.finfo->bits);
 
   if (videolevels->histogram == NULL) {
     GST_DEBUG_OBJECT (videolevels,
@@ -747,14 +640,14 @@ gst_videolevels_calculate_histogram (GstVideoLevels * videolevels,
 
   GST_LOG_OBJECT (videolevels, "Calculating histogram");
   if (endianness == G_BYTE_ORDER) {
-    for (r = 0; r < videolevels->height; r++) {
-      for (c = 0; c < videolevels->width; c++) {
+    for (r = 0; r < videolevels->info_in.height; r++) {
+      for (c = 0; c < videolevels->info_in.width; c++) {
         hist[GINT_CLAMP (data[c + r * stride / 2] * factor, 0, nbins - 1)]++;
       }
     }
   } else {
-    for (r = 0; r < videolevels->height; r++) {
-      for (c = 0; c < videolevels->width; c++) {
+    for (r = 0; r < videolevels->info_in.height; r++) {
+      for (c = 0; c < videolevels->info_in.width; c++) {
         hist[GINT_CLAMP (GUINT16_FROM_BE (data[c +
                         r * stride / 2]) * factor, 0, nbins - 1)]++;
       }
@@ -781,11 +674,11 @@ gst_videolevels_auto_adjust (GstVideoLevels * videolevels, guint16 * data)
   gint i;
   gint size;
   gdouble min = 0.0;
-  gdouble max = (1 << videolevels->bpp_in) - 1.0;
+  gdouble max = (1 << videolevels->info_in.finfo->bits) - 1.0;
 
   gst_videolevels_calculate_histogram (videolevels, data);
 
-  size = videolevels->width * videolevels->height;
+  size = videolevels->info_in.width * videolevels->info_in.height;
 
   /* pixels to saturate on low end */
   npixsat = (guint) (videolevels->lower_pix_sat * size);
