@@ -48,12 +48,12 @@ static void gst_edt_pdv_sink_set_property (GObject * object,
 static void gst_edt_pdv_sink_get_property (GObject * object,
     guint property_id, GValue * value, GParamSpec * pspec);
 static void gst_edt_pdv_sink_dispose (GObject * object);
-static void gst_edt_pdv_sink_finalize (GObject * object);
 
 /* GstBaseSink prototypes */
 static gboolean gst_edt_pdv_sink_start (GstBaseSink * basesink);
 static gboolean gst_edt_pdv_sink_stop (GstBaseSink * basesink);
-static GstCaps *gst_edt_pdv_sink_get_caps (GstBaseSink * basesink);
+static GstCaps *gst_edt_pdv_sink_get_caps (GstBaseSink * basesink,
+    GstCaps * filter_caps);
 static gboolean gst_edt_pdv_sink_set_caps (GstBaseSink * basesink,
     GstCaps * caps);
 static GstFlowReturn gst_edt_pdv_sink_render (GstBaseSink * basesink,
@@ -62,7 +62,6 @@ static GstFlowReturn gst_edt_pdv_sink_render (GstBaseSink * basesink,
 enum
 {
   PROP_0
-      /* FILL ME */
 };
 
 
@@ -72,7 +71,7 @@ static GstStaticPadTemplate gst_edt_pdv_sink_sink_template =
 GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_VIDEO_CAPS_GRAY8)
+    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("{ GRAY8 }"))
     );
 
 /* class initialization */
@@ -80,48 +79,40 @@ GST_STATIC_PAD_TEMPLATE ("sink",
 /* setup debug */
 GST_DEBUG_CATEGORY_STATIC (edtpdvsink_debug);
 #define GST_CAT_DEFAULT edtpdvsink_debug
-#define DEBUG_INIT(bla) \
-    GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "edtpdvsink", 0, \
-    "EDT PDV Camera Link simulator sink");
 
-GST_BOILERPLATE_FULL (GstEdtPdvSink, gst_edt_pdv_sink, GstBaseSink,
-    GST_TYPE_BASE_SINK, DEBUG_INIT);
-
-static void
-gst_edt_pdv_sink_base_init (gpointer g_class)
-{
-  GstElementClass *element_class = GST_ELEMENT_CLASS (g_class);
-
-  gst_element_class_add_pad_template (element_class,
-      gst_static_pad_template_get (&gst_edt_pdv_sink_sink_template));
-
-  gst_element_class_set_details_simple (element_class,
-      "EDT PDV Sink", "Sink/Video",
-      "EDT PDV Sink for Camera Link simulator boards",
-      "Joshua M. Doe <oss@nvl.army.mil>");
-}
+G_DEFINE_TYPE (GstEdtPdvSink, gst_edt_pdv_sink, GST_TYPE_BASE_SINK);
 
 static void
 gst_edt_pdv_sink_class_init (GstEdtPdvSinkClass * klass)
 {
   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
-  GstBaseSinkClass *base_sink_class = GST_BASE_SINK_CLASS (klass);
+  GstElementClass *gstelement_class = GST_ELEMENT_CLASS (klass);
+  GstBaseSinkClass *gstbasesink_class = GST_BASE_SINK_CLASS (klass);
+
+  GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "edtpdvsink", 0,
+      "EDT PDV Camera Link simulator sink");
 
   gobject_class->set_property = gst_edt_pdv_sink_set_property;
   gobject_class->get_property = gst_edt_pdv_sink_get_property;
   gobject_class->dispose = gst_edt_pdv_sink_dispose;
-  gobject_class->finalize = gst_edt_pdv_sink_finalize;
 
-  base_sink_class->start = gst_edt_pdv_sink_start;
-  base_sink_class->stop = gst_edt_pdv_sink_stop;
-  base_sink_class->set_caps = gst_edt_pdv_sink_set_caps;
-  base_sink_class->get_caps = gst_edt_pdv_sink_get_caps;
-  base_sink_class->render = gst_edt_pdv_sink_render;
+  gst_element_class_add_pad_template (gstelement_class,
+      gst_static_pad_template_get (&gst_edt_pdv_sink_sink_template));
+
+  gst_element_class_set_details_simple (gstelement_class,
+      "EDT PDV Sink", "Sink/Video",
+      "EDT PDV Sink for Camera Link simulator boards",
+      "Joshua M. Doe <oss@nvl.army.mil>");
+
+  gstbasesink_class->start = GST_DEBUG_FUNCPTR (gst_edt_pdv_sink_start);
+  gstbasesink_class->stop = GST_DEBUG_FUNCPTR (gst_edt_pdv_sink_stop);
+  gstbasesink_class->set_caps = GST_DEBUG_FUNCPTR (gst_edt_pdv_sink_set_caps);
+  gstbasesink_class->get_caps = GST_DEBUG_FUNCPTR (gst_edt_pdv_sink_get_caps);
+  gstbasesink_class->render = GST_DEBUG_FUNCPTR (gst_edt_pdv_sink_render);
 }
 
 static void
-gst_edt_pdv_sink_init (GstEdtPdvSink * pdvsink,
-    GstEdtPdvSinkClass * pdvsink_class)
+gst_edt_pdv_sink_init (GstEdtPdvSink * pdvsink)
 {
   pdvsink->dev = NULL;
   pdvsink->buffers = NULL;
@@ -175,20 +166,7 @@ gst_edt_pdv_sink_dispose (GObject * object)
 
   /* clean up as possible.  may be called multiple times */
 
-  G_OBJECT_CLASS (parent_class)->dispose (object);
-}
-
-void
-gst_edt_pdv_sink_finalize (GObject * object)
-{
-  GstEdtPdvSink *pdvsink;
-
-  g_return_if_fail (GST_IS_EDT_PDV_SINK (object));
-  pdvsink = GST_EDT_PDV_SINK (object);
-
-  /* clean up object here */
-
-  G_OBJECT_CLASS (parent_class)->finalize (object);
+  G_OBJECT_CLASS (gst_edt_pdv_sink_parent_class)->dispose (object);
 }
 
 gboolean
@@ -238,19 +216,21 @@ gst_edt_pdv_sink_stop (GstBaseSink * basesink)
 }
 
 GstCaps *
-gst_edt_pdv_sink_get_caps (GstBaseSink * basesink)
+gst_edt_pdv_sink_get_caps (GstBaseSink * basesink, GstCaps * filter_caps)
 {
   GstEdtPdvSink *pdvsink = GST_EDT_PDV_SINK (basesink);
-  int width, height, depth;
+  gint depth;
   GstVideoFormat format;
+  GstVideoInfo vinfo;
 
   if (!pdvsink->dev) {
     return gst_caps_copy (gst_pad_get_pad_template_caps (GST_BASE_SINK_PAD
             (pdvsink)));
   }
 
-  width = pdv_get_width (pdvsink->dev);
-  height = pdv_get_height (pdvsink->dev);
+  gst_video_info_init (&vinfo);
+  vinfo.width = pdv_get_width (pdvsink->dev);
+  vinfo.height = pdv_get_height (pdvsink->dev);
   depth = pdv_get_depth (pdvsink->dev);
 
   switch (depth) {
@@ -264,40 +244,27 @@ gst_edt_pdv_sink_get_caps (GstBaseSink * basesink)
     default:
       format = GST_VIDEO_FORMAT_UNKNOWN;
   }
+  vinfo.finfo = gst_video_format_get_info (format);
 
-  return gst_video_format_new_caps (format, width, height, 30, 1, 1, 1);
+  /* TODO: handle filter_caps */
+  return gst_video_info_to_caps (&vinfo);
 }
 
 gboolean
 gst_edt_pdv_sink_set_caps (GstBaseSink * basesink, GstCaps * caps)
 {
   GstEdtPdvSink *pdvsink = GST_EDT_PDV_SINK (basesink);
-  GstVideoFormat format;
-  int width, height, depth;
   int buffer_size;
-  int depth_bytes;
+  gint depth;
   int taps;
+  GstVideoInfo vinfo;
 
   GST_DEBUG_OBJECT (pdvsink, "Caps being set");
 
-  gst_video_format_parse_caps (caps, &format, &width, &height);
+  gst_video_info_from_caps (&vinfo, caps);
 
-  switch (format) {
-    case GST_VIDEO_FORMAT_GRAY8:
-      depth = 8;
-      depth_bytes = 1;
-      break;
-    case GST_VIDEO_FORMAT_GRAY16_BE:
-    case GST_VIDEO_FORMAT_GRAY16_LE:
-      depth = 16;
-      depth_bytes = 2;
-      break;
-    default:
-      GST_ERROR_OBJECT (pdvsink, "Unsupported video format");
-      return FALSE;
-  }
-
-  buffer_size = height * pdv_bytes_per_line (width, depth);
+  depth = GST_VIDEO_INFO_COMP_DEPTH (&vinfo, 0);
+  buffer_size = vinfo.height * pdv_bytes_per_line (vinfo.width, depth);
 
   GST_DEBUG_OBJECT (pdvsink,
       "Configuring EDT ring buffer with %d buffers each of size %d",
@@ -312,9 +279,9 @@ gst_edt_pdv_sink_set_caps (GstBaseSink * basesink, GstCaps * caps)
   taps = pdvsink->dev->dd_p->cls.taps;
 
   /* TODO: handle RGB correctly */
-  if (depth_bytes == 3) {
+  if (depth == 24) {
     taps = 1;
-    depth_bytes = 4;
+    depth = 32;
   }
 
   if (taps == 0) {
@@ -325,8 +292,8 @@ gst_edt_pdv_sink_set_caps (GstBaseSink * basesink, GstCaps * caps)
   GST_DEBUG_OBJECT (pdvsink, "Configuring simulator with %d taps", taps);
 
   /* configure simulator */
-  pdv_cls_set_size (pdvsink->dev, taps, depth, width, height, PDV_CLS_DEFAULT_HGAP, (width / taps) + PDV_CLS_DEFAULT_HGAP,      // taps=1
-      PDV_CLS_DEFAULT_VGAP, height + PDV_CLS_DEFAULT_VGAP);
+  pdv_cls_set_size (pdvsink->dev, taps, depth, vinfo.width, vinfo.height, PDV_CLS_DEFAULT_HGAP, (vinfo.width / taps) + PDV_CLS_DEFAULT_HGAP,    // taps=1
+      PDV_CLS_DEFAULT_VGAP, vinfo.height + PDV_CLS_DEFAULT_VGAP);
 
   GST_DEBUG ("Configured simulator");
 
@@ -337,11 +304,15 @@ GstFlowReturn
 gst_edt_pdv_sink_render (GstBaseSink * basesink, GstBuffer * buffer)
 {
   GstEdtPdvSink *pdvsink = GST_EDT_PDV_SINK (basesink);
+  GstMapInfo minfo;
 
   GST_LOG_OBJECT (pdvsink, "Rendering buffer");
 
-  memcpy (pdvsink->buffers[pdvsink->cur_buffer], GST_BUFFER_DATA (buffer),
-      GST_BUFFER_SIZE (buffer));
+  gst_buffer_map (buffer, &minfo, GST_MAP_WRITE);
+  /* TODO: fix stride? */
+  memcpy (pdvsink->buffers[pdvsink->cur_buffer], minfo.data, minfo.size);
+  gst_buffer_unmap (buffer, &minfo);
+
   edt_start_buffers (pdvsink->dev, 1);
   pdvsink->cur_buffer = (pdvsink->cur_buffer + 1) % pdvsink->n_buffers;
 
