@@ -76,7 +76,7 @@ struct _GstNiImaqSrc {
   GstDateTime *start_time;
   gboolean start_time_sent;
 
-  GMutex *mutex;
+  GMutex mutex;
 };
 
 struct _GstNiImaqSrcClass {
