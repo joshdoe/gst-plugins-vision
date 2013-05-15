@@ -53,10 +53,6 @@ struct _GstPhoenixSrc
 {
   GstPushSrc base_phoenixsrc;
 
-  GstPad *srcpad;
-
-  GstCaps *caps;
-
   gint dropped_frame_count;
   gboolean acq_started;
 
@@ -79,8 +75,8 @@ struct _GstPhoenixSrc
   gboolean timeout_occurred;
   gboolean fifo_overflow_occurred;
 
-  GMutex *mutex;
-  GCond *cond;
+  GMutex mutex;
+  GCond cond;
 };
 
 struct _GstPhoenixSrcClass
