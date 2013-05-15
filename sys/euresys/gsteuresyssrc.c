@@ -46,36 +46,22 @@
 #include <gst/gst.h>
 #include <gst/base/gstpushsrc.h>
 #include <gst/video/video.h>
-#include <gst/gst-i18n-lib.h>
-#include "gsteuresys.h"
+#include "gsteuresyssrc.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_euresys_debug);
 #define GST_CAT_DEFAULT gst_euresys_debug
 
 /* prototypes */
-
-
 static void gst_euresys_set_property (GObject * object,
     guint property_id, const GValue * value, GParamSpec * pspec);
 static void gst_euresys_get_property (GObject * object,
     guint property_id, GValue * value, GParamSpec * pspec);
 static void gst_euresys_dispose (GObject * object);
-static void gst_euresys_finalize (GObject * object);
 
-static GstCaps *gst_euresys_get_caps (GstBaseSrc * src);
-static gboolean gst_euresys_set_caps (GstBaseSrc * src, GstCaps * caps);
-static gboolean gst_euresys_newsegment (GstBaseSrc * src);
 static gboolean gst_euresys_start (GstBaseSrc * src);
 static gboolean gst_euresys_stop (GstBaseSrc * src);
-static void
-gst_euresys_get_times (GstBaseSrc * src, GstBuffer * buffer,
-    GstClockTime * start, GstClockTime * end);
-static gboolean gst_euresys_get_size (GstBaseSrc * src, guint64 * size);
-static gboolean gst_euresys_is_seekable (GstBaseSrc * src);
-static gboolean gst_euresys_query (GstBaseSrc * src, GstQuery * query);
-static gboolean gst_euresys_check_get_range (GstBaseSrc * src);
-static void gst_euresys_fixate (GstBaseSrc * src, GstCaps * caps);
-static GstFlowReturn gst_euresys_create (GstPushSrc * src, GstBuffer ** buf);
+
+static GstFlowReturn gst_euresys_fill (GstPushSrc * src, GstBuffer * buf);
 
 enum
 {
@@ -83,7 +69,6 @@ enum
   PROP_BOARD_INDEX,
   PROP_CAMERA_TYPE,
   PROP_CONNECTOR
-      /* FILL ME */
 };
 
 #define DEFAULT_PROP_BOARD_INDEX 0
@@ -93,12 +78,11 @@ enum
 /* pad templates */
 
 static GstStaticPadTemplate gst_euresys_src_template =
-    GST_STATIC_PAD_TEMPLATE ("src",
+GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_VIDEO_CAPS_GRAY8 ";"
-        GST_VIDEO_CAPS_RGB ";"
-        GST_VIDEO_CAPS_ARGB ";" GST_VIDEO_CAPS_RGB_15 ";" GST_VIDEO_CAPS_RGB_16)
+    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE
+        ("{ GRAY8, RGB, ARGB, RGB_16, RGB_16 }"))
     );
 
 
@@ -172,11 +156,8 @@ gst_euresys_camera_get_type (void)
   return euresys_camera_type;
 }
 
-
 /* class initialization */
-
-GST_BOILERPLATE (GstEuresys, gst_euresys, GstPushSrc, GST_TYPE_PUSH_SRC);
-
+G_DEFINE_TYPE (GstEuresys, gst_euresys, GST_TYPE_PUSH_SRC);
 
 static GstVideoFormat
 gst_euresys_color_format_to_video_format (INT32 color_format)
@@ -240,67 +221,48 @@ gst_euresys_color_format_to_video_format (INT32 color_format)
 };
 
 static void
-gst_euresys_base_init (gpointer g_class)
-{
-  GstElementClass *element_class = GST_ELEMENT_CLASS (g_class);
-
-  gst_element_class_add_pad_template (element_class,
-      gst_static_pad_template_get (&gst_euresys_src_template));
-
-  gst_element_class_set_details_simple (element_class,
-      "Euresys MultiCam Video Source", "Source/Video",
-      "Euresys MultiCam framegrabber video source",
-      "Joshua Doe <oss@nvl.army.mil>");
-}
-
-static void
 gst_euresys_class_init (GstEuresysClass * klass)
 {
   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
-  GstBaseSrcClass *base_src_class = GST_BASE_SRC_CLASS (klass);
-  GstPushSrcClass *push_src_class = GST_PUSH_SRC_CLASS (klass);
+  GstElementClass *gstelement_class = GST_ELEMENT_CLASS (klass);
+  GstBaseSrcClass *gstbasesrc_class = GST_BASE_SRC_CLASS (klass);
+  GstPushSrcClass *gstpushsrc_class = GST_PUSH_SRC_CLASS (klass);
 
   gobject_class->set_property = gst_euresys_set_property;
   gobject_class->get_property = gst_euresys_get_property;
   gobject_class->dispose = gst_euresys_dispose;
-  gobject_class->finalize = gst_euresys_finalize;
-  base_src_class->get_caps = GST_DEBUG_FUNCPTR (gst_euresys_get_caps);
-  base_src_class->set_caps = GST_DEBUG_FUNCPTR (gst_euresys_set_caps);
-  base_src_class->newsegment = GST_DEBUG_FUNCPTR (gst_euresys_newsegment);
-  base_src_class->start = GST_DEBUG_FUNCPTR (gst_euresys_start);
-  base_src_class->stop = GST_DEBUG_FUNCPTR (gst_euresys_stop);
-  base_src_class->get_times = GST_DEBUG_FUNCPTR (gst_euresys_get_times);
-  base_src_class->get_size = GST_DEBUG_FUNCPTR (gst_euresys_get_size);
-  base_src_class->is_seekable = GST_DEBUG_FUNCPTR (gst_euresys_is_seekable);
-  base_src_class->query = GST_DEBUG_FUNCPTR (gst_euresys_query);
-  base_src_class->check_get_range =
-      GST_DEBUG_FUNCPTR (gst_euresys_check_get_range);
-  base_src_class->fixate = GST_DEBUG_FUNCPTR (gst_euresys_fixate);
-
-  push_src_class->create = GST_DEBUG_FUNCPTR (gst_euresys_create);
-
 
   /* Install GObject properties */
   g_object_class_install_property (gobject_class, PROP_BOARD_INDEX,
       g_param_spec_int ("board", "Board", "Index of board connected to camera",
-          0, 15, DEFAULT_PROP_BOARD_INDEX, G_PARAM_READWRITE));
+          0, 15, DEFAULT_PROP_BOARD_INDEX,
+          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
   g_object_class_install_property (gobject_class, PROP_CAMERA_TYPE,
-      g_param_spec_enum ("camera", "Camera",
-          "Camera type", GST_TYPE_EURESYS_CAMERA,
-          DEFAULT_PROP_CAMERA_TYPE, G_PARAM_READWRITE));
+      g_param_spec_enum ("camera", "Camera", "Camera type",
+          GST_TYPE_EURESYS_CAMERA, DEFAULT_PROP_CAMERA_TYPE,
+          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
   g_object_class_install_property (gobject_class, PROP_CONNECTOR,
       g_param_spec_enum ("connector", "Connector",
           "Connector where camera is attached", GST_TYPE_EURESYS_CONNECTOR,
-          DEFAULT_PROP_CONNECTOR, G_PARAM_READWRITE));
+          DEFAULT_PROP_CONNECTOR, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
 
+  gst_element_class_add_pad_template (gstelement_class,
+      gst_static_pad_template_get (&gst_euresys_src_template));
+
+  gst_element_class_set_static_metadata (gstelement_class,
+      "Euresys MultiCam Video Source", "Source/Video",
+      "Euresys MultiCam framegrabber video source",
+      "Joshua M. Doe <oss@nvl.army.mil>");
+
+  gstbasesrc_class->start = GST_DEBUG_FUNCPTR (gst_euresys_start);
+  gstbasesrc_class->stop = GST_DEBUG_FUNCPTR (gst_euresys_stop);
+
+  gstpushsrc_class->fill = GST_DEBUG_FUNCPTR (gst_euresys_fill);
 }
 
 static void
-gst_euresys_init (GstEuresys * euresys, GstEuresysClass * euresys_class)
+gst_euresys_init (GstEuresys * euresys)
 {
-  euresys->srcpad =
-      gst_pad_new_from_static_template (&gst_euresys_src_template, "src");
-
   /* set source as live (no preroll) */
   gst_base_src_set_live (GST_BASE_SRC (euresys), TRUE);
 
@@ -313,13 +275,11 @@ gst_euresys_init (GstEuresys * euresys, GstEuresysClass * euresys_class)
   euresys->connector = DEFAULT_PROP_CONNECTOR;
 
   euresys->hChannel = 0;
-  euresys->caps = NULL;
 
   euresys->acq_started = FALSE;
 
   euresys->last_time_code = -1;
   euresys->dropped_frame_count = 0;
-
 }
 
 void
@@ -382,83 +342,7 @@ gst_euresys_dispose (GObject * object)
 
   /* clean up as possible.  may be called multiple times */
 
-  G_OBJECT_CLASS (parent_class)->dispose (object);
-}
-
-void
-gst_euresys_finalize (GObject * object)
-{
-  GstEuresys *euresys;
-
-  g_return_if_fail (GST_IS_EURESYS (object));
-  euresys = GST_EURESYS (object);
-
-  /* clean up object here */
-
-  G_OBJECT_CLASS (parent_class)->finalize (object);
-}
-
-
-static GstCaps *
-gst_euresys_get_caps (GstBaseSrc * src)
-{
-  GstEuresys *euresys = GST_EURESYS (src);
-
-  GST_DEBUG_OBJECT (euresys, "get_caps");
-
-  /* return template caps if we don't know the actual camera caps */
-  if (!euresys->caps) {
-    return
-        gst_caps_copy (gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD
-            (euresys)));
-  }
-
-  return gst_caps_copy (euresys->caps);
-
-  return NULL;
-}
-
-static gboolean
-gst_euresys_set_caps (GstBaseSrc * src, GstCaps * caps)
-{
-  GstEuresys *euresys = GST_EURESYS (src);
-  GstStructure *structure;
-  gboolean ret;
-  gint width, height;
-
-  GST_DEBUG_OBJECT (euresys, "set_caps");
-
-  if (euresys->caps) {
-    gst_caps_unref (euresys->caps);
-    euresys->caps = gst_caps_copy (caps);
-  }
-
-  /* parse caps */
-
-  if (gst_caps_get_size (caps) < 1)
-    return FALSE;
-
-  structure = gst_caps_get_structure (caps, 0);
-
-  ret = gst_structure_get (structure,
-      "width", G_TYPE_INT, &width, "height", G_TYPE_INT, &height, NULL);
-
-  if (!ret) {
-    GST_DEBUG ("Failed to retrieve width and height");
-    return FALSE;
-  }
-
-  return TRUE;
-}
-
-static gboolean
-gst_euresys_newsegment (GstBaseSrc * src)
-{
-  GstEuresys *euresys = GST_EURESYS (src);
-
-  GST_DEBUG_OBJECT (euresys, "newsegment");
-
-  return TRUE;
+  G_OBJECT_CLASS (gst_euresys_parent_class)->dispose (object);
 }
 
 static gboolean
@@ -468,7 +352,9 @@ gst_euresys_start (GstBaseSrc * src)
   MCSTATUS status = 0;
   INT32 colorFormat;
   GstVideoFormat videoFormat;
-  int width, height;
+  GstCaps *caps;
+  GstVideoInfo vinfo;
+  gint32 width, height;
 
   GST_DEBUG_OBJECT (euresys, "start");
 
@@ -484,7 +370,7 @@ gst_euresys_start (GstBaseSrc * src)
       &euresys->boardType);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
-        (_("Failed to get board type.")), (NULL));
+        (("Failed to get board type.")), (NULL));
     return FALSE;
   }
 
@@ -498,7 +384,7 @@ gst_euresys_start (GstBaseSrc * src)
   status = McCreate (MC_CHANNEL, &euresys->hChannel);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, FAILED,
-        (_("Failed to create channel.")), (NULL));
+        (("Failed to create channel.")), (NULL));
     return FALSE;
   }
 
@@ -506,50 +392,42 @@ gst_euresys_start (GstBaseSrc * src)
   status = McSetParamInt (euresys->hChannel, MC_DriverIndex, euresys->boardIdx);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
-        (_("Failed to link channel to board.")), (NULL));
-    McDelete (euresys->hChannel);
-    euresys->hChannel = 0;
-    return FALSE;
+        (("Failed to link channel to board.")), (NULL));
+    goto error;
   }
 
   /* Select the video connector */
   status = McSetParamInt (euresys->hChannel, MC_Connector, euresys->connector);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
-        (_("Failed to set connector to channel.")), (NULL));
-    McDelete (euresys->hChannel);
-    euresys->hChannel = 0;
-    return FALSE;
+        (("Failed to set connector to channel.")), (NULL));
+    goto error;
   }
 
   /* Select the video signal type */
   status = McSetParamInt (euresys->hChannel, MC_Camera, euresys->cameraType);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
-        (_("Failed to set camera type = %d."), euresys->cameraType), (NULL));
-    McDelete (euresys->hChannel);
-    euresys->hChannel = 0;
-    return FALSE;
+        (("Failed to set camera type = %d."), euresys->cameraType), (NULL));
+    goto error;
   }
 
   /* Set the color format */
+  /* TODO: i don't think this should be needed right now */
+/*
   status = McSetParamInt (euresys->hChannel, MC_ColorFormat, MC_ColorFormat_Y8);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
-        (_("Failed to set color format = %d."), MC_ColorFormat_Y8), (NULL));
-    McDelete (euresys->hChannel);
-    euresys->hChannel = 0;
-    return FALSE;
-  }
+        (("Failed to set color format = %d."), MC_ColorFormat_Y8), (NULL));
+    goto error;
+  }*/
 
-  /* The number of images to acquire */
+  /* Acquire images continuously */
   status = McSetParamInt (euresys->hChannel, MC_SeqLength_Fr, MC_INDETERMINATE);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
-        (_("Failed to set sequence length to indeterminate value.")), (NULL));
-    McDelete (euresys->hChannel);
-    euresys->hChannel = 0;
-    return FALSE;
+        (("Failed to set sequence length to indeterminate value.")), (NULL));
+    goto error;
   }
 
   /* Enable signals */
@@ -561,47 +439,48 @@ gst_euresys_start (GstBaseSrc * src)
       MC_SignalEnable + MC_SIG_ACQUISITION_FAILURE, MC_SignalEnable_ON);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
-        (_("Failed to enable signals.")), (NULL));
-    McDelete (euresys->hChannel);
-    euresys->hChannel = 0;
-    return FALSE;
+        (("Failed to enable signals.")), (NULL));
+    goto error;
   }
 
-  /* TODO create caps */
   status = McGetParamInt (euresys->hChannel, MC_ColorFormat, &colorFormat);
   status |= McGetParamInt (euresys->hChannel, MC_ImageSizeX, &width);
   status |= McGetParamInt (euresys->hChannel, MC_ImageSizeY, &height);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
-        (_("Failed to get color format, width, and height.")), (NULL));
-    McDelete (euresys->hChannel);
-    euresys->hChannel = 0;
-    return FALSE;
+        (("Failed to get color format, width, and height.")), (NULL));
+    goto error;
   }
 
   videoFormat = gst_euresys_color_format_to_video_format (colorFormat);
   if (videoFormat == GST_VIDEO_FORMAT_UNKNOWN) {
     GST_ELEMENT_ERROR (euresys, STREAM, WRONG_TYPE,
-        (_("Unknown or unsupported color format.")), (NULL));
-    McDelete (euresys->hChannel);
-    euresys->hChannel = 0;
-    return FALSE;
+        (("Unknown or unsupported color format.")), (NULL));
+    goto error;
   }
 
-  if (euresys->caps)
-    gst_caps_unref (euresys->caps);
-  euresys->caps =
-      gst_video_format_new_caps (videoFormat, width, height, 30, 1, 1, 1);
+  gst_video_info_init (&vinfo);
 
-  if (euresys->caps == NULL) {
+  vinfo.width = width;
+  vinfo.height = height;
+  vinfo.finfo = gst_video_format_get_info (videoFormat);
+
+  caps = gst_video_info_to_caps (&vinfo);
+
+  if (caps == NULL) {
     GST_ELEMENT_ERROR (euresys, STREAM, TOO_LAZY,
-        (_("Failed to generate caps from video format.")), (NULL));
-    McDelete (euresys->hChannel);
-    euresys->hChannel = 0;
-    return FALSE;
+        (("Failed to generate caps from video format.")), (NULL));
+    goto error;
   }
 
   return TRUE;
+
+error:
+  if (euresys->hChannel) {
+    McDelete (euresys->hChannel);
+    euresys->hChannel = 0;
+  }
+  return FALSE;
 }
 
 static gboolean
@@ -623,74 +502,14 @@ gst_euresys_stop (GstBaseSrc * src)
     McDelete (euresys->hChannel);
   euresys->hChannel = 0;
 
-  gst_caps_unref (euresys->caps);
-  euresys->caps = NULL;
-
   euresys->dropped_frame_count = 0;
   euresys->last_time_code = -1;
 
   return TRUE;
 }
 
-static void
-gst_euresys_get_times (GstBaseSrc * src, GstBuffer * buffer,
-    GstClockTime * start, GstClockTime * end)
-{
-  GstEuresys *euresys = GST_EURESYS (src);
-
-  GST_DEBUG_OBJECT (euresys, "get_times");
-}
-
-static gboolean
-gst_euresys_get_size (GstBaseSrc * src, guint64 * size)
-{
-  GstEuresys *euresys = GST_EURESYS (src);
-
-  GST_DEBUG_OBJECT (euresys, "get_size");
-
-  return TRUE;
-}
-
-static gboolean
-gst_euresys_is_seekable (GstBaseSrc * src)
-{
-  GstEuresys *euresys = GST_EURESYS (src);
-
-  GST_DEBUG_OBJECT (euresys, "is_seekable");
-
-  return FALSE;
-}
-
-static gboolean
-gst_euresys_query (GstBaseSrc * src, GstQuery * query)
-{
-  GstEuresys *euresys = GST_EURESYS (src);
-
-  GST_DEBUG_OBJECT (euresys, "query");
-
-  return TRUE;
-}
-
-static gboolean
-gst_euresys_check_get_range (GstBaseSrc * src)
-{
-  GstEuresys *euresys = GST_EURESYS (src);
-
-  GST_DEBUG_OBJECT (euresys, "get_range");
-
-  return FALSE;
-}
-
-static void
-gst_euresys_fixate (GstBaseSrc * src, GstCaps * caps)
-{
-  GstEuresys *euresys = GST_EURESYS (src);
-
-  GST_DEBUG_OBJECT (euresys, "fixate");
-}
-
-static GstFlowReturn
-gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
+GstFlowReturn
+gst_euresys_fill (GstPushSrc * src, GstBuffer * buf)
 {
   GstEuresys *euresys = GST_EURESYS (src);
   MCSTATUS status = 0;
@@ -700,8 +519,8 @@ gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
   INT32 timeCode;
   INT64 timeStamp;
   int newsize;
-  GstFlowReturn ret;
   int dropped_frame_count;
+  GstMapInfo minfo;
 
   /* Start acquisition */
   if (!euresys->acq_started) {
@@ -710,7 +529,7 @@ gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
         MC_ChannelState_ACTIVE);
     if (status != MC_OK) {
       GST_ELEMENT_ERROR (euresys, RESOURCE, FAILED,
-          (_("Failed to set channel state to ACTIVE.")), (NULL));
+          (("Failed to set channel state to ACTIVE.")), (NULL));
       return GST_FLOW_ERROR;
     }
     euresys->acq_started = TRUE;
@@ -722,12 +541,11 @@ gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
     status = McWaitSignal (euresys->hChannel, MC_SIG_ANY, 5000, &siginfo);
     if (status == MC_TIMEOUT) {
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          (_("Timeout waiting for signal.")),
-          (_("Timeout waiting for signal.")));
+          (("Timeout waiting for signal.")), (("Timeout waiting for signal.")));
       return GST_FLOW_ERROR;
     } else if (siginfo.Signal == MC_SIG_ACQUISITION_FAILURE) {
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          (_("Acquisition failure due to timeout.")), (NULL));
+          (("Acquisition failure due to timeout.")), (NULL));
       return GST_FLOW_ERROR;
     } else if (siginfo.Signal == MC_SIG_SURFACE_PROCESSING) {
       break;
@@ -749,7 +567,7 @@ gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
   status |= McGetParamPtr (hSurface, MC_SurfaceAddr, (PVOID *) & pImage);
   if (G_UNLIKELY (status != MC_OK)) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, FAILED,
-        (_("Failed to read surface parameter.")), (NULL));
+        (("Failed to read surface parameter.")), (NULL));
     return GST_FLOW_ERROR;
   }
 
@@ -764,20 +582,15 @@ gst_euresys_create (GstPushSrc * src, GstBuffer ** buf)
   }
   euresys->last_time_code = timeCode;
 
-
-  /* Create the buffer */
-  ret = gst_pad_alloc_buffer (GST_BASE_SRC_PAD (GST_BASE_SRC (src)),
-      GST_BUFFER_OFFSET_NONE, newsize,
-      GST_PAD_CAPS (GST_BASE_SRC_PAD (GST_BASE_SRC (src))), buf);
-  if (G_UNLIKELY (ret != GST_FLOW_OK)) {
-    return GST_FLOW_ERROR;
-  }
-
   /* Copy image to buffer from surface */
-  memcpy (GST_BUFFER_DATA (*buf), pImage, newsize);
-  GST_BUFFER_SIZE (*buf) = newsize;
+  gst_buffer_map (buf, &minfo, GST_MAP_WRITE);
+  /* TODO: fix strides? */
+  g_assert (minfo.size == newsize);
+  memcpy (minfo.data, pImage, newsize);
+  gst_buffer_unmap (buf, &minfo);
+
   /* TODO: set buffer timestamp based on MC_TimeStamp_us */
-  GST_BUFFER_TIMESTAMP (*buf) =
+  GST_BUFFER_TIMESTAMP (buf) =
       gst_clock_get_time (GST_ELEMENT_CLOCK (src)) -
       GST_ELEMENT_CAST (src)->base_time;
 
@@ -792,7 +605,7 @@ plugin_init (GstPlugin * plugin)
 {
   GST_DEBUG_CATEGORY_INIT (gst_euresys_debug, "euresys", 0,
       "debug category for euresys element");
-  gst_element_register (plugin, "euresys", GST_RANK_NONE,
+  gst_element_register (plugin, "euresyssrc", GST_RANK_NONE,
       gst_euresys_get_type ());
 
   return TRUE;
@@ -800,6 +613,6 @@ plugin_init (GstPlugin * plugin)
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    "euresys",
+    euresyssrc,
     "Euresys Multicam source",
     plugin_init, VERSION, "LGPL", PACKAGE_NAME, GST_PACKAGE_ORIGIN)

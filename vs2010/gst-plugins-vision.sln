@@ -11,6 +11,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "edt", "edt\edt.vcxproj", "{
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libniimaqdx", "niimaqdx\niimaqdx.vcxproj", "{A212EA33-4648-42CB-83C8-72F484AB7855}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "euresys", "euresys\euresys.vcxproj", "{8E42AB09-CE84-48E9-9D55-C0AAC12379D8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -46,10 +48,16 @@ Global
 		{351947AF-6445-4644-987D-FFE4FDDD3B4C}.Release|x64.ActiveCfg = Release|x64
 		{A212EA33-4648-42CB-83C8-72F484AB7855}.Debug|Win32.ActiveCfg = Debug|Win32
 		{A212EA33-4648-42CB-83C8-72F484AB7855}.Debug|Win32.Build.0 = Debug|Win32
-		{A212EA33-4648-42CB-83C8-72F484AB7855}.Debug|x64.ActiveCfg = Debug|Win32
+		{A212EA33-4648-42CB-83C8-72F484AB7855}.Debug|x64.ActiveCfg = Debug|x64
 		{A212EA33-4648-42CB-83C8-72F484AB7855}.Release|Win32.ActiveCfg = Release|Win32
 		{A212EA33-4648-42CB-83C8-72F484AB7855}.Release|Win32.Build.0 = Release|Win32
 		{A212EA33-4648-42CB-83C8-72F484AB7855}.Release|x64.ActiveCfg = Release|x64
+		{8E42AB09-CE84-48E9-9D55-C0AAC12379D8}.Debug|Win32.ActiveCfg = Debug|Win32
+		{8E42AB09-CE84-48E9-9D55-C0AAC12379D8}.Debug|Win32.Build.0 = Debug|Win32
+		{8E42AB09-CE84-48E9-9D55-C0AAC12379D8}.Debug|x64.ActiveCfg = Debug|x64
+		{8E42AB09-CE84-48E9-9D55-C0AAC12379D8}.Release|Win32.ActiveCfg = Release|Win32
+		{8E42AB09-CE84-48E9-9D55-C0AAC12379D8}.Release|Win32.Build.0 = Release|Win32
+		{8E42AB09-CE84-48E9-9D55-C0AAC12379D8}.Release|x64.ActiveCfg = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

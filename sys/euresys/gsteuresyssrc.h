@@ -50,14 +50,10 @@ struct _GstEuresys
 {
   GstPushSrc base_euresys;
 
-  GstPad *srcpad;
+  gint dropped_frame_count;
+  gboolean acq_started;
 
-  GstCaps *caps;
-
-	gint dropped_frame_count;
-	gboolean acq_started;
-
-	INT32 last_time_code;
+  INT32 last_time_code;
   MCHANDLE hChannel;
   INT32 boardType;
   INT32 boardIdx;
