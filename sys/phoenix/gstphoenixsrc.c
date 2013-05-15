@@ -66,11 +66,15 @@ enum
 {
   PROP_0,
   PROP_CAMERA_CONFIG_FILEPATH,
-  PROP_NUM_CAPTURE_BUFFERS
+  PROP_NUM_CAPTURE_BUFFERS,
+  PROP_BOARD,
+  PROP_CHANNEL
 };
 
 #define DEFAULT_PROP_CAMERA_CONFIG_FILEPATH NULL        /* defaults to 640x480x8bpp */
 #define DEFAULT_PROP_NUM_CAPTURE_BUFFERS 2
+#define DEFAULT_PROP_BOARD 0
+#define DEFAULT_PROP_CHANNEL 0
 
 /* pad templates */
 
@@ -155,7 +159,16 @@ gst_phoenixsrc_class_init (GstPhoenixSrcClass * klass)
           "Number of capture buffers", 1, G_MAXUINT,
           DEFAULT_PROP_NUM_CAPTURE_BUFFERS,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
-
+  g_object_class_install_property (gobject_class, PROP_BOARD,
+      g_param_spec_uint ("board", "Board",
+          "Board number (0 for auto)", 0, 7,
+          DEFAULT_PROP_BOARD,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+  g_object_class_install_property (gobject_class, PROP_CHANNEL,
+      g_param_spec_uint ("channel", "Channel",
+          "Channel number (0 for auto)", 0, 2,
+          DEFAULT_PROP_CHANNEL,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 }
 
 static void
@@ -221,6 +234,12 @@ gst_phoenixsrc_set_property (GObject * object, guint property_id,
             g_new (guint64, phoenixsrc->num_capture_buffers);
       }
       break;
+    case PROP_BOARD:
+      phoenixsrc->board = g_value_get_uint (value);
+      break;
+    case PROP_CHANNEL:
+      phoenixsrc->channel = g_value_get_uint (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -242,6 +261,12 @@ gst_phoenixsrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_NUM_CAPTURE_BUFFERS:
       g_value_set_uint (value, phoenixsrc->num_capture_buffers);
+      break;
+    case PROP_BOARD:
+      g_value_set_uint (value, phoenixsrc->board);
+      break;
+    case PROP_CHANNEL:
+      g_value_set_uint (value, phoenixsrc->channel);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -366,6 +391,7 @@ gst_phoenixsrc_start (GstBaseSrc * src)
   GstVideoInfo vinfo;
   GstCaps *caps;
   gboolean res;
+  guint eCamConfig;
 
   GST_DEBUG_OBJECT (phoenixsrc, "start");
 
@@ -379,11 +405,53 @@ gst_phoenixsrc_start (GstBaseSrc * src)
     goto Error;
   }
 
+  /* TODO: hacky, use enums or something */
+  eCamConfig = PHX_DIGITAL;
+  switch (phoenixsrc->board) {
+    case 0:
+      eCamConfig |= PHX_BOARD_AUTO;
+      break;
+    case 1:
+      eCamConfig |= PHX_BOARD1;
+      break;
+    case 2:
+      eCamConfig |= PHX_BOARD2;
+      break;
+    case 3:
+      eCamConfig |= PHX_BOARD3;
+      break;
+    case 4:
+      eCamConfig |= PHX_BOARD4;
+      break;
+    case 5:
+      eCamConfig |= PHX_BOARD5;
+      break;
+    case 6:
+      eCamConfig |= PHX_BOARD6;
+      break;
+    case 7:
+      eCamConfig |= PHX_BOARD7;
+      break;
+    default:
+      g_assert_not_reached ();
+  }
+
+  switch (phoenixsrc->channel) {
+    case 0:
+      eCamConfig |= PHX_CHANNEL_AUTO;
+      break;
+    case 1:
+      eCamConfig |= PHX_CHANNEL1;
+      break;
+    case 2:
+      eCamConfig |= PHX_CHANNEL2;
+      break;
+  }
+
   /* Initialize board */
-  /* TODO: this picks first digital board using default settings, parameterize this! */
   eStat =
       PHX_CameraConfigLoad (&phoenixsrc->hCamera, phoenixsrc->config_filepath,
-      PHX_BOARD_AUTO | PHX_DIGITAL, PHX_ErrHandlerDefault);
+      (etCamConfigLoad) eCamConfig, PHX_ErrHandlerDefault);
   if (eStat != PHX_OK) {
     GST_ELEMENT_ERROR (phoenixsrc, LIBRARY, INIT, (NULL), (NULL));
     goto Error;

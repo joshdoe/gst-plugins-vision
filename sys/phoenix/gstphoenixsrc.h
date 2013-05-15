@@ -62,6 +62,8 @@ struct _GstPhoenixSrc
   /* properties */
   gchar *config_filepath;
   guint num_capture_buffers;
+  guint board;
+  guint channel;
 
   GstClockTime first_phoenix_ts;
   guint64 *frame_start_times;
