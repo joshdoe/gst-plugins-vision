@@ -68,7 +68,7 @@ struct _GstNiImaqDxSrc {
   int width;
   int height;
   int dx_row_stride;
-  gint framesize;
+  gint dx_framesize;
   guint8 *temp_buffer;
   const ImaqDxCapsInfo *caps_info;
 
@@ -85,7 +85,7 @@ struct _GstNiImaqDxSrc {
   GstDateTime *start_time;
   gboolean start_time_sent;
 
-  GMutex *mutex;
+  GMutex mutex;
 };
 
 struct _GstNiImaqDxSrcClass {
