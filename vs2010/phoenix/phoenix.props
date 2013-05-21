@@ -6,10 +6,10 @@
 	</PropertyGroup>
 	<ItemDefinitionGroup>
 		<ClCompile>
-			<AdditionalIncludeDirectories>C:\Program Files (x86)\Active Silicon\Phoenix\Win\SDK5.83\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+			<AdditionalIncludeDirectories>C:\Program Files (x86)\Active Silicon\Phoenix\Win\SDK6.30\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
 		</ClCompile>
 		<Link>
-			<AdditionalLibraryDirectories>C:\Program Files (x86)\Active Silicon\Phoenix\Win\SDK5.83\Lib\win32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+			<AdditionalLibraryDirectories>C:\Program Files (x86)\Active Silicon\Phoenix\Win\SDK6.30\Lib\win32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
 			<AdditionalDependencies>phxlw32.lib;%(AdditionalDependencies)</AdditionalDependencies>
 		</Link>
 	</ItemDefinitionGroup>

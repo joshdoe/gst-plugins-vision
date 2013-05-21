@@ -68,7 +68,6 @@ struct _GstPhoenixSrc
   GstClockTime first_phoenix_ts;
   guint64 *frame_start_times;
   guint64 *frame_end_times;
-  guint32 buffer_size;
   gboolean buffer_ready;
   guint buffer_ready_count;
   guint frame_start_count;
@@ -76,6 +75,9 @@ struct _GstPhoenixSrc
   guint buffer_processed_count;
   gboolean timeout_occurred;
   gboolean fifo_overflow_occurred;
+
+  GstVideoInfo vinfo;
+  guint phx_stride;
 
   GMutex mutex;
   GCond cond;
