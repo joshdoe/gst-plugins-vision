@@ -76,7 +76,8 @@ struct _GstPhoenixSrc
   gboolean timeout_occurred;
   gboolean fifo_overflow_occurred;
 
-  GstVideoInfo vinfo;
+  gint height;
+  gint gst_stride;
   guint phx_stride;
 
   GMutex mutex;
