@@ -75,7 +75,12 @@ static GstStaticPadTemplate gst_videolevels_src_template =
 GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("{ GRAY16_LE, GRAY16_BE }"))
+    GST_STATIC_CAPS ("video/x-raw, "
+        "format = (string) { GRAY16_LE, GRAY16_BE }, "
+        "bpp = (int) {16, 14, 12, 10}, "
+        "width = " GST_VIDEO_SIZE_RANGE ", "
+        "height = " GST_VIDEO_SIZE_RANGE ", "
+        "framerate = " GST_VIDEO_FPS_RANGE)
     );
 
 static GstStaticPadTemplate gst_videolevels_sink_template =
@@ -376,15 +381,10 @@ gst_videolevels_transform_caps (GstBaseTransform * trans,
       continue;
 
     st = gst_structure_copy (st);
-    gst_structure_remove_fields (st, "format", NULL);
+    gst_structure_remove_fields (st, "format", "bpp", NULL);
 
     gst_caps_append_structure (other_caps, st);
   }
-
-  /* finish settings caps of the opposite pad */
-  //if (direction == GST_PAD_SINK) {
-  //  "GRAY8";
-
 
   if (!gst_caps_is_empty (other_caps) && filter_caps) {
     GstCaps *tmp = gst_caps_intersect_full (filter_caps, other_caps,
@@ -401,6 +401,7 @@ gst_videolevels_set_info (GstVideoFilter * filter, GstCaps * incaps,
     GstVideoInfo * in_info, GstCaps * outcaps, GstVideoInfo * out_info)
 {
   GstVideoLevels *levels = GST_VIDEOLEVELS (filter);
+  GstStructure *s;
   gboolean res;
 
   GST_DEBUG_OBJECT (levels,
@@ -408,6 +409,10 @@ gst_videolevels_set_info (GstVideoFilter * filter, GstCaps * incaps,
 
   memcpy (&levels->info_in, in_info, sizeof (GstVideoInfo));
   memcpy (&levels->info_out, out_info, sizeof (GstVideoInfo));
+
+  s = gst_caps_get_structure (incaps, 0);
+  if (!gst_structure_get_int (s, "bpp", &levels->bpp_in))
+    levels->bpp_in = 16;
 
   res = gst_videolevels_calculate_lut (levels);
 
@@ -534,7 +539,7 @@ gst_videolevels_calculate_lut_uint16_to_uint8 (GstVideoLevels * videolevels,
   gdouble m;
   gdouble b;
   guint8 *lut = (guint8 *) videolevels->lookup_table;
-  const guint16 max_in = (1 << videolevels->info_in.finfo->bits) - 1;
+  const guint16 max_in = (1 << videolevels->bpp_in) - 1;
   const guint16 low_in = (guint16) (videolevels->lower_input * max_in);
   const guint16 high_in = (guint16) (videolevels->upper_input * max_in);
   const guint8 max_out = (1 << videolevels->info_out.finfo->bits) - 1;
@@ -625,7 +630,7 @@ gst_videolevels_calculate_histogram (GstVideoLevels * videolevels,
     endianness = G_BYTE_ORDER;
 
 
-  factor = nbins / (gfloat) (1 << videolevels->info_in.finfo->bits);
+  factor = nbins / (gfloat) (1 << videolevels->bpp_in);
 
   if (videolevels->histogram == NULL) {
     GST_DEBUG_OBJECT (videolevels,
@@ -674,7 +679,7 @@ gst_videolevels_auto_adjust (GstVideoLevels * videolevels, guint16 * data)
   gint i;
   gint size;
   gdouble min = 0.0;
-  gdouble max = (1 << videolevels->info_in.finfo->bits) - 1.0;
+  gdouble max = (1 << videolevels->bpp_in) - 1.0;
 
   gst_videolevels_calculate_histogram (videolevels, data);
 

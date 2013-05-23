@@ -70,6 +70,7 @@ struct _GstVideoLevels
   GstVideoFilter element;
 
   /* format */
+  gint bpp_in;
   GstVideoInfo info_in;
   GstVideoInfo info_out;
 
