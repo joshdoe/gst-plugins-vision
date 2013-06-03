@@ -60,12 +60,6 @@ enum
 #define DEFAULT_PROP_RING_BUFFER_COUNT 3
 #define DEFAULT_PROP_ATTRIBUTES ""
 
-static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
-    GST_PAD_SRC,
-    GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("ANY")
-    );
-
 static void gst_niimaqdxsrc_init_interfaces (GType type);
 
 G_DEFINE_TYPE (GstNiImaqDxSrc, gst_niimaqdxsrc, GST_TYPE_PUSH_SRC);
@@ -81,12 +75,14 @@ static void gst_niimaqdxsrc_get_property (GObject * object, guint prop_id,
 static gboolean gst_niimaqdxsrc_start (GstBaseSrc * src);
 static gboolean gst_niimaqdxsrc_stop (GstBaseSrc * src);
 static gboolean gst_niimaqdxsrc_query (GstBaseSrc * src, GstQuery * query);
+static GstCaps *gst_niimaqdxsrc_get_caps (GstBaseSrc * bsrc,
+    GstCaps * caps_filter);
+static gboolean gst_niimaqdxsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps);
 
 /* GstPushSrc virtual methods */
 static GstFlowReturn gst_niimaqdxsrc_fill (GstPushSrc * src, GstBuffer * buf);
 
 /* GstNiImaqDx methods */
-static gboolean gst_niimaqdxsrc_set_caps (GstNiImaqDxSrc * niimaqdxsrc);
 static GstCaps *gst_niimaqdxsrc_get_cam_caps (GstNiImaqDxSrc * src);
 static gboolean gst_niimaqdxsrc_close_interface (GstNiImaqDxSrc * niimaqdxsrc);
 static void gst_niimaqdxsrc_reset (GstNiImaqDxSrc * niimaqdxsrc);
@@ -142,12 +138,21 @@ gst_niimaqdxsrc_frame_done_callback (IMAQdxSession session, uInt32 bufferNumber,
   return 1;
 }
 
-#define GST_VIDEO_CAPS_BAYER(format)                                \
-    "video/x-bayer, "                                           \
-    "format = " format ","                                          \
-    "width = " GST_VIDEO_SIZE_RANGE ", "                            \
-    "height = " GST_VIDEO_SIZE_RANGE ", "                           \
-    "framerate = " GST_VIDEO_FPS_RANGE
+#define VIDEO_CAPS_MAKE_BAYER8(format)                     \
+   "video/x-bayer, "                                       \
+  "format = (string) { " format " }, "                     \
+  "width = " GST_VIDEO_SIZE_RANGE ", "                     \
+  "height = " GST_VIDEO_SIZE_RANGE ", "                    \
+  "framerate = " GST_VIDEO_FPS_RANGE
+
+#define VIDEO_CAPS_MAKE_BAYER16(format,endianness)         \
+  "video/x-bayer, "                                        \
+  "format = (string) { " format " }, "                     \
+  "endianness = (int) { " endianness " }, "                \
+  "bpp = (int) {16, 14, 12, 10}, "                         \
+  "width = " GST_VIDEO_SIZE_RANGE ", "                     \
+  "height = " GST_VIDEO_SIZE_RANGE ", "                    \
+  "framerate = " GST_VIDEO_FPS_RANGE
 
 ImaqDxCapsInfo imaq_dx_caps_infos[] = {
   {"Mono 8", 0, GST_VIDEO_CAPS_MAKE ("GRAY8"), 8, 8, 4}
@@ -161,10 +166,10 @@ ImaqDxCapsInfo imaq_dx_caps_infos[] = {
   ,
   {"YUV 422 Packed", 0, GST_VIDEO_CAPS_MAKE ("UYVY"), 16, 16, 4}
   ,
-  {"Bayer BG 8", 0, GST_VIDEO_CAPS_BAYER ("bggr"), 8, 8, 1}
+  {"Bayer BG 8", 0, VIDEO_CAPS_MAKE_BAYER8 ("bggr"), 8, 8, 1}
   ,
   //TODO: use a caps string that agrees with Aravis
-  {"Bayer BG 16", 0, GST_VIDEO_CAPS_BAYER ("bggr16"), 16, 16, 1}
+  {"Bayer BG 16", 0, VIDEO_CAPS_MAKE_BAYER16 ("bggr16", "1234"), 16, 16, 1}
 };
 
 static ImaqDxCapsInfo *
@@ -379,8 +384,17 @@ gst_niimaqdxsrc_class_init (GstNiImaqDxSrcClass * klass)
           "Attributes", "Initial attributes to set", DEFAULT_PROP_ATTRIBUTES,
           G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
 
-  gst_element_class_add_pad_template (gstelement_class,
-      gst_static_pad_template_get (&src_factory));
+  {
+    GstCaps *caps = gst_caps_new_empty ();
+    int i;
+
+    for (i = 0; i < G_N_ELEMENTS (imaq_dx_caps_infos); i++) {
+      ImaqDxCapsInfo *info = &imaq_dx_caps_infos[i];
+      gst_caps_append (caps, gst_caps_from_string (info->gst_caps_string));
+    }
+    gst_element_class_add_pad_template (gstelement_class,
+        gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS, caps));
+  }
 
   gst_element_class_set_static_metadata (gstelement_class,
       "NI-IMAQdx Video Source", "Source/Video",
@@ -391,6 +405,8 @@ gst_niimaqdxsrc_class_init (GstNiImaqDxSrcClass * klass)
   gstbasesrc_class->start = GST_DEBUG_FUNCPTR (gst_niimaqdxsrc_start);
   gstbasesrc_class->stop = GST_DEBUG_FUNCPTR (gst_niimaqdxsrc_stop);
   gstbasesrc_class->query = GST_DEBUG_FUNCPTR (gst_niimaqdxsrc_query);
+  gstbasesrc_class->get_caps = GST_DEBUG_FUNCPTR (gst_niimaqdxsrc_get_caps);
+  gstbasesrc_class->set_caps = GST_DEBUG_FUNCPTR (gst_niimaqdxsrc_set_caps);
 
   /* install GstPushSrc vmethod implementations */
   gstpushsrc_class->fill = GST_DEBUG_FUNCPTR (gst_niimaqdxsrc_fill);
@@ -499,50 +515,6 @@ gst_niimaqdxsrc_get_property (GObject * object, guint prop_id, GValue * value,
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
-}
-
-gboolean
-gst_niimaqdxsrc_set_caps (GstNiImaqDxSrc * niimaqdxsrc)
-{
-  gboolean res = TRUE;
-  GstStructure *structure;
-  const char *pixel_format;
-  int endianness;
-  GstCaps *caps;
-
-  caps = gst_niimaqdxsrc_get_cam_caps (niimaqdxsrc);
-
-  structure = gst_caps_get_structure (caps, 0);
-
-  gst_structure_get_int (structure, "width", &niimaqdxsrc->width);
-  gst_structure_get_int (structure, "height", &niimaqdxsrc->height);
-
-  pixel_format = gst_niimaqdxsrc_pixel_format_from_caps (caps, &endianness);
-  g_assert (pixel_format);
-
-  niimaqdxsrc->caps_info =
-      gst_niimaqdxsrc_get_caps_info (pixel_format, endianness);
-
-  niimaqdxsrc->dx_row_stride =
-      gst_niimaqdxsrc_pixel_format_get_stride (pixel_format, endianness,
-      niimaqdxsrc->width);
-
-  niimaqdxsrc->dx_framesize = niimaqdxsrc->dx_row_stride * niimaqdxsrc->height;
-
-  if (niimaqdxsrc->temp_buffer)
-    g_free (niimaqdxsrc->temp_buffer);
-
-  niimaqdxsrc->temp_buffer = g_malloc (niimaqdxsrc->dx_framesize);
-
-  GST_DEBUG ("Size %dx%d", niimaqdxsrc->width, niimaqdxsrc->height);
-
-  GST_LOG_OBJECT (niimaqdxsrc, "Caps set, framesize=%d",
-      niimaqdxsrc->dx_framesize);
-
-  GST_LOG_OBJECT (niimaqdxsrc, "Setting srcpad caps to %" GST_PTR_FORMAT, caps);
-  gst_pad_set_caps (GST_BASE_SRC_PAD (niimaqdxsrc), caps);
-
-  return res;
 }
 
 static void
@@ -912,7 +884,6 @@ gst_niimaqdxsrc_start (GstBaseSrc * src)
   GstNiImaqDxSrc *niimaqdxsrc = GST_NIIMAQDXSRC (src);
   IMAQdxError rval;
   gint i;
-  gboolean ret;
 
   gst_niimaqdxsrc_reset (niimaqdxsrc);
 
@@ -964,9 +935,7 @@ gst_niimaqdxsrc_start (GstBaseSrc * src)
 
   gst_niimaqdxsrc_set_dx_attributes (niimaqdxsrc);
 
-  ret = gst_niimaqdxsrc_set_caps (niimaqdxsrc);
-
-  return ret;
+  return TRUE;
 
 error:
   gst_niimaqdxsrc_close_interface (niimaqdxsrc);
@@ -1011,24 +980,23 @@ gst_niimaqdxsrc_stop (GstBaseSrc * src)
 }
 
 static gboolean
-gst_niimaqdxsrc_query (GstBaseSrc * src, GstQuery * query)
+gst_niimaqdxsrc_query (GstBaseSrc * bsrc, GstQuery * query)
 {
-  GstNiImaqDxSrc *niimaqdxsrc = GST_NIIMAQDXSRC (src);
+  GstNiImaqDxSrc *src = GST_NIIMAQDXSRC (bsrc);
   gboolean res;
 
   switch (GST_QUERY_TYPE (query)) {
     case GST_QUERY_LATENCY:{
-      if (!niimaqdxsrc->session_started) {
-        GST_WARNING_OBJECT (niimaqdxsrc,
-            "Can't give latency since device isn't open!");
+      if (!src->session_started) {
+        GST_WARNING_OBJECT (src, "Can't give latency since device isn't open!");
         res = FALSE;
       } else {
         GstClockTime min_latency, max_latency;
         /* TODO: this is a ballpark figure, estimate from FVAL times */
         min_latency = 33 * GST_MSECOND;
-        max_latency = 33 * GST_MSECOND * niimaqdxsrc->ringbuffer_count;
+        max_latency = 33 * GST_MSECOND * src->ringbuffer_count;
 
-        GST_LOG_OBJECT (niimaqdxsrc,
+        GST_LOG_OBJECT (src,
             "report latency min %" GST_TIME_FORMAT " max %" GST_TIME_FORMAT,
             GST_TIME_ARGS (min_latency), GST_TIME_ARGS (max_latency));
 
@@ -1038,11 +1006,76 @@ gst_niimaqdxsrc_query (GstBaseSrc * src, GstQuery * query)
       }
     }
     default:
-      res = FALSE;
+      res =
+          GST_BASE_SRC_CLASS (gst_niimaqdxsrc_parent_class)->query (bsrc,
+          query);
       break;
   }
 
   return res;
+}
+
+static GstCaps *
+gst_niimaqdxsrc_get_caps (GstBaseSrc * bsrc, GstCaps * filter_caps)
+{
+  GstNiImaqDxSrc *src = GST_NIIMAQDXSRC (bsrc);
+  GstCaps *caps;
+
+  if (!src->session) {
+    caps = gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD (src));
+  } else
+    caps = gst_niimaqdxsrc_get_cam_caps (src);
+
+  GST_DEBUG_OBJECT (bsrc, "get_caps, pre-filter=%" GST_PTR_FORMAT, caps);
+
+  if (filter_caps) {
+    GstCaps *tmp = gst_caps_intersect (caps, filter_caps);
+    gst_caps_unref (caps);
+    caps = tmp;
+  }
+
+  GST_DEBUG_OBJECT (bsrc,
+      "with filter %" GST_PTR_FORMAT ", post-filter=%" GST_PTR_FORMAT,
+      filter_caps, caps);
+
+  return caps;
+}
+
+static gboolean
+gst_niimaqdxsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
+{
+  GstNiImaqDxSrc *src = GST_NIIMAQDXSRC (bsrc);
+  GstStructure *structure;
+  const char *pixel_format;
+  int endianness;
+
+  GST_DEBUG_OBJECT (src, "set_caps with caps=%" GST_PTR_FORMAT, caps);
+
+  structure = gst_caps_get_structure (caps, 0);
+
+  gst_structure_get_int (structure, "width", &src->width);
+  gst_structure_get_int (structure, "height", &src->height);
+
+  pixel_format = gst_niimaqdxsrc_pixel_format_from_caps (caps, &endianness);
+  g_assert (pixel_format);
+
+  src->caps_info = gst_niimaqdxsrc_get_caps_info (pixel_format, endianness);
+
+  src->dx_row_stride =
+      gst_niimaqdxsrc_pixel_format_get_stride (pixel_format, endianness,
+      src->width);
+
+  src->dx_framesize = src->dx_row_stride * src->height;
+
+  if (src->temp_buffer)
+    g_free (src->temp_buffer);
+  src->temp_buffer = g_malloc (src->dx_framesize);
+
+  GST_DEBUG ("Size %dx%d", src->width, src->height);
+
+  GST_LOG_OBJECT (src, "Caps set, framesize=%d", src->dx_framesize);
+
+  return TRUE;
 }
 
 /**

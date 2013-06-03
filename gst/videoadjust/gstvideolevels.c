@@ -72,7 +72,7 @@ static GParamSpec *properties[PROP_LAST];
 
 /* the capabilities of the inputs and outputs */
 static GstStaticPadTemplate gst_videolevels_src_template =
-GST_STATIC_PAD_TEMPLATE ("sink",
+    GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS ("video/x-raw, "
@@ -81,13 +81,20 @@ GST_STATIC_PAD_TEMPLATE ("sink",
         "width = " GST_VIDEO_SIZE_RANGE ", "
         "height = " GST_VIDEO_SIZE_RANGE ", "
         "framerate = " GST_VIDEO_FPS_RANGE)
+    //";"
+    //    "video/x-bayer,format=(string){bggr16,grbg16,gbrg16,rggb16},"
+    //    "bpp=(int){10,12,14,16},endianness={1234,4321},"
+    //    "width=(int)[1,MAX],height=(int)[1,MAX],framerate=(fraction)[0/1,MAX]")
     );
 
 static GstStaticPadTemplate gst_videolevels_sink_template =
-GST_STATIC_PAD_TEMPLATE ("src",
+    GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("GRAY8"))
+    //";"
+    //    "video/x-bayer,format=(string){bggr,grbg,gbrg,rggb},"
+    //    "width=(int)[1,MAX],height=(int)[1,MAX],framerate=(fraction)[0/1,MAX]")
     );
 
 #define GST_TYPE_VIDEOLEVELS_AUTO (gst_videolevels_auto_get_type())
