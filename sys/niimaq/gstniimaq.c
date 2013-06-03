@@ -79,11 +79,11 @@ static void gst_niimaqsrc_get_property (GObject * object, guint prop_id,
     GValue * value, GParamSpec * pspec);
 
 /* GstBaseSrc virtual methods */
-static gboolean gst_niimaqsrc_start (GstBaseSrc * src);
-static gboolean gst_niimaqsrc_stop (GstBaseSrc * src);
-static gboolean gst_niimaqsrc_query (GstBaseSrc * src, GstQuery * query);
-static GstCaps *gst_niimaqsrc_get_caps (GstBaseSrc * src, GstCaps * filter);
-static gboolean gst_niimaqsrc_set_caps (GstBaseSrc * src, GstCaps * caps);
+static gboolean gst_niimaqsrc_start (GstBaseSrc * bsrc);
+static gboolean gst_niimaqsrc_stop (GstBaseSrc * bsrc);
+static gboolean gst_niimaqsrc_query (GstBaseSrc * bsrc, GstQuery * query);
+static GstCaps *gst_niimaqsrc_get_caps (GstBaseSrc * bsrc, GstCaps * filter);
+static gboolean gst_niimaqsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps);
 
 /* GstPushSrc virtual methods */
 static GstFlowReturn gst_niimaqsrc_create (GstPushSrc * psrc,
@@ -91,27 +91,25 @@ static GstFlowReturn gst_niimaqsrc_create (GstPushSrc * psrc,
 
 /* GstNiImaq methods */
 static GstCaps *gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * src);
-static gboolean gst_niimaqsrc_close_interface (GstNiImaqSrc * niimaqsrc);
+static gboolean gst_niimaqsrc_close_interface (GstNiImaqSrc * src);
 
-uInt32
-gst_niimaqsrc_report_imaq_error (uInt32 code)
-{
-  static char imaq_error_string[256];
-  if (code) {
-    imgShowError (code, imaq_error_string);
-    GST_ERROR ("IMAQ error: %s", imaq_error_string);
-  }
-  return code;
+#define gst_niimaqsrc_report_imaq_error(code)        \
+{                                                    \
+  static char imaq_error_string[256];                \
+  if (code) {                                        \
+    imgShowError (code, imaq_error_string);          \
+    GST_ERROR ("IMAQ error: %s", imaq_error_string); \
+  }                                                  \
 }
 
 uInt32
 gst_niimaqsrc_aq_in_progress_callback (SESSION_ID sid, IMG_ERR err,
     IMG_SIGNAL_TYPE signal_type, uInt32 signal_identifier, void *userdata)
 {
-  GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (userdata);
-  if (niimaqsrc->session_started)
-    GST_ERROR_OBJECT (niimaqsrc, "Session already started");
-  niimaqsrc->session_started = TRUE;
+  GstNiImaqSrc *src = GST_NIIMAQSRC (userdata);
+  if (src->session_started)
+    GST_ERROR_OBJECT (src, "Session already started");
+  src->session_started = TRUE;
   return 0;                     /* don't re-arm */
 }
 
@@ -119,10 +117,10 @@ uInt32
 gst_niimaqsrc_aq_done_callback (SESSION_ID sid, IMG_ERR err,
     IMG_SIGNAL_TYPE signal_type, uInt32 signal_identifier, void *userdata)
 {
-  GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (userdata);
-  if (!niimaqsrc->session_started)
-    GST_ERROR_OBJECT (niimaqsrc, "Session not started");
-  niimaqsrc->session_started = FALSE;
+  GstNiImaqSrc *src = GST_NIIMAQSRC (userdata);
+  if (!src->session_started)
+    GST_ERROR_OBJECT (src, "Session not started");
+  src->session_started = FALSE;
   return 0;                     /* don't re-arm */
 }
 
@@ -134,32 +132,32 @@ uInt32
 gst_niimaqsrc_frame_start_callback (SESSION_ID sid, IMG_ERR err,
     IMG_SIGNAL_TYPE signal_type, uInt32 signal_identifier, void *userdata)
 {
-  GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (userdata);
+  GstNiImaqSrc *src = GST_NIIMAQSRC (userdata);
   GstClockTime abstime;
   static guint32 index = 0;
 
-  g_mutex_lock (&niimaqsrc->mutex);
+  g_mutex_lock (&src->mutex);
 
   /* time hasn't been read yet, this frame will be dropped */
-  if (niimaqsrc->times[index] != GST_CLOCK_TIME_NONE) {
-    g_mutex_unlock (&niimaqsrc->mutex);
+  if (src->times[index] != GST_CLOCK_TIME_NONE) {
+    g_mutex_unlock (&src->mutex);
     return 1;
   }
 
   /* get clock time */
-  abstime = gst_clock_get_time (GST_ELEMENT_CLOCK (niimaqsrc));
-  niimaqsrc->times[index] = abstime;
+  abstime = gst_clock_get_time (GST_ELEMENT_CLOCK (src));
+  src->times[index] = abstime;
 
-  if (G_UNLIKELY (niimaqsrc->start_time == NULL))
-    niimaqsrc->start_time = gst_date_time_new_now_utc ();
+  if (G_UNLIKELY (src->start_time == NULL))
+    src->start_time = gst_date_time_new_now_utc ();
 
   /* first frame, use as element base time */
-  if (niimaqsrc->base_time == GST_CLOCK_TIME_NONE)
-    niimaqsrc->base_time = abstime;
+  if (src->base_time == GST_CLOCK_TIME_NONE)
+    src->base_time = abstime;
 
-  index = (index + 1) % niimaqsrc->bufsize;
+  index = (index + 1) % src->bufsize;
 
-  g_mutex_unlock (&niimaqsrc->mutex);
+  g_mutex_unlock (&src->mutex);
 
   /* return 1 to rearm the callback */
   return 1;
@@ -304,22 +302,22 @@ gst_niimaqsrc_class_init (GstNiImaqSrcClass * klass)
 }
 
 static void
-gst_niimaqsrc_init (GstNiImaqSrc * niimaqsrc)
+gst_niimaqsrc_init (GstNiImaqSrc * src)
 {
-  GstPad *srcpad = GST_BASE_SRC_PAD (niimaqsrc);
+  GstPad *srcpad = GST_BASE_SRC_PAD (src);
 
   /* set source as live (no preroll) */
-  gst_base_src_set_live (GST_BASE_SRC (niimaqsrc), TRUE);
+  gst_base_src_set_live (GST_BASE_SRC (src), TRUE);
 
   /* override default of BYTES to operate in time mode */
-  gst_base_src_set_format (GST_BASE_SRC (niimaqsrc), GST_FORMAT_TIME);
+  gst_base_src_set_format (GST_BASE_SRC (src), GST_FORMAT_TIME);
 
-  g_mutex_init (&niimaqsrc->mutex);
+  g_mutex_init (&src->mutex);
 
   /* initialize properties */
-  niimaqsrc->bufsize = DEFAULT_PROP_RING_BUFFER_COUNT;
-  niimaqsrc->interface_name = g_strdup (DEFAULT_PROP_DEVICE);
-  niimaqsrc->avoid_copy = DEFAULT_PROP_AVOID_COPY;
+  src->bufsize = DEFAULT_PROP_RING_BUFFER_COUNT;
+  src->interface_name = g_strdup (DEFAULT_PROP_DEVICE);
+  src->avoid_copy = DEFAULT_PROP_AVOID_COPY;
 }
 
 /**
@@ -331,18 +329,18 @@ gst_niimaqsrc_init (GstNiImaqSrc * niimaqsrc)
 static void
 gst_niimaqsrc_dispose (GObject * object)
 {
-  GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (object);
+  GstNiImaqSrc *src = GST_NIIMAQSRC (object);
 
-  gst_niimaqsrc_close_interface (niimaqsrc);
+  gst_niimaqsrc_close_interface (src);
 
   /* free memory allocated */
-  g_free (niimaqsrc->interface_name);
-  niimaqsrc->interface_name = NULL;
+  g_free (src->interface_name);
+  src->interface_name = NULL;
 
   /* unref objects */
-  if (niimaqsrc->start_time) {
-    gst_date_time_unref (niimaqsrc->start_time);
-    niimaqsrc->start_time = NULL;
+  if (src->start_time) {
+    gst_date_time_unref (src->start_time);
+    src->start_time = NULL;
   }
 
   /* chain dispose fuction of parent class */
@@ -353,19 +351,19 @@ static void
 gst_niimaqsrc_set_property (GObject * object, guint prop_id,
     const GValue * value, GParamSpec * pspec)
 {
-  GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (object);
+  GstNiImaqSrc *src = GST_NIIMAQSRC (object);
 
   switch (prop_id) {
     case PROP_DEVICE:
-      if (niimaqsrc->interface_name)
-        g_free (niimaqsrc->interface_name);
-      niimaqsrc->interface_name = g_strdup (g_value_get_string (value));
+      if (src->interface_name)
+        g_free (src->interface_name);
+      src->interface_name = g_strdup (g_value_get_string (value));
       break;
     case PROP_RING_BUFFER_COUNT:
-      niimaqsrc->bufsize = g_value_get_int (value);
+      src->bufsize = g_value_get_int (value);
       break;
     case PROP_AVOID_COPY:
-      niimaqsrc->avoid_copy = g_value_get_boolean (value);
+      src->avoid_copy = g_value_get_boolean (value);
       break;
     default:
       break;
@@ -376,17 +374,17 @@ static void
 gst_niimaqsrc_get_property (GObject * object, guint prop_id, GValue * value,
     GParamSpec * pspec)
 {
-  GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (object);
+  GstNiImaqSrc *src = GST_NIIMAQSRC (object);
 
   switch (prop_id) {
     case PROP_DEVICE:
-      g_value_set_string (value, niimaqsrc->interface_name);
+      g_value_set_string (value, src->interface_name);
       break;
     case PROP_RING_BUFFER_COUNT:
-      g_value_set_int (value, niimaqsrc->bufsize);
+      g_value_set_int (value, src->bufsize);
       break;
     case PROP_AVOID_COPY:
-      g_value_set_boolean (value, niimaqsrc->avoid_copy);
+      g_value_set_boolean (value, src->avoid_copy);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -428,71 +426,71 @@ gst_niimaqsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 }
 
 static void
-gst_niimaqsrc_reset (GstNiImaqSrc * niimaqsrc)
+gst_niimaqsrc_reset (GstNiImaqSrc * src)
 {
-  GST_LOG_OBJECT (niimaqsrc, "Resetting instance");
+  GST_LOG_OBJECT (src, "Resetting instance");
 
   /* initialize member variables */
-  niimaqsrc->n_frames = 0;
-  niimaqsrc->cumbufnum = 0;
-  niimaqsrc->n_dropped_frames = 0;
-  niimaqsrc->sid = 0;
-  niimaqsrc->iid = 0;
-  niimaqsrc->session_started = FALSE;
-  niimaqsrc->format = GST_VIDEO_FORMAT_UNKNOWN;
-  niimaqsrc->width = 0;
-  niimaqsrc->height = 0;
-  niimaqsrc->rowpixels = 0;
-  niimaqsrc->start_time = NULL;
-  niimaqsrc->start_time_sent = FALSE;
-  niimaqsrc->base_time = GST_CLOCK_TIME_NONE;
+  src->n_frames = 0;
+  src->cumbufnum = 0;
+  src->n_dropped_frames = 0;
+  src->sid = 0;
+  src->iid = 0;
+  src->session_started = FALSE;
+  src->format = GST_VIDEO_FORMAT_UNKNOWN;
+  src->width = 0;
+  src->height = 0;
+  src->rowpixels = 0;
+  src->start_time = NULL;
+  src->start_time_sent = FALSE;
+  src->base_time = GST_CLOCK_TIME_NONE;
 
-  g_free (niimaqsrc->buflist);
-  niimaqsrc->buflist = NULL;
+  g_free (src->buflist);
+  src->buflist = NULL;
 
-  g_free (niimaqsrc->times);
-  niimaqsrc->times = NULL;
+  g_free (src->times);
+  src->times = NULL;
 }
 
 static gboolean
-gst_niimaqsrc_start_acquisition (GstNiImaqSrc * niimaqsrc)
+gst_niimaqsrc_start_acquisition (GstNiImaqSrc * src)
 {
   int i;
   gint32 rval;
 
-  g_assert (!niimaqsrc->session_started);
+  g_assert (!src->session_started);
 
-  GST_DEBUG_OBJECT (niimaqsrc, "Starting acquisition");
+  GST_DEBUG_OBJECT (src, "Starting acquisition");
 
   /* try to open the camera five times */
   for (i = 0; i < 5; i++) {
-    rval = imgSessionStartAcquisition (niimaqsrc->sid);
+    rval = imgSessionStartAcquisition (src->sid);
     if (rval == IMG_ERR_GOOD) {
       return TRUE;
     } else {
       gst_niimaqsrc_report_imaq_error (rval);
-      GST_LOG_OBJECT (niimaqsrc, "camera is still off , wait 50ms and retry");
+      GST_LOG_OBJECT (src, "camera is still off , wait 50ms and retry");
       g_usleep (50000);
     }
   }
 
   /* we tried five times and failed, so we error */
-  gst_niimaqsrc_close_interface (niimaqsrc);
+  gst_niimaqsrc_close_interface (src);
 
   return FALSE;
 }
 
 static GstClockTime
-gst_niimaqsrc_get_timestamp_from_buffer_number (GstNiImaqSrc * niimaqsrc,
+gst_niimaqsrc_get_timestamp_from_buffer_number (GstNiImaqSrc * src,
     guint32 buffer_number)
 {
   GstClockTime abstime;
 
-  abstime = niimaqsrc->times[(buffer_number) % niimaqsrc->bufsize];
-  niimaqsrc->times[(buffer_number) % niimaqsrc->bufsize] = GST_CLOCK_TIME_NONE;
+  abstime = src->times[(buffer_number) % src->bufsize];
+  src->times[(buffer_number) % src->bufsize] = GST_CLOCK_TIME_NONE;
 
   if (abstime == GST_CLOCK_TIME_NONE)
-    GST_WARNING_OBJECT (niimaqsrc,
+    GST_WARNING_OBJECT (src,
         "No valid time found for buffer %d, callback failed?", buffer_number);
 
   return abstime;
@@ -501,14 +499,14 @@ gst_niimaqsrc_get_timestamp_from_buffer_number (GstNiImaqSrc * niimaqsrc,
 static void
 gst_niimaqsrc_release_buffer (gpointer data)
 {
-  GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (data);
-  imgSessionReleaseBuffer (niimaqsrc->sid);
+  GstNiImaqSrc *src = GST_NIIMAQSRC (data);
+  imgSessionReleaseBuffer (src->sid);
 }
 
 static GstFlowReturn
 gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
 {
-  GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (psrc);
+  GstNiImaqSrc *src = GST_NIIMAQSRC (psrc);
   GstFlowReturn ret = GST_FLOW_OK;
   GstClockTime timestamp;
   GstClockTime duration;
@@ -520,31 +518,31 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
   GstMapInfo minfo;
 
   /* we can only do a no-copy if strides are property byte aligned */
-  no_copy = niimaqsrc->avoid_copy && niimaqsrc->width == niimaqsrc->rowpixels;
+  no_copy = src->avoid_copy && src->width == src->rowpixels;
 
   /* start the IMAQ acquisition session if we haven't done so yet */
-  if (!niimaqsrc->session_started) {
-    if (!gst_niimaqsrc_start_acquisition (niimaqsrc)) {
-      GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED,
+  if (!src->session_started) {
+    if (!gst_niimaqsrc_start_acquisition (src)) {
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
           ("Unable to start acquisition."), (NULL));
       return GST_FLOW_ERROR;
     }
   }
 
   if (no_copy) {
-    GST_LOG_OBJECT (niimaqsrc,
-        "Sending IMAQ buffer #%d along without copying", niimaqsrc->cumbufnum);
+    GST_LOG_OBJECT (src,
+        "Sending IMAQ buffer #%d along without copying", src->cumbufnum);
     *buffer = gst_buffer_new ();
     if (G_UNLIKELY (*buffer == NULL))
       goto error;
   } else {
-    GST_LOG_OBJECT (niimaqsrc, "Copying IMAQ buffer #%d, size %d",
-        niimaqsrc->cumbufnum, niimaqsrc->framesize);
+    GST_LOG_OBJECT (src, "Copying IMAQ buffer #%d, size %d",
+        src->cumbufnum, src->framesize);
     ret =
         GST_BASE_SRC_CLASS (gst_niimaqsrc_parent_class)->alloc (GST_BASE_SRC
-        (niimaqsrc), 0, niimaqsrc->framesize, buffer);
+        (src), 0, src->framesize, buffer);
     if (ret != GST_FLOW_OK) {
-      GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED,
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
           ("Failed to allocate buffer"),
           ("Failed to get downstream pad to allocate buffer"));
       goto error;
@@ -554,54 +552,54 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
   //{
   // guint32 *data;
   // int i;
-  //    rval = imgSessionExamineBuffer2 (niimaqsrc->sid, niimaqsrc->cumbufnum, &copied_number, &data);
-  // for (i=0; i<niimaqsrc->bufsize;i++)
-  //  if (data == niimaqsrc->buflist[i])
+  //    rval = imgSessionExamineBuffer2 (src->sid, src->cumbufnum, &copied_number, &data);
+  // for (i=0; i<src->bufsize;i++)
+  //  if (data == src->buflist[i])
   //        break;
-  // timestamp = niimaqsrc->times[i];
-  // memcpy (GST_BUFFER_DATA (*buffer), data, niimaqsrc->framesize);
-  // niimaqsrc->times[i] = GST_CLOCK_TIME_NONE;
-  // imgSessionReleaseBuffer (niimaqsrc->sid); //TODO: mutex here?
+  // timestamp = src->times[i];
+  // memcpy (GST_BUFFER_DATA (*buffer), data, src->framesize);
+  // src->times[i] = GST_CLOCK_TIME_NONE;
+  // imgSessionReleaseBuffer (src->sid); //TODO: mutex here?
   //}
   if (no_copy) {
     /* FIXME: with callback change, is this broken now? mutex... */
     gpointer data;
     rval =
-        imgSessionExamineBuffer2 (niimaqsrc->sid, niimaqsrc->cumbufnum,
+        imgSessionExamineBuffer2 (src->sid, src->cumbufnum,
         &copied_number, &data);
     gst_buffer_append_memory (*buffer,
         gst_memory_new_wrapped (GST_MEMORY_FLAG_READONLY, data,
-            niimaqsrc->framesize, 0, niimaqsrc->framesize, niimaqsrc,
+            src->framesize, 0, src->framesize, src,
             gst_niimaqsrc_release_buffer));
-  } else if (niimaqsrc->width == niimaqsrc->rowpixels) {
+  } else if (src->width == src->rowpixels) {
     /* TODO: optionally use ExamineBuffer and byteswap in transfer (to offer BIG_ENDIAN) */
     gst_buffer_map (*buffer, &minfo, GST_MAP_WRITE);
-    g_mutex_lock (&niimaqsrc->mutex);
+    g_mutex_lock (&src->mutex);
     rval =
-        imgSessionCopyBufferByNumber (niimaqsrc->sid, niimaqsrc->cumbufnum,
+        imgSessionCopyBufferByNumber (src->sid, src->cumbufnum,
         minfo.data, IMG_OVERWRITE_GET_OLDEST, &copied_number, &copied_index);
-    timestamp = niimaqsrc->times[copied_index];
-    niimaqsrc->times[copied_index] = GST_CLOCK_TIME_NONE;
-    g_mutex_unlock (&niimaqsrc->mutex);
+    timestamp = src->times[copied_index];
+    src->times[copied_index] = GST_CLOCK_TIME_NONE;
+    g_mutex_unlock (&src->mutex);
     gst_buffer_unmap (*buffer, &minfo);
   } else {
     gst_buffer_map (*buffer, &minfo, GST_MAP_WRITE);
-    g_mutex_lock (&niimaqsrc->mutex);
+    g_mutex_lock (&src->mutex);
     rval =
-        imgSessionCopyAreaByNumber (niimaqsrc->sid, niimaqsrc->cumbufnum, 0, 0,
-        niimaqsrc->height, niimaqsrc->width, minfo.data, niimaqsrc->rowpixels,
+        imgSessionCopyAreaByNumber (src->sid, src->cumbufnum, 0, 0,
+        src->height, src->width, minfo.data, src->rowpixels,
         IMG_OVERWRITE_GET_OLDEST, &copied_number, &copied_index);
-    timestamp = niimaqsrc->times[copied_index];
-    niimaqsrc->times[copied_index] = GST_CLOCK_TIME_NONE;
-    g_mutex_unlock (&niimaqsrc->mutex);
+    timestamp = src->times[copied_index];
+    src->times[copied_index] = GST_CLOCK_TIME_NONE;
+    g_mutex_unlock (&src->mutex);
     gst_buffer_unmap (*buffer, &minfo);
   }
 
   if (rval) {
     gst_niimaqsrc_report_imaq_error (rval);
-    GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED,
-        ("failed to copy buffer %d", niimaqsrc->cumbufnum),
-        ("failed to copy buffer %d", niimaqsrc->cumbufnum));
+    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+        ("failed to copy buffer %d", src->cumbufnum),
+        ("failed to copy buffer %d", src->cumbufnum));
     goto error;
   }
 
@@ -615,30 +613,28 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
   GST_BUFFER_OFFSET (*buffer) = copied_number;
   GST_BUFFER_OFFSET_END (*buffer) = copied_number + 1;
   GST_BUFFER_TIMESTAMP (*buffer) =
-      timestamp - gst_element_get_base_time (GST_ELEMENT (niimaqsrc));
+      timestamp - gst_element_get_base_time (GST_ELEMENT (src));
   GST_BUFFER_DURATION (*buffer) = duration;
 
-  dropped = copied_number - niimaqsrc->cumbufnum;
+  dropped = copied_number - src->cumbufnum;
   if (dropped > 0) {
-    niimaqsrc->n_dropped_frames += dropped;
-    GST_WARNING_OBJECT (niimaqsrc,
+    src->n_dropped_frames += dropped;
+    GST_WARNING_OBJECT (src,
         "Asked to copy buffer #%d but was given #%d; just dropped %d frames (%d total)",
-        niimaqsrc->cumbufnum, copied_number, dropped,
-        niimaqsrc->n_dropped_frames);
+        src->cumbufnum, copied_number, dropped, src->n_dropped_frames);
   }
 
   /* set cumulative buffer number to get next frame */
-  niimaqsrc->cumbufnum = copied_number + 1;
-  niimaqsrc->n_frames++;
+  src->cumbufnum = copied_number + 1;
+  src->n_frames++;
 
-  if (G_UNLIKELY (niimaqsrc->start_time && !niimaqsrc->start_time_sent)) {
+  if (G_UNLIKELY (src->start_time && !src->start_time_sent)) {
     GstTagList *tl =
-        gst_tag_list_new (GST_TAG_DATE_TIME, niimaqsrc->start_time, NULL);
+        gst_tag_list_new (GST_TAG_DATE_TIME, src->start_time, NULL);
     GstEvent *e = gst_event_new_tag (tl);
-    GST_DEBUG_OBJECT (niimaqsrc, "Sending start time event: %" GST_PTR_FORMAT,
-        e);
-    gst_pad_push_event (GST_BASE_SRC_PAD (niimaqsrc), e);
-    niimaqsrc->start_time_sent = TRUE;
+    GST_DEBUG_OBJECT (src, "Sending start time event: %" GST_PTR_FORMAT, e);
+    gst_pad_push_event (GST_BASE_SRC_PAD (src), e);
+    src->start_time_sent = TRUE;
   }
   return ret;
 
@@ -657,7 +653,7 @@ error:
 * Returns: the #GstCaps of the src pad. Unref the caps when you no longer need it.
 */
 GstCaps *
-gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * niimaqsrc)
+gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * src)
 {
   GstCaps *gcaps = NULL;
   Int32 rval;
@@ -665,30 +661,30 @@ gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * niimaqsrc)
   gint depth, bpp;
   GstVideoInfo vinfo;
 
-  if (!niimaqsrc->iid) {
-    GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED,
+  if (!src->iid) {
+    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Camera interface not open"), ("Camera interface not open"));
     goto error;
   }
 
   gst_video_info_init (&vinfo);
 
-  GST_LOG_OBJECT (niimaqsrc, "Retrieving attributes from IMAQ interface");
-  rval = imgGetAttribute (niimaqsrc->iid, IMG_ATTR_BITSPERPIXEL, &val);
+  GST_LOG_OBJECT (src, "Retrieving attributes from IMAQ interface");
+  rval = imgGetAttribute (src->iid, IMG_ATTR_BITSPERPIXEL, &val);
   gst_niimaqsrc_report_imaq_error (rval);
   bpp = val;
-  rval &= imgGetAttribute (niimaqsrc->iid, IMG_ATTR_BYTESPERPIXEL, &val);
+  rval &= imgGetAttribute (src->iid, IMG_ATTR_BYTESPERPIXEL, &val);
   gst_niimaqsrc_report_imaq_error (rval);
   depth = val * 8;
-  rval &= imgGetAttribute (niimaqsrc->iid, IMG_ATTR_ROI_WIDTH, &val);
+  rval &= imgGetAttribute (src->iid, IMG_ATTR_ROI_WIDTH, &val);
   gst_niimaqsrc_report_imaq_error (rval);
   vinfo.width = val;
-  rval &= imgGetAttribute (niimaqsrc->iid, IMG_ATTR_ROI_HEIGHT, &val);
+  rval &= imgGetAttribute (src->iid, IMG_ATTR_ROI_HEIGHT, &val);
   gst_niimaqsrc_report_imaq_error (rval);
   vinfo.height = val;
 
   if (rval) {
-    GST_ELEMENT_ERROR (niimaqsrc, STREAM, FAILED,
+    GST_ELEMENT_ERROR (src, STREAM, FAILED,
         ("attempt to read attributes failed"),
         ("attempt to read attributes failed"));
     goto error;
@@ -701,8 +697,7 @@ gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * niimaqsrc)
   else if (depth == 32)
     vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_BGRA);
   else {
-    GST_ERROR_OBJECT (niimaqsrc, "Depth %d (%d-bit) not supported yet", depth,
-        bpp);
+    GST_ERROR_OBJECT (src, "Depth %d (%d-bit) not supported yet", depth, bpp);
     goto error;
   }
 
@@ -710,7 +705,7 @@ gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * niimaqsrc)
   vinfo.fps_d = 1;
   /* hard code framerate and par as IMAQ doesn't tell us anything about it */
   gcaps = gst_video_info_to_caps (&vinfo);
-  GST_LOG_OBJECT (niimaqsrc, "the camera caps are %" GST_PTR_FORMAT, gcaps);
+  GST_LOG_OBJECT (src, "the camera caps are %" GST_PTR_FORMAT, gcaps);
 
   return gcaps;
 
@@ -732,82 +727,78 @@ error:
 * Returns: TRUE on success
 */
 static gboolean
-gst_niimaqsrc_start (GstBaseSrc * src)
+gst_niimaqsrc_start (GstBaseSrc * bsrc)
 {
-  GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (src);
+  GstNiImaqSrc *src = GST_NIIMAQSRC (bsrc);
   Int32 rval;
   gint i;
 
-  gst_niimaqsrc_reset (niimaqsrc);
+  gst_niimaqsrc_reset (src);
 
-  GST_LOG_OBJECT (niimaqsrc, "Opening IMAQ interface: %s",
-      niimaqsrc->interface_name);
+  GST_LOG_OBJECT (src, "Opening IMAQ interface: %s", src->interface_name);
 
   /* open IMAQ interface */
-  rval = imgInterfaceOpen (niimaqsrc->interface_name, &(niimaqsrc->iid));
+  rval = imgInterfaceOpen (src->interface_name, &(src->iid));
   if (rval) {
     gst_niimaqsrc_report_imaq_error (rval);
-    GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED,
+    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Failed to open IMAQ interface"),
-        ("Failed to open camera interface %s", niimaqsrc->interface_name));
+        ("Failed to open camera interface %s", src->interface_name));
     goto error;
   }
 
-  GST_LOG_OBJECT (niimaqsrc, "Opening IMAQ session: %s",
-      niimaqsrc->interface_name);
+  GST_LOG_OBJECT (src, "Opening IMAQ session: %s", src->interface_name);
 
   /* open IMAQ session */
-  rval = imgSessionOpen (niimaqsrc->iid, &(niimaqsrc->sid));
+  rval = imgSessionOpen (src->iid, &(src->sid));
   if (rval) {
     gst_niimaqsrc_report_imaq_error (rval);
-    GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED,
+    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Failed to open IMAQ session"), ("Failed to open IMAQ session %d",
-            niimaqsrc->sid));
+            src->sid));
     goto error;
   }
 
   /* Allow use of 1428 and other 32-bit DMA cards on 64-bit systems with
      greater than 3GB of memory. */
-  niimaquDisable32bitPhysMemLimitEnforcement (niimaqsrc->sid);
+  niimaquDisable32bitPhysMemLimitEnforcement (src->sid);
 
-  GST_LOG_OBJECT (niimaqsrc, "Creating ring with %d buffers",
-      niimaqsrc->bufsize);
+  GST_LOG_OBJECT (src, "Creating ring with %d buffers", src->bufsize);
 
   /* create array of pointers to give to IMAQ for creating internal buffers */
-  niimaqsrc->buflist = g_new (guint32 *, niimaqsrc->bufsize);
-  niimaqsrc->times = g_new (GstClockTime, niimaqsrc->bufsize);
-  for (i = 0; i < niimaqsrc->bufsize; i++) {
-    niimaqsrc->buflist[i] = 0;
-    niimaqsrc->times[i] = GST_CLOCK_TIME_NONE;
+  src->buflist = g_new (guint32 *, src->bufsize);
+  src->times = g_new (GstClockTime, src->bufsize);
+  for (i = 0; i < src->bufsize; i++) {
+    src->buflist[i] = 0;
+    src->times[i] = GST_CLOCK_TIME_NONE;
   }
   /* CAUTION: if this is ever changed to manually allocate memory, we must
      be careful about allocating 64-bit addresses, as some IMAQ cards don't
      support this, and can give a runtime error. See above call to
      niimaquDisable32bitPhysMemLimitEnforcement */
   rval =
-      imgRingSetup (niimaqsrc->sid, niimaqsrc->bufsize,
-      (void **) (niimaqsrc->buflist), 0, FALSE);
+      imgRingSetup (src->sid, src->bufsize, (void **) (src->buflist), 0, FALSE);
   if (rval) {
     gst_niimaqsrc_report_imaq_error (rval);
-    GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED,
+    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Failed to create ring buffer"),
-        ("Failed to create ring buffer with %d buffers", niimaqsrc->bufsize));
+        ("Failed to create ring buffer with %d buffers", src->bufsize));
     goto error;
   }
 
-  GST_LOG_OBJECT (niimaqsrc, "Registering callback functions");
-  rval = imgSessionWaitSignalAsync2 (niimaqsrc->sid, IMG_SIGNAL_STATUS,
+  GST_LOG_OBJECT (src, "Registering callback functions");
+  rval = imgSessionWaitSignalAsync2 (src->sid, IMG_SIGNAL_STATUS,
       IMG_FRAME_START, IMG_SIGNAL_STATE_RISING,
-      gst_niimaqsrc_frame_start_callback, niimaqsrc);
-  rval |= imgSessionWaitSignalAsync2 (niimaqsrc->sid, IMG_SIGNAL_STATUS,
+      gst_niimaqsrc_frame_start_callback, src);
+  rval |= imgSessionWaitSignalAsync2 (src->sid, IMG_SIGNAL_STATUS,
       IMG_AQ_IN_PROGRESS, IMG_SIGNAL_STATE_RISING,
-      gst_niimaqsrc_aq_in_progress_callback, niimaqsrc);
-  rval |= imgSessionWaitSignalAsync2 (niimaqsrc->sid, IMG_SIGNAL_STATUS,
+      gst_niimaqsrc_aq_in_progress_callback, src);
+  rval |= imgSessionWaitSignalAsync2 (src->sid, IMG_SIGNAL_STATUS,
       IMG_AQ_DONE, IMG_SIGNAL_STATE_RISING,
-      gst_niimaqsrc_aq_done_callback, niimaqsrc);
+      gst_niimaqsrc_aq_done_callback, src);
   if (rval) {
     gst_niimaqsrc_report_imaq_error (rval);
-    GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED,
+    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Failed to register callback(s)"), ("Failed to register callback(s)"));
     goto error;
   }
@@ -815,7 +806,7 @@ gst_niimaqsrc_start (GstBaseSrc * src)
   return TRUE;
 
 error:
-  gst_niimaqsrc_close_interface (niimaqsrc);
+  gst_niimaqsrc_close_interface (src);
 
   return FALSE;;
 
@@ -830,28 +821,28 @@ error:
 * Returns: TRUE on success
 */
 static gboolean
-gst_niimaqsrc_stop (GstBaseSrc * src)
+gst_niimaqsrc_stop (GstBaseSrc * bsrc)
 {
-  GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (src);
+  GstNiImaqSrc *src = GST_NIIMAQSRC (bsrc);
   Int32 rval;
   gboolean result = TRUE;
 
   /* stop IMAQ session */
-  if (niimaqsrc->session_started) {
-    rval = imgSessionStopAcquisition (niimaqsrc->sid);
+  if (src->session_started) {
+    rval = imgSessionStopAcquisition (src->sid);
     if (rval != IMG_ERR_GOOD) {
       gst_niimaqsrc_report_imaq_error (rval);
-      GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED,
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
           ("Unable to stop acquisition"), ("Unable to stop acquisition"));
       result = FALSE;
     }
-    niimaqsrc->session_started = FALSE;
-    GST_DEBUG_OBJECT (niimaqsrc, "Acquisition stopped");
+    src->session_started = FALSE;
+    GST_DEBUG_OBJECT (src, "Acquisition stopped");
   }
 
-  result &= gst_niimaqsrc_close_interface (niimaqsrc);
+  result &= gst_niimaqsrc_close_interface (src);
 
-  gst_niimaqsrc_reset (niimaqsrc);
+  gst_niimaqsrc_reset (src);
 
   return result;
 }
@@ -913,36 +904,36 @@ gst_niimaqsrc_get_caps (GstBaseSrc * bsrc, GstCaps * filter)
 
 /**
 * gst_niimaqsrc_close_interface:
-* niimaqsrc: #GstNiImaqSrc instance
+* src: #GstNiImaqSrc instance
 *
 * Close IMAQ session and interface
 *
 */
 static gboolean
-gst_niimaqsrc_close_interface (GstNiImaqSrc * niimaqsrc)
+gst_niimaqsrc_close_interface (GstNiImaqSrc * src)
 {
   Int32 rval;
   gboolean result = TRUE;
 
   /* close IMAQ session and interface */
-  if (niimaqsrc->sid) {
-    rval = imgClose (niimaqsrc->sid, TRUE);
+  if (src->sid) {
+    rval = imgClose (src->sid, TRUE);
     if (rval != IMG_ERR_GOOD) {
       gst_niimaqsrc_report_imaq_error (rval);
       result = FALSE;
     } else
-      GST_LOG_OBJECT (niimaqsrc, "IMAQ session closed");
-    niimaqsrc->sid = 0;
+      GST_LOG_OBJECT (src, "IMAQ session closed");
+    src->sid = 0;
   }
-  if (niimaqsrc->iid) {
-    rval = imgClose (niimaqsrc->iid, TRUE);
+  if (src->iid) {
+    rval = imgClose (src->iid, TRUE);
     if (rval != IMG_ERR_GOOD) {
       gst_niimaqsrc_report_imaq_error (rval);
       result = FALSE;
     } else {
-      GST_LOG_OBJECT (niimaqsrc, "IMAQ interface closed");
+      GST_LOG_OBJECT (src, "IMAQ interface closed");
     }
-    niimaqsrc->iid = 0;
+    src->iid = 0;
   }
 
   return result;
