@@ -93,12 +93,12 @@ static GstFlowReturn gst_niimaqsrc_create (GstPushSrc * psrc,
 static GstCaps *gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * src);
 static gboolean gst_niimaqsrc_close_interface (GstNiImaqSrc * src);
 
-#define gst_niimaqsrc_report_imaq_error(code)        \
-{                                                    \
-  static char imaq_error_string[256];                \
-  if (code) {                                        \
-    imgShowError (code, imaq_error_string);          \
-    GST_ERROR ("IMAQ error: %s", imaq_error_string); \
+#define gst_niimaqsrc_report_imaq_error(code)                    \
+{                                                                \
+  static char imaq_error_string[256];                            \
+  if (code) {                                                    \
+    imgShowError (code, imaq_error_string);                      \
+    GST_ERROR_OBJECT (src, "IMAQ error: %s", imaq_error_string); \
   }                                                  \
 }
 
