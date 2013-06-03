@@ -32,7 +32,9 @@
  * </refsect2>
  */
 
-/* FIXME: timestamps sent in GST_TAG_DATE_TIME are off, need to adjust for time of first buffer */
+/* FIXME: timestamps sent in GST_TAG_DATE_TIME are off, need to adjust for time of first buffer
+   TODO: Firewire cameras that have an ROI less than the full frame will be
+         corrupted, the only fix is to use NI Vision library */
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
