@@ -82,13 +82,14 @@ static void gst_niimaqsrc_get_property (GObject * object, guint prop_id,
 static gboolean gst_niimaqsrc_start (GstBaseSrc * src);
 static gboolean gst_niimaqsrc_stop (GstBaseSrc * src);
 static gboolean gst_niimaqsrc_query (GstBaseSrc * src, GstQuery * query);
+static GstCaps *gst_niimaqsrc_get_caps (GstBaseSrc * src, GstCaps * filter);
+static gboolean gst_niimaqsrc_set_caps (GstBaseSrc * src, GstCaps * caps);
 
 /* GstPushSrc virtual methods */
 static GstFlowReturn gst_niimaqsrc_create (GstPushSrc * psrc,
     GstBuffer ** buffer);
 
 /* GstNiImaq methods */
-static gboolean gst_niimaqsrc_set_caps (GstNiImaqSrc * niimaqsrc);
 static GstCaps *gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * src);
 static gboolean gst_niimaqsrc_close_interface (GstNiImaqSrc * niimaqsrc);
 
@@ -295,6 +296,8 @@ gst_niimaqsrc_class_init (GstNiImaqSrcClass * klass)
   gstbasesrc_class->start = GST_DEBUG_FUNCPTR (gst_niimaqsrc_start);
   gstbasesrc_class->stop = GST_DEBUG_FUNCPTR (gst_niimaqsrc_stop);
   gstbasesrc_class->query = GST_DEBUG_FUNCPTR (gst_niimaqsrc_query);
+  gstbasesrc_class->get_caps = GST_DEBUG_FUNCPTR (gst_niimaqsrc_get_caps);
+  gstbasesrc_class->set_caps = GST_DEBUG_FUNCPTR (gst_niimaqsrc_set_caps);
 
   /* install GstPushSrc vmethod implementations */
   gstpushsrc_class->create = GST_DEBUG_FUNCPTR (gst_niimaqsrc_create);
@@ -392,37 +395,34 @@ gst_niimaqsrc_get_property (GObject * object, guint prop_id, GValue * value,
 }
 
 gboolean
-gst_niimaqsrc_set_caps (GstNiImaqSrc * niimaqsrc)
+gst_niimaqsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 {
+  GstNiImaqSrc *src = GST_NIIMAQSRC (bsrc);
   gboolean res = TRUE;
   int depth;
-  GstCaps *caps;
   GstVideoInfo vinfo;
-
-  caps = gst_niimaqsrc_get_cam_caps (niimaqsrc);
 
   res = gst_video_info_from_caps (&vinfo, caps);
   if (!res) {
-    GST_WARNING_OBJECT (niimaqsrc, "Unable to parse video info from caps");
+    GST_WARNING_OBJECT (src, "Unable to parse video info from caps");
     return res;
   }
-  niimaqsrc->format = GST_VIDEO_INFO_FORMAT (&vinfo);
-  niimaqsrc->width = GST_VIDEO_INFO_WIDTH (&vinfo);
-  niimaqsrc->height = GST_VIDEO_INFO_HEIGHT (&vinfo);
+  src->format = GST_VIDEO_INFO_FORMAT (&vinfo);
+  src->width = GST_VIDEO_INFO_WIDTH (&vinfo);
+  src->height = GST_VIDEO_INFO_HEIGHT (&vinfo);
 
   /* this will handle byte alignment (i.e. row multiple of 4 bytes) */
-  niimaqsrc->framesize = GST_VIDEO_INFO_SIZE (&vinfo);
+  src->framesize = GST_VIDEO_INFO_SIZE (&vinfo);
+
+  gst_base_src_set_blocksize (bsrc, src->framesize);
 
   depth = GST_VIDEO_INFO_COMP_DEPTH (&vinfo, 0);
 
   /* use this so NI can give us proper byte alignment */
-  niimaqsrc->rowpixels = GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0) / (depth / 8);
+  src->rowpixels = GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0) / (depth / 8);
 
-  GST_LOG_OBJECT (niimaqsrc, "Caps set, framesize=%d, rowpixels=%d",
-      niimaqsrc->framesize, niimaqsrc->rowpixels);
-
-  GST_LOG_OBJECT (niimaqsrc, "Setting srcpad caps to %" GST_PTR_FORMAT, caps);
-  gst_pad_set_caps (GST_BASE_SRC_PAD (niimaqsrc), caps);
+  GST_LOG_OBJECT (src, "Caps set, framesize=%d, rowpixels=%d",
+      src->framesize, src->rowpixels);
 
   return res;
 }
@@ -538,8 +538,11 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
     if (G_UNLIKELY (*buffer == NULL))
       goto error;
   } else {
-    GST_LOG_OBJECT (niimaqsrc, "Copying IMAQ buffer #%d", niimaqsrc->cumbufnum);
-    ret = GST_PUSH_SRC_GET_CLASS (niimaqsrc)->alloc (psrc, buffer);
+    GST_LOG_OBJECT (niimaqsrc, "Copying IMAQ buffer #%d, size %d",
+        niimaqsrc->cumbufnum, niimaqsrc->framesize);
+    ret =
+        GST_BASE_SRC_CLASS (gst_niimaqsrc_parent_class)->alloc (GST_BASE_SRC
+        (niimaqsrc), 0, niimaqsrc->framesize, buffer);
     if (ret != GST_FLOW_OK) {
       GST_ELEMENT_ERROR (niimaqsrc, RESOURCE, FAILED,
           ("Failed to allocate buffer"),
@@ -734,7 +737,6 @@ gst_niimaqsrc_start (GstBaseSrc * src)
   GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (src);
   Int32 rval;
   gint i;
-  gboolean ret;
 
   gst_niimaqsrc_reset (niimaqsrc);
 
@@ -810,9 +812,7 @@ gst_niimaqsrc_start (GstBaseSrc * src)
     goto error;
   }
 
-  ret = gst_niimaqsrc_set_caps (niimaqsrc);
-
-  return ret;
+  return TRUE;
 
 error:
   gst_niimaqsrc_close_interface (niimaqsrc);
@@ -857,24 +857,23 @@ gst_niimaqsrc_stop (GstBaseSrc * src)
 }
 
 static gboolean
-gst_niimaqsrc_query (GstBaseSrc * src, GstQuery * query)
+gst_niimaqsrc_query (GstBaseSrc * bsrc, GstQuery * query)
 {
-  GstNiImaqSrc *niimaqsrc = GST_NIIMAQSRC (src);
+  GstNiImaqSrc *src = GST_NIIMAQSRC (bsrc);
   gboolean res;
 
   switch (GST_QUERY_TYPE (query)) {
     case GST_QUERY_LATENCY:{
-      if (!niimaqsrc->session_started) {
-        GST_WARNING_OBJECT (niimaqsrc,
-            "Can't give latency since device isn't open!");
+      if (!src->session_started) {
+        GST_WARNING_OBJECT (src, "Can't give latency since device isn't open!");
         res = FALSE;
       } else {
         GstClockTime min_latency, max_latency;
         /* TODO: this is a ballpark figure, estimate from FVAL times */
         min_latency = 33 * GST_MSECOND;
-        max_latency = 33 * GST_MSECOND * niimaqsrc->bufsize;
+        max_latency = 33 * GST_MSECOND * src->bufsize;
 
-        GST_LOG_OBJECT (niimaqsrc,
+        GST_LOG_OBJECT (src,
             "report latency min %" GST_TIME_FORMAT " max %" GST_TIME_FORMAT,
             GST_TIME_ARGS (min_latency), GST_TIME_ARGS (max_latency));
 
@@ -884,11 +883,32 @@ gst_niimaqsrc_query (GstBaseSrc * src, GstQuery * query)
       }
     }
     default:
-      res = FALSE;
+      res =
+          GST_BASE_SRC_CLASS (gst_niimaqsrc_parent_class)->query (bsrc, query);
       break;
   }
 
   return res;
+}
+
+static GstCaps *
+gst_niimaqsrc_get_caps (GstBaseSrc * bsrc, GstCaps * filter)
+{
+  GstNiImaqSrc *src = GST_NIIMAQSRC (bsrc);
+  GstCaps *caps;
+
+  if (!src->sid)
+    caps = gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD (src));
+  else
+    caps = gst_niimaqsrc_get_cam_caps (src);
+
+  if (filter) {
+    GstCaps *tmp = gst_caps_intersect (caps, filter);
+    gst_caps_unref (caps);
+    caps = tmp;
+  }
+
+  return caps;
 }
 
 /**
