@@ -1069,6 +1069,9 @@ gst_niimaqdxsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 
   src->dx_framesize = src->dx_row_stride * src->height;
 
+  /* TODO: test stride alignment */
+  gst_base_src_set_blocksize (bsrc, src->dx_framesize);
+
   if (src->temp_buffer)
     g_free (src->temp_buffer);
   src->temp_buffer = g_malloc (src->dx_framesize);
