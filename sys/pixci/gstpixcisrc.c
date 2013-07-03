@@ -80,16 +80,10 @@ enum
 /* pad templates */
 
 static GstStaticPadTemplate gst_pixcisrc_src_template =
-    GST_STATIC_PAD_TEMPLATE ("src",
+GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE
-        ("{ GRAY8, GRAY16_LE, GRAY16_BE, RGB, xRGB, RGB_15, RGB_16 }") ";"
-        "video/x-bayer,format=(string){bggr,grbg,gbrg,rggb},"
-        "width=(int)[1,MAX],height=(int)[1,MAX],framerate=(fraction)[0/1,MAX];"
-        "video/x-bayer,format=(string){bggr16,grbg16,gbrg16,rggb16},"
-        "bpp=(int){10,12,14,16},endianness={1234,4321},"
-        "width=(int)[1,MAX],height=(int)[1,MAX],framerate=(fraction)[0/1,MAX]")
+    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("{ GRAY8, GRAY16_LE, GRAY16_BE }"))
     );
 
 /* class initialization */
@@ -622,7 +616,8 @@ gst_pixcisrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   GST_LOG_OBJECT (src,
       "GstBuffer size=%d, gst_stride=%d, phx_stride=%d", minfo.size,
       src->gst_stride, src->px_stride);
-  pxd_readuchar (src->unitmap, buffer, 0, 0, -1, -1, minfo.data, minfo.size,
+  /* TODO: must use readuchar for 8-bit buffers */
+  pxd_readushort (src->unitmap, buffer, 0, 0, -1, -1, minfo.data, minfo.size,
       "Grey");
   //for (i = 0; i < src->height; i++) {
   //  memcpy (minfo.data + i * src->gst_stride,

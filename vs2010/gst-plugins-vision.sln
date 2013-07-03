@@ -65,7 +65,7 @@ Global
 		{6D883DC5-A8E1-4A42-B247-CBBD243DE1C1}.Debug|x64.ActiveCfg = Debug|Win32
 		{6D883DC5-A8E1-4A42-B247-CBBD243DE1C1}.Release|Win32.ActiveCfg = Release|Win32
 		{6D883DC5-A8E1-4A42-B247-CBBD243DE1C1}.Release|Win32.Build.0 = Release|Win32
-		{6D883DC5-A8E1-4A42-B247-CBBD243DE1C1}.Release|x64.ActiveCfg = Release|Win32
+		{6D883DC5-A8E1-4A42-B247-CBBD243DE1C1}.Release|x64.ActiveCfg = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

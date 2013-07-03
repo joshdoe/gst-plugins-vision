@@ -6,11 +6,14 @@
 	</PropertyGroup>
 	<ItemDefinitionGroup>
 		<ClCompile>
-			<AdditionalIncludeDirectories>C:\Program Files (x86)\EPIX\XCLIB;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+			<AdditionalIncludeDirectories Condition="'$(Platform)' == 'Win32'">C:\Program Files (x86)\EPIX\XCLIB;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+			<AdditionalIncludeDirectories Condition="'$(Platform)' == 'x64'">C:\Program Files\EPIX\XCLIB;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
 		</ClCompile>
 		<Link>
-			<AdditionalLibraryDirectories>C:\Program Files (x86)\EPIX\XCLIB;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-			<AdditionalDependencies>XCLIBWNT.lib;%(AdditionalDependencies)</AdditionalDependencies>
+			<AdditionalLibraryDirectories Condition="'$(Platform)' == 'Win32'">C:\Program Files (x86)\EPIX\XCLIB;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+			<AdditionalLibraryDirectories Condition="'$(Platform)' == 'x64'">C:\Program Files\EPIX\XCLIB;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+			<AdditionalDependencies Condition="'$(Platform)' == 'Win32'">XCLIBWNT.lib;%(AdditionalDependencies)</AdditionalDependencies>
+			<AdditionalDependencies Condition="'$(Platform)' == 'x64'">XCLIBW64.lib;%(AdditionalDependencies)</AdditionalDependencies>
 		</Link>
 	</ItemDefinitionGroup>
 	<ItemGroup/>
