@@ -40,6 +40,8 @@ macro_log_feature(IOTECHDAQX_FOUND "IOtech DaqX" "Required to build IOtech DaqX 
 find_package(Phoenix)
 macro_log_feature(PHOENIX_FOUND "Active Silicon Phoenix" "Required to build Active Silicon Phoenix source element" "http://www.activesilicon.com/" FALSE)
 
+find_package(XCLIB)
+macro_log_feature(XCLIB_FOUND "EPIX PIXCI" "Required to build EPIX PIXCI source element" "http://www.epixinc.com/" FALSE)
 
 
 # Setup common environment

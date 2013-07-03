@@ -13,6 +13,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libniimaqdx", "niimaqdx\nii
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "euresys", "euresys\euresys.vcxproj", "{8E42AB09-CE84-48E9-9D55-C0AAC12379D8}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pixci", "pixci\pixci.vcxproj", "{6D883DC5-A8E1-4A42-B247-CBBD243DE1C1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -58,6 +60,12 @@ Global
 		{8E42AB09-CE84-48E9-9D55-C0AAC12379D8}.Release|Win32.ActiveCfg = Release|Win32
 		{8E42AB09-CE84-48E9-9D55-C0AAC12379D8}.Release|Win32.Build.0 = Release|Win32
 		{8E42AB09-CE84-48E9-9D55-C0AAC12379D8}.Release|x64.ActiveCfg = Release|x64
+		{6D883DC5-A8E1-4A42-B247-CBBD243DE1C1}.Debug|Win32.ActiveCfg = Debug|Win32
+		{6D883DC5-A8E1-4A42-B247-CBBD243DE1C1}.Debug|Win32.Build.0 = Debug|Win32
+		{6D883DC5-A8E1-4A42-B247-CBBD243DE1C1}.Debug|x64.ActiveCfg = Debug|Win32
+		{6D883DC5-A8E1-4A42-B247-CBBD243DE1C1}.Release|Win32.ActiveCfg = Release|Win32
+		{6D883DC5-A8E1-4A42-B247-CBBD243DE1C1}.Release|Win32.Build.0 = Release|Win32
+		{6D883DC5-A8E1-4A42-B247-CBBD243DE1C1}.Release|x64.ActiveCfg = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
