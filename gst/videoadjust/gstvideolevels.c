@@ -75,12 +75,7 @@ static GstStaticPadTemplate gst_videolevels_src_template =
     GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS ("video/x-raw, "
-        "format = (string) { GRAY16_LE, GRAY16_BE }, "
-        "bpp = (int) {16, 14, 12, 10}, "
-        "width = " GST_VIDEO_SIZE_RANGE ", "
-        "height = " GST_VIDEO_SIZE_RANGE ", "
-        "framerate = " GST_VIDEO_FPS_RANGE)
+    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("{ GRAY16_LE, GRAY16_BE }"))
     //";"
     //    "video/x-bayer,format=(string){bggr16,grbg16,gbrg16,rggb16},"
     //    "bpp=(int){10,12,14,16},endianness={1234,4321},"
@@ -420,6 +415,7 @@ gst_videolevels_set_info (GstVideoFilter * filter, GstCaps * incaps,
   s = gst_caps_get_structure (incaps, 0);
   if (!gst_structure_get_int (s, "bpp", &levels->bpp_in))
     levels->bpp_in = 16;
+  g_assert (levels->bpp_in >= 1 && levels->bpp_in <= 16);
 
   res = gst_videolevels_calculate_lut (levels);
 
