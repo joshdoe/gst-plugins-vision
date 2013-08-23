@@ -366,8 +366,9 @@ gst_videolevels_transform_caps (GstBaseTransform * trans,
 {
   GstVideoLevels *videolevels = GST_VIDEOLEVELS (trans);
   GstCaps *other_caps;
-  GstStructure *st;
+  GstStructure *st, *newst;
   gint i, n;
+  const GValue *value;
 
   videolevels = GST_VIDEOLEVELS (trans);
 
@@ -382,10 +383,23 @@ gst_videolevels_transform_caps (GstBaseTransform * trans,
     if (gst_caps_is_subset_structure (other_caps, st))
       continue;
 
-    st = gst_structure_copy (st);
-    gst_structure_remove_fields (st, "format", "bpp", NULL);
+    if (direction == GST_PAD_SRC) {
+        newst = gst_structure_from_string (
+            "video/x-raw,format={GRAY16_LE,GRAY16_BE}", NULL);
+    } else {
+        newst = gst_structure_from_string ("video/x-raw,format=GRAY8", NULL);
+    }
 
-    gst_caps_append_structure (other_caps, st);
+    value = gst_structure_get_value (st, "width");
+    gst_structure_set_value (newst, "width", value);
+
+    value = gst_structure_get_value (st, "height");
+    gst_structure_set_value (newst, "height", value);
+
+    value = gst_structure_get_value (st, "framerate");
+    gst_structure_set_value (newst, "framerate", value);
+
+    gst_caps_append_structure (other_caps, newst);
   }
 
   if (!gst_caps_is_empty (other_caps) && filter_caps) {
