@@ -56,12 +56,14 @@ enum
   PROP_0,
   PROP_DEVICE,
   PROP_RING_BUFFER_COUNT,
-  PROP_AVOID_COPY
+  PROP_AVOID_COPY,
+  PROP_IS_SIGNED
 };
 
 #define DEFAULT_PROP_DEVICE "img0"
 #define DEFAULT_PROP_RING_BUFFER_COUNT  2
 #define DEFAULT_PROP_AVOID_COPY FALSE
+#define DEFAULT_PROP_IS_SIGNED FALSE
 
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
@@ -281,6 +283,10 @@ gst_niimaqsrc_class_init (GstNiImaqSrcClass * klass)
       g_param_spec_boolean ("avoid-copy", "Avoid copying",
           "Whether to avoid copying (do not use with queues)",
           DEFAULT_PROP_AVOID_COPY, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
+  g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_IS_SIGNED,
+      g_param_spec_boolean ("is-signed", "Image is signed 16-bit",
+      "Image is signed 16-bit, shift to unsigned 16-bit",
+      DEFAULT_PROP_IS_SIGNED, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&src_factory));
@@ -318,6 +324,7 @@ gst_niimaqsrc_init (GstNiImaqSrc * src)
   src->bufsize = DEFAULT_PROP_RING_BUFFER_COUNT;
   src->interface_name = g_strdup (DEFAULT_PROP_DEVICE);
   src->avoid_copy = DEFAULT_PROP_AVOID_COPY;
+  src->is_signed = DEFAULT_PROP_IS_SIGNED;
 }
 
 /**
@@ -365,6 +372,9 @@ gst_niimaqsrc_set_property (GObject * object, guint prop_id,
     case PROP_AVOID_COPY:
       src->avoid_copy = g_value_get_boolean (value);
       break;
+    case PROP_IS_SIGNED:
+      src->is_signed = g_value_get_boolean (value);
+      break;
     default:
       break;
   }
@@ -385,6 +395,9 @@ gst_niimaqsrc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_AVOID_COPY:
       g_value_set_boolean (value, src->avoid_copy);
+      break;
+    case PROP_IS_SIGNED:
+      g_value_set_boolean (value, src->is_signed);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -593,6 +606,24 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
     src->times[copied_index] = GST_CLOCK_TIME_NONE;
     g_mutex_unlock (&src->mutex);
     gst_buffer_unmap (*buffer, &minfo);
+  }
+
+  /* TODO: do this above to reduce copying overhead */
+  if (src->is_signed) {
+      gint16 *src;
+      guint16 *dst;
+      guint i;
+      gst_buffer_map (*buffer, &minfo, GST_MAP_READWRITE);
+      src = minfo.data;
+      dst = minfo.data;
+
+      GST_DEBUG_OBJECT (src, "Shifting signed to unsigned");
+
+      /* TODO: make this faster */
+      for (i = 0; i < minfo.size / 2; i++)
+          *dst++ = *src++ + 32768;
+
+      gst_buffer_unmap (*buffer, &minfo);
   }
 
   if (rval) {
