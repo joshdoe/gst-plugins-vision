@@ -285,8 +285,8 @@ gst_niimaqsrc_class_init (GstNiImaqSrcClass * klass)
           DEFAULT_PROP_AVOID_COPY, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_IS_SIGNED,
       g_param_spec_boolean ("is-signed", "Image is signed 16-bit",
-      "Image is signed 16-bit, shift to unsigned 16-bit",
-      DEFAULT_PROP_IS_SIGNED, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
+          "Image is signed 16-bit, shift to unsigned 16-bit",
+          DEFAULT_PROP_IS_SIGNED, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&src_factory));
@@ -610,20 +610,20 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
 
   /* TODO: do this above to reduce copying overhead */
   if (src->is_signed) {
-      gint16 *src;
-      guint16 *dst;
-      guint i;
-      gst_buffer_map (*buffer, &minfo, GST_MAP_READWRITE);
-      src = minfo.data;
-      dst = minfo.data;
+    gint16 *src;
+    guint16 *dst;
+    guint i;
+    gst_buffer_map (*buffer, &minfo, GST_MAP_READWRITE);
+    src = minfo.data;
+    dst = minfo.data;
 
-      GST_DEBUG_OBJECT (src, "Shifting signed to unsigned");
+    GST_DEBUG_OBJECT (src, "Shifting signed to unsigned");
 
-      /* TODO: make this faster */
-      for (i = 0; i < minfo.size / 2; i++)
-          *dst++ = *src++ + 32768;
+    /* TODO: make this faster */
+    for (i = 0; i < minfo.size / 2; i++)
+      *dst++ = *src++ + 32768;
 
-      gst_buffer_unmap (*buffer, &minfo);
+    gst_buffer_unmap (*buffer, &minfo);
   }
 
   if (rval) {
