@@ -3,6 +3,7 @@
 #endif
 
 #include "gstedtpdvsink.h"
+#include "gstedtpdvsrc.h"
 
 #define GST_CAT_DEFAULT gst_gstedt_debug
 GST_DEBUG_CATEGORY_STATIC (GST_CAT_DEFAULT);
@@ -15,6 +16,11 @@ plugin_init (GstPlugin * plugin)
 
   if (!gst_element_register (plugin, "edtpdvsink", GST_RANK_NONE,
           GST_TYPE_EDT_PDV_SINK)) {
+    return FALSE;
+  }
+
+  if (!gst_element_register (plugin, "edtpdvsrc", GST_RANK_NONE,
+          GST_TYPE_EDT_PDV_SRC)) {
     return FALSE;
   }
 

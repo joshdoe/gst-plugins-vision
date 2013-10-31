@@ -131,6 +131,7 @@
   <ItemGroup>
     <ClCompile Include="..\..\sys\edt\gstedt.c" />
     <ClCompile Include="..\..\sys\edt\gstedtpdvsink.c" />
+    <ClCompile Include="..\..\sys\edt\gstedtpdvsrc.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\sys\edt\gstedtpdvsink.h" />

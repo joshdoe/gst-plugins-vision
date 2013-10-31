@@ -21,6 +21,9 @@
     <ClCompile Include="..\..\sys\edt\gstedt.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\sys\edt\gstedtpdvsrc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\sys\edt\gstedtpdvsrc.h">
