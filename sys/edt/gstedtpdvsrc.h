@@ -63,7 +63,7 @@ struct _GstEdtPdvSrc
 
   gint height;
   gint gst_stride;
-  guint px_stride;
+  gint edt_stride;
 };
 
 struct _GstEdtPdvSrcClass

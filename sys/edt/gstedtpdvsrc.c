@@ -398,6 +398,8 @@ gst_edt_pdv_src_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
   gst_video_info_from_caps (&vinfo, caps);
 
   if (GST_VIDEO_INFO_FORMAT (&vinfo) != GST_VIDEO_FORMAT_UNKNOWN) {
+    g_assert (src->dev != NULL);
+    src->edt_stride = pdv_get_pitch (src->dev);
     src->gst_stride = GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0);
     src->height = vinfo.height;
   } else {
@@ -442,16 +444,17 @@ gst_edt_pdv_src_create (GstPushSrc * psrc, GstBuffer ** buf)
 
   /* Copy image to buffer from surface TODO: use orc_memcpy */
   gst_buffer_map (*buf, &minfo, GST_MAP_WRITE);
-  GST_LOG_OBJECT (src,
-      "GstBuffer size=%d, gst_stride=%d", minfo.size, src->gst_stride);
 
-  /* TODO: stride alignment probably isn't a multiple of 4 */
-  memcpy (minfo.data, image, minfo.size);
-  //for (i = 0; i < src->height; i++) {
-  //  memcpy (minfo.data + i * src->gst_stride,
-  //      ((guint8 *) buffer.pvAddress) + i * src->px_stride,
-  //      src->gst_stride);
-  //}
+  if (src->gst_stride == src->edt_stride) {
+    memcpy (minfo.data, image, minfo.size);
+  } else {
+    int i;
+    GST_LOG_OBJECT (src, "Stride not a multiple of 4, extra copy needed");
+    for (i = 0; i < src->height; i++) {
+      memcpy (minfo.data + i * src->gst_stride,
+          image + i * src->edt_stride, src->edt_stride);
+    }
+  }
   gst_buffer_unmap (*buf, &minfo);
 
 
