@@ -54,6 +54,7 @@ struct _GstEdtPdvSrc
   /* properties */
   guint unit;
   guint channel;
+  gchar *config_file_path;
 
   PdvDev *dev;
   gboolean acq_started;

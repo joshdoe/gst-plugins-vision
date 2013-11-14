@@ -65,7 +65,8 @@ enum
 {
   PROP_0,
   PROP_UNIT,
-  PROP_CHANNEL
+  PROP_CHANNEL,
+  PROP_CONFIG_FILE
 };
 
 #define DEFAULT_PROP_UNIT 0
@@ -126,6 +127,12 @@ gst_edt_pdv_src_class_init (GstEdtPdvSrcClass * klass)
           G_MAXUINT, DEFAULT_PROP_CHANNEL,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               GST_PARAM_MUTABLE_READY)));
+  g_object_class_install_property (gobject_class, PROP_CONFIG_FILE,
+      g_param_spec_string ("config-file", "Config file",
+          "Camera configuration path (empty or NULL to use previous config)",
+          NULL,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+              GST_PARAM_MUTABLE_READY)));
 }
 
 static void
@@ -140,6 +147,7 @@ gst_edt_pdv_src_init (GstEdtPdvSrc * src)
   /* initialize properties */
   src->unit = DEFAULT_PROP_UNIT;
   src->channel = DEFAULT_PROP_CHANNEL;
+  src->config_file_path = NULL;
 
   gst_edt_pdv_src_reset (src);
 }
@@ -167,6 +175,12 @@ gst_edt_pdv_src_set_property (GObject * object, guint property_id,
     case PROP_CHANNEL:
       src->channel = g_value_get_uint (value);
       break;
+    case PROP_CONFIG_FILE:
+      if (src->config_file_path) {
+        g_free (src->config_file_path);
+      }
+      src->config_file_path = g_strdup (g_value_get_string (value));
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -188,6 +202,9 @@ gst_edt_pdv_src_get_property (GObject * object, guint property_id,
       break;
     case PROP_CHANNEL:
       g_value_set_uint (value, src->channel);
+      break;
+    case PROP_CONFIG_FILE:
+      g_value_set_string (value, src->config_file_path);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -227,6 +244,41 @@ gst_edt_pdv_src_start (GstBaseSrc * bsrc)
   GstEdtPdvSrc *src = GST_EDT_PDV_SRC (bsrc);
 
   GST_DEBUG_OBJECT (src, "start");
+
+  if (src->config_file_path && strlen (src->config_file_path)) {
+    Dependent *dd_p;
+    Edtinfo edtinfo;
+    EdtDev *edt_p;
+    char bitdir[256];
+    *bitdir = '\0';
+
+    dd_p = pdv_alloc_dependent ();
+    g_assert (dd_p != NULL);
+
+    if (pdv_readcfg (src->config_file_path, dd_p, &edtinfo)) {
+      GST_ERROR_OBJECT (src, "Failed to read config file: '%s'",
+          src->config_file_path);
+      goto fail;
+    }
+
+    edt_p = edt_open_channel (EDT_INTERFACE, src->unit, src->channel);
+    if (edt_p == NULL) {
+      GST_ERROR_OBJECT (src, "Failed to open channel to perform configuration");
+      edt_perror ("error message");
+      free (dd_p);
+      goto fail;
+    }
+
+    if (pdv_initcam (edt_p, dd_p, src->unit, &edtinfo, src->config_file_path,
+            bitdir, 0)) {
+      GST_ERROR_OBJECT (src, "Failed to initialize camera");
+      free (dd_p);
+      edt_close (edt_p);
+      goto fail;
+    }
+
+    edt_close (edt_p);
+  }
 
   src->dev = pdv_open_channel (EDT_INTERFACE, src->unit, src->channel);
   if (src->dev == NULL) {
