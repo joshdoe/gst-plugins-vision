@@ -437,6 +437,9 @@ gst_edt_pdv_src_create (GstPushSrc * psrc, GstBuffer ** buf)
     GST_WARNING_OBJECT (src,
         "Received timeout, data might be incomplete. Check cables and system bandwidth.");
     src->total_timeouts = timeouts;
+
+    /* TODO: perhaps call twice as in take.c to be more robust */
+    pdv_timeout_restart(src->dev, TRUE);
   }
 
   /* TODO: use allocator */
