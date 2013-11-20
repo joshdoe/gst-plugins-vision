@@ -66,11 +66,13 @@ enum
   PROP_0,
   PROP_UNIT,
   PROP_CHANNEL,
-  PROP_CONFIG_FILE
+  PROP_CONFIG_FILE,
+  PROP_NUM_RING_BUFFERS
 };
 
 #define DEFAULT_PROP_UNIT 0
 #define DEFAULT_PROP_CHANNEL 0
+#define DEFAULT_PROP_NUM_RING_BUFFERS 4
 
 /* pad templates */
 
@@ -133,6 +135,12 @@ gst_edt_pdv_src_class_init (GstEdtPdvSrcClass * klass)
           NULL,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               GST_PARAM_MUTABLE_READY)));
+  g_object_class_install_property (gobject_class, PROP_NUM_RING_BUFFERS,
+      g_param_spec_uint ("num-ring-buffers", "Number of ring buffers",
+          "Number of ring buffers to use for DMAing frames from card", 1,
+          G_MAXUINT, DEFAULT_PROP_NUM_RING_BUFFERS,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+              GST_PARAM_MUTABLE_READY)));
 }
 
 static void
@@ -148,6 +156,7 @@ gst_edt_pdv_src_init (GstEdtPdvSrc * src)
   src->unit = DEFAULT_PROP_UNIT;
   src->channel = DEFAULT_PROP_CHANNEL;
   src->config_file_path = NULL;
+  src->num_ring_buffers = DEFAULT_PROP_NUM_RING_BUFFERS;
 
   gst_edt_pdv_src_reset (src);
 }
@@ -181,6 +190,9 @@ gst_edt_pdv_src_set_property (GObject * object, guint property_id,
       }
       src->config_file_path = g_strdup (g_value_get_string (value));
       break;
+    case PROP_NUM_RING_BUFFERS:
+      src->num_ring_buffers = g_value_get_uint (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -205,6 +217,9 @@ gst_edt_pdv_src_get_property (GObject * object, guint property_id,
       break;
     case PROP_CONFIG_FILE:
       g_value_set_string (value, src->config_file_path);
+      break;
+    case PROP_NUM_RING_BUFFERS:
+      g_value_set_uint (value, src->num_ring_buffers);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -288,7 +303,7 @@ gst_edt_pdv_src_start (GstBaseSrc * bsrc)
     goto fail;
   }
 
-  if (pdv_multibuf (src->dev, 4)) {
+  if (pdv_multibuf (src->dev, src->num_ring_buffers)) {
     GST_ERROR_OBJECT (src, "Failed to setup ring buffer");
     goto fail;
   }
