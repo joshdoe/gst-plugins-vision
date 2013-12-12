@@ -74,10 +74,10 @@ enum
   PROP_COLOR_FORMAT
 };
 
-#define DEFAULT_PROP_BOARD_INDEX 0
-#define DEFAULT_PROP_CAMERA_TYPE  MC_Camera_CAMERA_NTSC
-#define DEFAULT_PROP_CONNECTOR  MC_Connector_VID1
-#define DEFAULT_PROP_COLOR_FORMAT MC_ColorFormat_Y8
+#define DEFAULT_PROP_BOARD_INDEX  0
+#define DEFAULT_PROP_CAMERA_TYPE  GST_EURESYS_CAMERA_EIA
+#define DEFAULT_PROP_CONNECTOR    GST_EURESYS_CONNECTOR_VID1
+#define DEFAULT_PROP_COLOR_FORMAT GST_EURESYS_COLOR_FORMAT_Y8
 
 /* pad templates */
 
@@ -89,6 +89,12 @@ GST_STATIC_PAD_TEMPLATE ("src",
         ("{ GRAY8, RGB, ARGB, RGB_16, RGB_16 }"))
     );
 
+int gst_euresys_connector_map[] = {
+  MC_Connector_VID1,
+  MC_Connector_VID2,
+  MC_Connector_VID3,
+  MC_Connector_VID4
+};
 
 #define GST_TYPE_EURESYS_CONNECTOR (gst_euresys_connector_get_type())
 static GType
@@ -96,40 +102,40 @@ gst_euresys_connector_get_type (void)
 {
   static GType euresys_connector_type = 0;
   static const GEnumValue euresys_connector[] = {
-    {MC_Connector_VID1, "VID1", "VID1 input"},
-    {MC_Connector_VID2, "VID2", "VID2 input"},
-    {MC_Connector_VID3, "VID3", "VID3 input"},
-    {MC_Connector_VID4, "VID4", "VID4 input"},
-    {MC_Connector_VID5, "VID5", "VID5 input"},
-    {MC_Connector_VID6, "VID6", "VID6 input"},
-    {MC_Connector_VID7, "VID7", "VID7 input"},
-    {MC_Connector_VID8, "VID8", "VID8 input"},
-    {MC_Connector_VID9, "VID9", "VID9 input"},
-    {MC_Connector_VID10, "VID10", "VID10 input"},
-    {MC_Connector_VID11, "VID11", "VID11 input"},
-    {MC_Connector_VID12, "VID12", "VID12 input"},
-    {MC_Connector_VID13, "VID13", "VID13 input"},
-    {MC_Connector_VID14, "VID14", "VID14 input"},
-    {MC_Connector_VID15, "VID15", "VID15 input"},
-    {MC_Connector_VID16, "VID16", "VID16 input"},
-    {MC_Connector_YC, "YC", "YC input using the MiniDIN4 or DB9 connector"},
-    {MC_Connector_YC1, "YC1", "YC1 input using the HD44 connector"},
-    {MC_Connector_YC2, "YC2", "YC2 input using the HD44 connector"},
-    {MC_Connector_YC3, "YC3", "YC3 input using the HD44 connector"},
-    {MC_Connector_YC4, "YC4", "YC4 input using the HD44 connector"},
-    {MC_Connector_X, "X", "X input"},
-    {MC_Connector_Y, "Y", "Y input"},
-    {MC_Connector_XBIS, "XBIS", "XBIS input using the secondary lane"},
-    {MC_Connector_YBIS, "YBIS", "YBIS input using the secondary lane"},
-    {MC_Connector_X1, "X1", "X1 input"},
-    {MC_Connector_X2, "X2", "X2 input"},
-    {MC_Connector_Y1, "Y1", "Y1 input"},
-    {MC_Connector_Y2, "Y2", "Y2 input"},
-    {MC_Connector_A, "A",
-        "A input (Grablink Expert 2 DuoCam mode, connector A)"},
-    {MC_Connector_B, "B",
-        "B input (Grablink Expert 2 DuoCam mode, connector B)"},
-    {MC_Connector_M, "M", "M input (Grablink in MonoCam mode)"},
+    {GST_EURESYS_CONNECTOR_VID1, "VID1", "VID1 input"},
+    {GST_EURESYS_CONNECTOR_VID2, "VID2", "VID2 input"},
+    {GST_EURESYS_CONNECTOR_VID3, "VID3", "VID3 input"},
+    {GST_EURESYS_CONNECTOR_VID4, "VID4", "VID4 input"},
+    //{MC_Connector_VID5, "VID5", "VID5 input"},
+    //{MC_Connector_VID6, "VID6", "VID6 input"},
+    //{MC_Connector_VID7, "VID7", "VID7 input"},
+    //{MC_Connector_VID8, "VID8", "VID8 input"},
+    //{MC_Connector_VID9, "VID9", "VID9 input"},
+    //{MC_Connector_VID10, "VID10", "VID10 input"},
+    //{MC_Connector_VID11, "VID11", "VID11 input"},
+    //{MC_Connector_VID12, "VID12", "VID12 input"},
+    //{MC_Connector_VID13, "VID13", "VID13 input"},
+    //{MC_Connector_VID14, "VID14", "VID14 input"},
+    //{MC_Connector_VID15, "VID15", "VID15 input"},
+    //{MC_Connector_VID16, "VID16", "VID16 input"},
+    //{MC_Connector_YC, "YC", "YC input using the MiniDIN4 or DB9 connector"},
+    //{MC_Connector_YC1, "YC1", "YC1 input using the HD44 connector"},
+    //{MC_Connector_YC2, "YC2", "YC2 input using the HD44 connector"},
+    //{MC_Connector_YC3, "YC3", "YC3 input using the HD44 connector"},
+    //{MC_Connector_YC4, "YC4", "YC4 input using the HD44 connector"},
+    //{MC_Connector_X, "X", "X input"},
+    //{MC_Connector_Y, "Y", "Y input"},
+    //{MC_Connector_XBIS, "XBIS", "XBIS input using the secondary lane"},
+    //{MC_Connector_YBIS, "YBIS", "YBIS input using the secondary lane"},
+    //{MC_Connector_X1, "X1", "X1 input"},
+    //{MC_Connector_X2, "X2", "X2 input"},
+    //{MC_Connector_Y1, "Y1", "Y1 input"},
+    //{MC_Connector_Y2, "Y2", "Y2 input"},
+    //{MC_Connector_A, "A",
+    //    "A input (Grablink Expert 2 DuoCam mode, connector A)"},
+    //{MC_Connector_B, "B",
+    //    "B input (Grablink Expert 2 DuoCam mode, connector B)"},
+    //{MC_Connector_M, "M", "M input (Grablink in MonoCam mode)"},
     {0, NULL, NULL},
   };
 
@@ -140,16 +146,23 @@ gst_euresys_connector_get_type (void)
   return euresys_connector_type;
 }
 
+int gst_euresys_color_format_map[] = {
+  MC_ColorFormat_Y8,
+  MC_ColorFormat_RGB24,
+  MC_ColorFormat_RGB32,
+  MC_ColorFormat_ARGB32
+};
+
 #define GST_TYPE_EURESYS_COLOR_FORMAT (gst_euresys_color_format_get_type())
 static GType
 gst_euresys_color_format_get_type (void)
 {
   static GType euresys_color_format_type = 0;
   static const GEnumValue euresys_color_format[] = {
-    {MC_ColorFormat_RGB24, "RGB24", "RGB24"},
-    {MC_ColorFormat_RGB32, "RGB32", "RGB32"},
-    {MC_ColorFormat_Y8, "Y8", "Monochrome 8-bit"},
-    {MC_ColorFormat_ARGB32, "ARGB32", "ARGB32"},
+    {GST_EURESYS_COLOR_FORMAT_Y8, "Y8", "Monochrome 8-bit"},
+    {GST_EURESYS_COLOR_FORMAT_RGB24, "RGB24", "RGB24"},
+    {GST_EURESYS_COLOR_FORMAT_RGB32, "RGB32", "RGB32"},
+    {GST_EURESYS_COLOR_FORMAT_ARGB32, "ARGB32", "ARGB32"},
     {0, NULL, NULL},
   };
 
@@ -160,16 +173,23 @@ gst_euresys_color_format_get_type (void)
   return euresys_color_format_type;
 }
 
+int gst_euresys_camera_map[] = {
+  MC_Camera_CAMERA_EIA,
+  MC_Camera_CAMERA_NTSC,
+  MC_Camera_CAMERA_CCIR,
+  MC_Camera_CAMERA_PAL
+};
+
 #define GST_TYPE_EURESYS_CAMERA (gst_euresys_camera_get_type())
 static GType
 gst_euresys_camera_get_type (void)
 {
   static GType euresys_camera_type = 0;
   static const GEnumValue euresys_camera[] = {
-    {MC_Camera_CAMERA_CCIR, "CCIR", "CCIR broadcasting standard"},
-    {MC_Camera_CAMERA_EIA, "EIA", "EIA broadcasting standard"},
-    {MC_Camera_CAMERA_PAL, "PAL", "PAL broadcasting standard"},
-    {MC_Camera_CAMERA_NTSC, "NTSC", "NTSC broadcasting standard"},
+    {GST_EURESYS_CAMERA_EIA, "EIA", "EIA broadcasting standard"},
+    {GST_EURESYS_CAMERA_NTSC, "NTSC", "NTSC broadcasting standard"},
+    {GST_EURESYS_CAMERA_CCIR, "CCIR", "CCIR broadcasting standard"},
+    {GST_EURESYS_CAMERA_PAL, "PAL", "PAL broadcasting standard"},
     {0, NULL, NULL},
   };
 
@@ -367,7 +387,7 @@ gst_euresys_get_property (GObject * object, guint property_id,
       g_value_set_enum (value, euresys->connector);
       break;
     case PROP_COLOR_FORMAT:
-      g_value_get_enum (value, euresys->colorFormat);
+      g_value_set_enum (value, euresys->colorFormat);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -435,7 +455,9 @@ gst_euresys_start (GstBaseSrc * bsrc)
   }
 
   /* Select the video connector */
-  status = McSetParamInt (euresys->hChannel, MC_Connector, euresys->connector);
+  status =
+      McSetParamInt (euresys->hChannel, MC_Connector,
+      gst_euresys_connector_map[euresys->connector]);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
         (("Failed to set connector to channel.")), (NULL));
@@ -443,7 +465,9 @@ gst_euresys_start (GstBaseSrc * bsrc)
   }
 
   /* Select the video signal type */
-  status = McSetParamInt (euresys->hChannel, MC_Camera, euresys->cameraType);
+  status =
+      McSetParamInt (euresys->hChannel, MC_Camera,
+      gst_euresys_camera_map[euresys->cameraType]);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
         (("Failed to set camera type = %d."), euresys->cameraType), (NULL));
@@ -452,7 +476,8 @@ gst_euresys_start (GstBaseSrc * bsrc)
 
   /* Set the color format */
   status =
-      McSetParamInt (euresys->hChannel, MC_ColorFormat, euresys->colorFormat);
+      McSetParamInt (euresys->hChannel, MC_ColorFormat,
+      gst_euresys_color_format_map[euresys->colorFormat]);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
         (("Failed to set color format = %d."), MC_ColorFormat_Y8), (NULL));

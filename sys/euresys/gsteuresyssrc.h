@@ -43,8 +43,25 @@ typedef struct _GstEuresysClass GstEuresysClass;
 * Identifies the connector that the camera is connected to.
 */
 typedef enum {
-  
-} GstEuresysConnector;
+  GST_EURESYS_CONNECTOR_VID1,
+  GST_EURESYS_CONNECTOR_VID2,
+  GST_EURESYS_CONNECTOR_VID3,
+  GST_EURESYS_CONNECTOR_VID4
+} GstEuresysConnectorEnum;
+
+typedef enum {
+  GST_EURESYS_COLOR_FORMAT_Y8,
+  GST_EURESYS_COLOR_FORMAT_RGB24,
+  GST_EURESYS_COLOR_FORMAT_RGB32,
+  GST_EURESYS_COLOR_FORMAT_ARGB32
+} GstEuresysColorFormatEnum;
+
+typedef enum {
+  GST_EURESYS_CAMERA_EIA,
+  GST_EURESYS_CAMERA_NTSC,
+  GST_EURESYS_CAMERA_CCIR,
+  GST_EURESYS_CAMERA_PAL
+} GstEuresysCameraEnum;
 
 struct _GstEuresys
 {
@@ -59,9 +76,9 @@ struct _GstEuresys
 
   /* properties */
   INT32 boardIdx;
-  INT32 cameraType;
-  INT32 connector;
-  INT32 colorFormat;
+  GstEuresysCameraEnum cameraType;
+  GstEuresysConnectorEnum connector;
+  GstEuresysColorFormatEnum colorFormat;
 };
 
 struct _GstEuresysClass
