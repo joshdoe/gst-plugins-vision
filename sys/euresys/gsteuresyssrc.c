@@ -60,6 +60,8 @@ static void gst_euresys_dispose (GObject * object);
 
 static gboolean gst_euresys_start (GstBaseSrc * src);
 static gboolean gst_euresys_stop (GstBaseSrc * src);
+static GstCaps *gst_euresys_get_caps (GstBaseSrc * bsrc, GstCaps * filter);
+static gboolean gst_euresys_set_caps (GstBaseSrc * bsrc, GstCaps * caps);
 
 static GstFlowReturn gst_euresys_fill (GstPushSrc * src, GstBuffer * buf);
 
@@ -236,15 +238,19 @@ gst_euresys_class_init (GstEuresysClass * klass)
   g_object_class_install_property (gobject_class, PROP_BOARD_INDEX,
       g_param_spec_int ("board", "Board", "Index of board connected to camera",
           0, 15, DEFAULT_PROP_BOARD_INDEX,
-          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
+          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE |
+          GST_PARAM_MUTABLE_READY));
   g_object_class_install_property (gobject_class, PROP_CAMERA_TYPE,
       g_param_spec_enum ("camera", "Camera", "Camera type",
           GST_TYPE_EURESYS_CAMERA, DEFAULT_PROP_CAMERA_TYPE,
-          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
+          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE |
+          GST_PARAM_MUTABLE_READY));
   g_object_class_install_property (gobject_class, PROP_CONNECTOR,
       g_param_spec_enum ("connector", "Connector",
           "Connector where camera is attached", GST_TYPE_EURESYS_CONNECTOR,
-          DEFAULT_PROP_CONNECTOR, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
+          DEFAULT_PROP_CONNECTOR,
+          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE |
+          GST_PARAM_MUTABLE_READY));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&gst_euresys_src_template));
@@ -256,6 +262,8 @@ gst_euresys_class_init (GstEuresysClass * klass)
 
   gstbasesrc_class->start = GST_DEBUG_FUNCPTR (gst_euresys_start);
   gstbasesrc_class->stop = GST_DEBUG_FUNCPTR (gst_euresys_stop);
+  gstbasesrc_class->get_caps = GST_DEBUG_FUNCPTR (gst_euresys_get_caps);
+  gstbasesrc_class->set_caps = GST_DEBUG_FUNCPTR (gst_euresys_set_caps);
 
   gstpushsrc_class->fill = GST_DEBUG_FUNCPTR (gst_euresys_fill);
 }
@@ -346,15 +354,10 @@ gst_euresys_dispose (GObject * object)
 }
 
 static gboolean
-gst_euresys_start (GstBaseSrc * src)
+gst_euresys_start (GstBaseSrc * bsrc)
 {
-  GstEuresys *euresys = GST_EURESYS (src);
+  GstEuresys *euresys = GST_EURESYS (bsrc);
   MCSTATUS status = 0;
-  INT32 colorFormat;
-  GstVideoFormat videoFormat;
-  GstCaps *caps;
-  GstVideoInfo vinfo;
-  gint32 width, height;
 
   GST_DEBUG_OBJECT (euresys, "start");
 
@@ -443,36 +446,6 @@ gst_euresys_start (GstBaseSrc * src)
     goto error;
   }
 
-  status = McGetParamInt (euresys->hChannel, MC_ColorFormat, &colorFormat);
-  status |= McGetParamInt (euresys->hChannel, MC_ImageSizeX, &width);
-  status |= McGetParamInt (euresys->hChannel, MC_ImageSizeY, &height);
-  if (status != MC_OK) {
-    GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
-        (("Failed to get color format, width, and height.")), (NULL));
-    goto error;
-  }
-
-  videoFormat = gst_euresys_color_format_to_video_format (colorFormat);
-  if (videoFormat == GST_VIDEO_FORMAT_UNKNOWN) {
-    GST_ELEMENT_ERROR (euresys, STREAM, WRONG_TYPE,
-        (("Unknown or unsupported color format.")), (NULL));
-    goto error;
-  }
-
-  gst_video_info_init (&vinfo);
-
-  vinfo.width = width;
-  vinfo.height = height;
-  vinfo.finfo = gst_video_format_get_info (videoFormat);
-
-  caps = gst_video_info_to_caps (&vinfo);
-
-  if (caps == NULL) {
-    GST_ELEMENT_ERROR (euresys, STREAM, TOO_LAZY,
-        (("Failed to generate caps from video format.")), (NULL));
-    goto error;
-  }
-
   return TRUE;
 
 error:
@@ -504,6 +477,86 @@ gst_euresys_stop (GstBaseSrc * src)
 
   euresys->dropped_frame_count = 0;
   euresys->last_time_code = -1;
+
+  return TRUE;
+}
+
+static GstCaps *
+gst_euresys_get_camera_caps (GstEuresys * src)
+{
+  INT32 colorFormat;
+  GstVideoFormat videoFormat;
+  GstCaps *caps;
+  GstVideoInfo vinfo;
+  gint32 width, height;
+  int status;
+
+  g_assert (src->hChannel != 0);
+
+  status = McGetParamInt (src->hChannel, MC_ColorFormat, &colorFormat);
+  status |= McGetParamInt (src->hChannel, MC_ImageSizeX, &width);
+  status |= McGetParamInt (src->hChannel, MC_ImageSizeY, &height);
+  if (status != MC_OK) {
+    GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
+        (("Failed to get color format, width, and/or height.")), (NULL));
+    return NULL;
+  }
+
+  videoFormat = gst_euresys_color_format_to_video_format (colorFormat);
+  if (videoFormat == GST_VIDEO_FORMAT_UNKNOWN) {
+    GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
+        (("Unknown or unsupported color format.")), (NULL));
+    return NULL;
+  }
+
+  gst_video_info_init (&vinfo);
+
+  vinfo.width = width;
+  vinfo.height = height;
+  vinfo.finfo = gst_video_format_get_info (videoFormat);
+
+  caps = gst_video_info_to_caps (&vinfo);
+
+  if (caps == NULL) {
+    GST_ELEMENT_ERROR (src, STREAM, TOO_LAZY,
+        (("Failed to generate caps from video format.")), (NULL));
+    return NULL;
+  }
+
+  return caps;
+}
+
+static GstCaps *
+gst_euresys_get_caps (GstBaseSrc * bsrc, GstCaps * filter)
+{
+  GstEuresys *src = GST_EURESYS (bsrc);
+  GstCaps *caps;
+
+  if (src->hChannel == 0)
+    caps = gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD (src));
+  else
+    caps = gst_euresys_get_camera_caps (src);
+
+  if (filter && caps) {
+    GstCaps *tmp = gst_caps_intersect (caps, filter);
+    gst_caps_unref (caps);
+    caps = tmp;
+  }
+
+  return caps;
+}
+
+static gboolean
+gst_euresys_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
+{
+  GstVideoInfo vinfo;
+
+  GST_DEBUG_OBJECT (bsrc, "set_caps with caps=%" GST_PTR_FORMAT, caps);
+
+  gst_video_info_from_caps (&vinfo, caps);
+
+  /* TODO: check stride alignment */
+  gst_base_src_set_blocksize (bsrc, GST_VIDEO_INFO_SIZE (&vinfo));
 
   return TRUE;
 }
@@ -613,6 +666,6 @@ plugin_init (GstPlugin * plugin)
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    euresyssrc,
+    euresys,
     "Euresys Multicam source",
     plugin_init, VERSION, "LGPL", PACKAGE_NAME, GST_PACKAGE_ORIGIN)
