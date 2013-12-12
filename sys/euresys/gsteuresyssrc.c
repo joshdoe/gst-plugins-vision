@@ -70,12 +70,14 @@ enum
   PROP_0,
   PROP_BOARD_INDEX,
   PROP_CAMERA_TYPE,
-  PROP_CONNECTOR
+  PROP_CONNECTOR,
+  PROP_COLOR_FORMAT
 };
 
 #define DEFAULT_PROP_BOARD_INDEX 0
 #define DEFAULT_PROP_CAMERA_TYPE  MC_Camera_CAMERA_NTSC
 #define DEFAULT_PROP_CONNECTOR  MC_Connector_VID1
+#define DEFAULT_PROP_COLOR_FORMAT MC_ColorFormat_Y8
 
 /* pad templates */
 
@@ -136,6 +138,26 @@ gst_euresys_connector_get_type (void)
         g_enum_register_static ("GstEuresysConnector", euresys_connector);
   }
   return euresys_connector_type;
+}
+
+#define GST_TYPE_EURESYS_COLOR_FORMAT (gst_euresys_color_format_get_type())
+static GType
+gst_euresys_color_format_get_type (void)
+{
+  static GType euresys_color_format_type = 0;
+  static const GEnumValue euresys_color_format[] = {
+    {MC_ColorFormat_RGB24, "RGB24", "RGB24"},
+    {MC_ColorFormat_RGB32, "RGB32", "RGB32"},
+    {MC_ColorFormat_Y8, "Y8", "Monochrome 8-bit"},
+    {MC_ColorFormat_ARGB32, "ARGB32", "ARGB32"},
+    {0, NULL, NULL},
+  };
+
+  if (!euresys_color_format_type) {
+    euresys_color_format_type =
+        g_enum_register_static ("GstEuresysColorFormat", euresys_color_format);
+  }
+  return euresys_color_format_type;
 }
 
 #define GST_TYPE_EURESYS_CAMERA (gst_euresys_camera_get_type())
@@ -251,6 +273,12 @@ gst_euresys_class_init (GstEuresysClass * klass)
           DEFAULT_PROP_CONNECTOR,
           G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE |
           GST_PARAM_MUTABLE_READY));
+  g_object_class_install_property (gobject_class, PROP_COLOR_FORMAT,
+      g_param_spec_enum ("color-format", "Color format",
+          "Color format of the camera", GST_TYPE_EURESYS_COLOR_FORMAT,
+          DEFAULT_PROP_COLOR_FORMAT,
+          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE |
+          GST_PARAM_MUTABLE_READY));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&gst_euresys_src_template));
@@ -281,6 +309,7 @@ gst_euresys_init (GstEuresys * euresys)
   euresys->boardIdx = DEFAULT_PROP_BOARD_INDEX;
   euresys->cameraType = DEFAULT_PROP_CAMERA_TYPE;
   euresys->connector = DEFAULT_PROP_CONNECTOR;
+  euresys->colorFormat = DEFAULT_PROP_COLOR_FORMAT;
 
   euresys->hChannel = 0;
 
@@ -309,6 +338,9 @@ gst_euresys_set_property (GObject * object, guint property_id,
     case PROP_CONNECTOR:
       euresys->connector = g_value_get_enum (value);
       break;
+    case PROP_COLOR_FORMAT:
+      euresys->colorFormat = g_value_get_enum (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -333,6 +365,9 @@ gst_euresys_get_property (GObject * object, guint property_id,
       break;
     case PROP_CONNECTOR:
       g_value_set_enum (value, euresys->connector);
+      break;
+    case PROP_COLOR_FORMAT:
+      g_value_get_enum (value, euresys->colorFormat);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -416,14 +451,13 @@ gst_euresys_start (GstBaseSrc * bsrc)
   }
 
   /* Set the color format */
-  /* TODO: i don't think this should be needed right now */
-/*
-  status = McSetParamInt (euresys->hChannel, MC_ColorFormat, MC_ColorFormat_Y8);
+  status =
+      McSetParamInt (euresys->hChannel, MC_ColorFormat, euresys->colorFormat);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
         (("Failed to set color format = %d."), MC_ColorFormat_Y8), (NULL));
     goto error;
-  }*/
+  }
 
   /* Acquire images continuously */
   status = McSetParamInt (euresys->hChannel, MC_SeqLength_Fr, MC_INDETERMINATE);

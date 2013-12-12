@@ -56,9 +56,12 @@ struct _GstEuresys
   INT32 last_time_code;
   MCHANDLE hChannel;
   INT32 boardType;
+
+  /* properties */
   INT32 boardIdx;
   INT32 cameraType;
   INT32 connector;
+  INT32 colorFormat;
 };
 
 struct _GstEuresysClass
