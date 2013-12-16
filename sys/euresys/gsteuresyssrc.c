@@ -340,6 +340,12 @@ gst_euresys_init (GstEuresys * euresys)
 
   euresys->last_time_code = -1;
   euresys->dropped_frame_count = 0;
+
+  GST_INFO_OBJECT (euresys, "About to open driver");
+  if (McOpenDriver (NULL) != MC_OK) {
+    GST_ELEMENT_ERROR (euresys, LIBRARY, INIT, (NULL), (NULL));
+    return;
+  }
 }
 
 void
@@ -408,6 +414,9 @@ gst_euresys_dispose (GObject * object)
 
   /* clean up as possible.  may be called multiple times */
 
+  /* Close the MultiCam driver */
+  McCloseDriver ();
+
   G_OBJECT_CLASS (gst_euresys_parent_class)->dispose (object);
 }
 
@@ -418,13 +427,6 @@ gst_euresys_start (GstBaseSrc * bsrc)
   MCSTATUS status = 0;
 
   GST_DEBUG_OBJECT (euresys, "start");
-
-  /* Open MultiCam driver */
-  status = McOpenDriver (NULL);
-  if (status != MC_OK) {
-    GST_ELEMENT_ERROR (euresys, LIBRARY, INIT, (NULL), (NULL));
-    return FALSE;
-  }
 
   status =
       McGetParamInt (MC_BOARD + euresys->boardIdx, MC_BoardType,
@@ -528,9 +530,6 @@ gst_euresys_stop (GstBaseSrc * src)
 
   /* Stop the acquisition */
   McSetParamInt (euresys->hChannel, MC_ChannelState, MC_ChannelState_IDLE);
-
-  /* Close the MultiCam driver */
-  McCloseDriver ();
 
   /* Delete the channel */
   if (euresys->hChannel)
