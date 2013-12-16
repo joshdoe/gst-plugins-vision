@@ -272,6 +272,9 @@ gst_euresys_class_init (GstEuresysClass * klass)
   GstBaseSrcClass *gstbasesrc_class = GST_BASE_SRC_CLASS (klass);
   GstPushSrcClass *gstpushsrc_class = GST_PUSH_SRC_CLASS (klass);
 
+  GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "euresyssrc", 0,
+      "Euresys MultiCam source");
+
   gobject_class->set_property = gst_euresys_set_property;
   gobject_class->get_property = gst_euresys_get_property;
   gobject_class->dispose = gst_euresys_dispose;
@@ -715,8 +718,6 @@ gst_euresys_fill (GstPushSrc * src, GstBuffer * buf)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  GST_DEBUG_CATEGORY_INIT (gst_euresys_debug, "euresys", 0,
-      "debug category for euresys element");
   gst_element_register (plugin, "euresyssrc", GST_RANK_NONE,
       gst_euresys_get_type ());
 
