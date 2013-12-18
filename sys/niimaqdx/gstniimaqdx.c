@@ -161,6 +161,8 @@ ImaqDxCapsInfo imaq_dx_caps_infos[] = {
   ,
   //TODO: for packed formats, should we unpack?
   //{"Mono 12 Packed", GST_VIDEO_CAPS_GRAY16 ("BIG_ENDIAN"), 16, 16},
+  {"Mono14", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 14, 16, 4}
+  ,
   {"Mono 16", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 16, 16,
       4}
   ,
