@@ -1,6 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 11.00
-# Visual Studio 2010
+# Visual C++ Express 2010
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "niimaq", "niimaq\niimaq.vcxproj", "{C617FD30-1297-417A-99F0-4F45B48EA8DF}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "videoadjust", "videoadjust\videoadjust.vcxproj", "{B77B6B47-9CB4-4A0B-B76F-877E57F90ADD}"
@@ -14,6 +14,8 @@ EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "euresys", "euresys\euresys.vcxproj", "{8E42AB09-CE84-48E9-9D55-C0AAC12379D8}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pixci", "pixci\pixci.vcxproj", "{6D883DC5-A8E1-4A42-B247-CBBD243DE1C1}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "framelink", "framelink\framelink.vcxproj", "{3E525586-FF7B-4B32-ADE1-35419FBAEBEB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -66,6 +68,12 @@ Global
 		{6D883DC5-A8E1-4A42-B247-CBBD243DE1C1}.Release|Win32.ActiveCfg = Release|Win32
 		{6D883DC5-A8E1-4A42-B247-CBBD243DE1C1}.Release|Win32.Build.0 = Release|Win32
 		{6D883DC5-A8E1-4A42-B247-CBBD243DE1C1}.Release|x64.ActiveCfg = Release|x64
+		{3E525586-FF7B-4B32-ADE1-35419FBAEBEB}.Debug|Win32.ActiveCfg = Debug|Win32
+		{3E525586-FF7B-4B32-ADE1-35419FBAEBEB}.Debug|Win32.Build.0 = Debug|Win32
+		{3E525586-FF7B-4B32-ADE1-35419FBAEBEB}.Debug|x64.ActiveCfg = Debug|Win32
+		{3E525586-FF7B-4B32-ADE1-35419FBAEBEB}.Release|Win32.ActiveCfg = Release|Win32
+		{3E525586-FF7B-4B32-ADE1-35419FBAEBEB}.Release|Win32.Build.0 = Release|Win32
+		{3E525586-FF7B-4B32-ADE1-35419FBAEBEB}.Release|x64.ActiveCfg = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
