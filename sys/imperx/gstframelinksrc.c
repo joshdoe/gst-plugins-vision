@@ -276,7 +276,8 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
   VCECLB_ConfigurationA camConfig;
   VCECLB_Error err;
   GstVideoInfo vinfo;
-  int bpp;
+  int bpp, Bpp;
+  VCECLB_CameraDataEx *ci;
 
   GST_DEBUG_OBJECT (src, "start");
 
@@ -315,7 +316,10 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
   g_free (camConfig.lpszManufacturer);
   g_free (camConfig.lpszModel);
 
-  if (camConfig.pixelInfo.cameraData.Packed == 1) {
+  /* use shortcut since we use this struct a lot */
+  ci = &camConfig.pixelInfo.cameraData;
+
+  if (ci->Packed == 1) {
     GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
         ("Packed pixel data not supported yet."), (NULL));
     return FALSE;
@@ -337,9 +341,7 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
     return FALSE;
   }
 
-  err =
-      VCECLB_PrepareEx (src->grabber, src->channel,
-      &camConfig.pixelInfo.cameraData);
+  err = VCECLB_PrepareEx (src->grabber, src->channel, ci);
   if (err != VCECLB_Err_Success) {
     GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
         ("Failed to configure grabber (code %d)", err), (NULL));
@@ -353,15 +355,15 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
   }
 
   gst_video_info_init (&vinfo);
-  vinfo.width = camConfig.pixelInfo.cameraData.Width;
-  vinfo.height = camConfig.pixelInfo.cameraData.Height;
+  vinfo.width = ci->Width;
+  vinfo.height = ci->Height;
 
-  bpp = camConfig.pixelInfo.cameraData.BitDepth;
+  bpp = ci->BitDepth;
   if (bpp <= 8) {
     vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_GRAY8);
     src->caps = gst_video_info_to_caps (&vinfo);
 
-    src->flex_stride = vinfo.width;
+    Bpp = 1;
   } else if (bpp > 8 && bpp <= 16) {
     GValue val = G_VALUE_INIT;
     GstStructure *s;
@@ -379,7 +381,7 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
     gst_structure_set_value (s, "bpp", &val);
     g_value_unset (&val);
 
-    src->flex_stride = vinfo.width * 2;
+    Bpp = 2;
   } else {
     /* TODO: support 24-bit RGB */
     GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
@@ -387,8 +389,12 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
     return FALSE;
   }
 
-  src->gst_stride = GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0);
+  src->flex_stride = (ci->WidthPreValid + ci->Width + ci->WidthPostValid) * Bpp;
+  src->widthBytesPreValid = ci->WidthPreValid * Bpp;
+  src->widthBytes = ci->Width * Bpp;
+  src->heightPreValid = ci->HeightPreValid;
   src->height = vinfo.height;
+  src->gst_stride = GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0);
 
   return TRUE;
 }
@@ -455,7 +461,6 @@ gst_framelinksrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 
   if (GST_VIDEO_INFO_FORMAT (&vinfo) != GST_VIDEO_FORMAT_UNKNOWN) {
     src->gst_stride = GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0);
-    src->height = vinfo.height;
   } else {
     goto unsupported_caps;
   }
@@ -485,15 +490,17 @@ gst_framelinksrc_create_buffer_from_frameinfo (GstFramelinkSrc * src,
       pFrameInfo->timestamp);
 
   if (src->gst_stride == src->flex_stride) {
-    memcpy (minfo.data, pFrameInfo->lpRawBuffer, minfo.size);
+    memcpy (minfo.data,
+        ((guint8 *) pFrameInfo->lpRawBuffer) +
+        src->flex_stride * src->heightPreValid, minfo.size);
   } else {
     int i;
-    GST_WARNING_OBJECT (src,
-        "Image stride not a multiple of 4, copy will be slower.");
+    GST_LOG_OBJECT (src, "Image strides not identical, copy will be slower.");
     for (i = 0; i < src->height; i++) {
       memcpy (minfo.data + i * src->gst_stride,
-          ((guint8 *) pFrameInfo->lpRawBuffer) + i * src->flex_stride,
-          src->flex_stride);
+          ((guint8 *) pFrameInfo->lpRawBuffer) +
+          (src->heightPreValid + i) * src->flex_stride +
+          src->widthBytesPreValid, src->widthBytes);
     }
   }
   gst_buffer_unmap (buf, &minfo);

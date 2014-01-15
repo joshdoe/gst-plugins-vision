@@ -54,11 +54,11 @@ struct _GstFramelinkSrc
 
   GstBuffer *buffer;
 
-  gboolean buffer_ready;
-  guint buffer_processed_count;
-
   GstCaps *caps;
   gint height;
+  gint widthBytesPreValid;
+  gint widthBytes;
+  gint heightPreValid;
   gint gst_stride;
   guint flex_stride;
 
