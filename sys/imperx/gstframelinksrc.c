@@ -318,13 +318,16 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
   /* TODO: use VCECLB_InitByHandle */
   src->grabber = VCECLB_Init ();
   if (src->grabber == NULL) {
-    GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ, ("Failed to initialize grabber"), (NULL));     /* TODO: get error string */
+    GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
+        ("Failed to initialize grabber (code %d)", VCECLB_CardLastError ()),
+        (NULL));
     return FALSE;
   }
 
   err = VCECLB_GetDMAAccessEx (src->grabber, src->channel);
   if (err != VCECLB_Err_Success) {
-    GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ, ("Failed to get DMA access to port on grabber"), (NULL));      /* TODO: get error string */
+    GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
+        ("Failed to get DMA access to port on grabber (code %d)", err), (NULL));
     return FALSE;
   }
 
@@ -332,7 +335,8 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
       VCECLB_PrepareEx (src->grabber, src->channel,
       &camConfig.pixelInfo.cameraData);
   if (err != VCECLB_Err_Success) {
-    GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS, ("Failed to configure grabber"), (NULL));       /* TODO: get error string */
+    GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
+        ("Failed to configure grabber (code %d)", err), (NULL));
     return FALSE;
   }
 
@@ -392,13 +396,13 @@ gst_framelinksrc_stop (GstBaseSrc * bsrc)
 
   if (src->acq_started) {
     VCECLB_StopGrabEx (src->grabber, src->channel);
-	src->acq_started = FALSE;
+    src->acq_started = FALSE;
   }
 
   if (src->grabber) {
-	VCECLB_ReleaseDMAAccessEx (src->grabber, src->channel);
-	VCECLB_Done (src->grabber);
-	src->grabber = NULL;
+    VCECLB_ReleaseDMAAccessEx (src->grabber, src->channel);
+    VCECLB_Done (src->grabber);
+    src->grabber = NULL;
   }
 
   src->dropped_frame_count = 0;
