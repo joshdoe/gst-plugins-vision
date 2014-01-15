@@ -565,6 +565,7 @@ gst_framelinksrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   GstFramelinkSrc *src = GST_FRAMELINK_SRC (psrc);
   VCECLB_Error err;
   VCECLB_FrameInfoEx pFrameInfo;
+  gboolean got_new_buffer = FALSE;
 
   /* Start acquisition if not already started */
   if (!src->acq_started) {
@@ -598,14 +599,29 @@ gst_framelinksrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   }
   g_mutex_unlock (&src->mutex);
 #else
-  pFrameInfo.lpRawBuffer = NULL;
-  while (pFrameInfo.lpRawBuffer == NULL) {
+  while (!got_new_buffer) {
+    guint dropped_frames;
     err = VCECLB_GetLastBufferData (src->grabber, src->channel, &pFrameInfo);
     if (err != VCECLB_Err_Success) {
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
           ("Failed to get last buffer (code %d)", err), (NULL));
       return GST_FLOW_ERROR;
     }
+
+    if (pFrameInfo.lpRawBuffer == NULL
+        || pFrameInfo.number == src->last_buffer_number)
+      continue;
+
+    got_new_buffer = TRUE;
+
+    dropped_frames = pFrameInfo.number - src->last_buffer_number - 1;
+    if (dropped_frames > 0) {
+      src->dropped_frame_count += dropped_frames;
+      GST_WARNING_OBJECT (src, "Dropped %d frames (%d total)", dropped_frames,
+          src->dropped_frame_count);
+    }
+    src->last_buffer_number = pFrameInfo.number;
+
   }
 
   /* TODO: check for missed frames by comparing pFrameInfo.number */

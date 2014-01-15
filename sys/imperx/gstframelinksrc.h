@@ -40,6 +40,7 @@ struct _GstFramelinkSrc
 {
   GstPushSrc base_framelinksrc;
 
+  guint last_buffer_number;
   gint dropped_frame_count;
   gboolean acq_started;
 
