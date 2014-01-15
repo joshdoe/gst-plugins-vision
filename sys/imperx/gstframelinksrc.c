@@ -155,6 +155,7 @@ gst_framelinksrc_init (GstFramelinkSrc * src)
 
   src->buffer_ready = FALSE;
   src->buffer_processed_count = 0;
+  src->acq_started = FALSE;
 
   src->caps = NULL;
   src->buffer = NULL;
@@ -446,13 +447,16 @@ gst_framelinksrc_stop (GstBaseSrc * bsrc)
 
   GST_DEBUG_OBJECT (src, "stop");
 
-  VCECLB_StopGrabEx (src->grabber, src->channel);
+  if (src->acq_started) {
+    VCECLB_StopGrabEx (src->grabber, src->channel);
+	src->acq_started = FALSE;
+  }
 
-  VCECLB_ReleaseDMAAccessEx (src->grabber, src->channel);
-
-  VCECLB_Done (src->grabber);
-
-  src->grabber = NULL;
+  if (src->grabber) {
+	VCECLB_ReleaseDMAAccessEx (src->grabber, src->channel);
+	VCECLB_Done (src->grabber);
+	src->grabber = NULL;
+  }
 
   src->dropped_frame_count = 0;
 
