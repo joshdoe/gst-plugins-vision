@@ -285,12 +285,29 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
     return FALSE;
   }
 
+  /* get configuration from file */
+  camConfig.cchAlias = MAX_PATH;
+  camConfig.lpszAlias = g_new (gchar, MAX_PATH);
+  camConfig.cchDescription = MAX_PATH;
+  camConfig.lpszDescription = g_new (gchar, MAX_PATH);
+  camConfig.cchManufacturer = MAX_PATH;
+  camConfig.lpszManufacturer = g_new (gchar, MAX_PATH);
+  camConfig.cchModel = MAX_PATH;
+  camConfig.lpszModel = g_new (gchar, MAX_PATH);
+
   err = VCECLB_LoadConfigA (src->format_file, &camConfig);
   if (err != VCECLB_Err_Success) {
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Failed to load configuration file: %s", src->format_file), (NULL));
     return FALSE;
   }
+
+  GST_INFO_OBJECT (src, "Loaded config file for %s - %s",
+      camConfig.lpszManufacturer, camConfig.lpszModel);
+  g_free (camConfig.lpszAlias);
+  g_free (camConfig.lpszDescription);
+  g_free (camConfig.lpszManufacturer);
+  g_free (camConfig.lpszModel);
 
   if (camConfig.pixelInfo.cameraData.Packed == 1) {
     GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
