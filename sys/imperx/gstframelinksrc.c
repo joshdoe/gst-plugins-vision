@@ -139,6 +139,19 @@ gst_framelinksrc_class_init (GstFramelinkSrcClass * klass)
 }
 
 static void
+gst_framelinksrc_reset (GstFramelinkSrc * src)
+{
+  src->grabber = NULL;
+
+  src->dropped_frame_count = 0;
+  src->last_buffer_number = 0;
+  src->acq_started = FALSE;
+
+  src->caps = NULL;
+  src->buffer = NULL;
+}
+
+static void
 gst_framelinksrc_init (GstFramelinkSrc * src)
 {
   /* set source as live (no preroll) */
@@ -151,17 +164,10 @@ gst_framelinksrc_init (GstFramelinkSrc * src)
   src->format_file = g_strdup (DEFAULT_PROP_FORMAT_FILE);
   src->num_capture_buffers = DEFAULT_PROP_NUM_CAPTURE_BUFFERS;
 
-  src->grabber = NULL;
-
-  src->buffer_ready = FALSE;
-  src->buffer_processed_count = 0;
-  src->acq_started = FALSE;
-
-  src->caps = NULL;
-  src->buffer = NULL;
-
   g_mutex_init (&src->mutex);
   g_cond_init (&src->cond);
+
+  gst_framelinksrc_reset (src);
 }
 
 void
@@ -405,7 +411,7 @@ gst_framelinksrc_stop (GstBaseSrc * bsrc)
     src->grabber = NULL;
   }
 
-  src->dropped_frame_count = 0;
+  gst_framelinksrc_reset (src);
 
   return TRUE;
 }
