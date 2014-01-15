@@ -535,9 +535,12 @@ gst_framelinksrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
   /* Start acquisition if not already started */
   if (!src->acq_started) {
-    err = VCECLB_StartGrabEx (src->grabber, src->channel, 0, NULL, src);
+    err =
+        VCECLB_StartGrabEx (src->grabber, src->channel, 0,
+        (VCECLB_GrabFrame_CallbackEx) gst_framelinksrc_callback, NULL);
     if (err != VCECLB_Err_Success) {
-      GST_ELEMENT_ERROR (src, RESOURCE, FAILED, ("Failed to start grabbing"), (NULL));  /* TODO: get error string */
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+          ("Failed to start grabbing (code %d)", err), (NULL));
       return GST_FLOW_ERROR;
     }
     src->acq_started = TRUE;
