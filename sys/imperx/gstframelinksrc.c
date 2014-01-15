@@ -461,11 +461,54 @@ unsupported_caps:
   return FALSE;
 }
 
-void
-gst_framelink_callback (void *lpUserData, VCECLB_FrameInfoEx * pFrameInfo)
+static GstBuffer *
+gst_framelinksrc_create_buffer_from_frameinfo (GstFramelinkSrc * src,
+    VCECLB_FrameInfoEx * pFrameInfo)
 {
-  GstFramelinkSrc *src = GST_FRAMELINK_SRC (lpUserData);
   GstMapInfo minfo;
+  GstBuffer *buf;
+
+  /* TODO: use allocator or use from pool */
+  buf = gst_buffer_new_and_alloc (src->height * src->gst_stride);
+
+  /* Copy image to buffer from surface TODO: use orc_memcpy */
+  gst_buffer_map (buf, &minfo, GST_MAP_WRITE);
+  GST_LOG_OBJECT (src,
+      "GstBuffer size=%d, gst_stride=%d, phx_stride=%d, number=%d, timestamp=%d",
+      minfo.size, src->gst_stride, src->flex_stride, pFrameInfo->number,
+      pFrameInfo->timestamp);
+
+  if (src->gst_stride == src->flex_stride) {
+    memcpy (minfo.data, pFrameInfo->lpRawBuffer, minfo.size);
+  } else {
+    int i;
+    GST_WARNING_OBJECT (src,
+        "Image stride not a multiple of 4, copy will be slower.");
+    for (i = 0; i < src->height; i++) {
+      memcpy (minfo.data + i * src->gst_stride,
+          ((guint8 *) pFrameInfo->lpRawBuffer) + i * src->flex_stride,
+          src->flex_stride);
+    }
+  }
+  gst_buffer_unmap (buf, &minfo);
+
+  GST_BUFFER_OFFSET (buf) = pFrameInfo->number;
+  /* TODO: use timestamp? */
+  /* GST_BUFFER_OFFSET (src->timestamp) = pFrameInfo->timestamp * G_GINT64_CONSTANT (1000); */
+
+  return buf;
+}
+
+static void
+gst_framelinksrc_callback (void *lpUserData, VCECLB_FrameInfoEx * pFrameInfo)
+{
+  GstFramelinkSrc *src;
+  return;
+  printf ("callback, status=%d, buffersize=%d, number=%d, timestamp=%d \n",
+      pFrameInfo->dma_status, pFrameInfo->bufferSize, pFrameInfo->number,
+      pFrameInfo->timestamp);
+  src = GST_FRAMELINK_SRC (lpUserData);
+  g_assert (src != NULL);
 
   if (pFrameInfo->dma_status == VCECLB_DMA_STATUS_FRAME_DROP) {
     /* TODO: save this in dropped frame total? */
@@ -485,6 +528,8 @@ gst_framelink_callback (void *lpUserData, VCECLB_FrameInfoEx * pFrameInfo)
     return;
   }
 
+  GST_LOG_OBJECT (src, "callback received for new buffer");
+
   g_mutex_lock (&src->mutex);
 
   if (src->buffer) {
@@ -495,33 +540,7 @@ gst_framelink_callback (void *lpUserData, VCECLB_FrameInfoEx * pFrameInfo)
     src->buffer = NULL;
   }
 
-  /* TODO: use allocator or use from pool */
-  src->buffer = gst_buffer_new_and_alloc (src->height * src->gst_stride);
-
-  /* Copy image to buffer from surface TODO: use orc_memcpy */
-  gst_buffer_map (src->buffer, &minfo, GST_MAP_WRITE);
-  GST_LOG_OBJECT (src,
-      "GstBuffer size=%d, gst_stride=%d, phx_stride=%d, number=%d, timestamp=%d",
-      minfo.size, src->gst_stride, src->flex_stride, pFrameInfo->number,
-      pFrameInfo->timestamp);
-
-  if (src->gst_stride == src->flex_stride) {
-    memcpy (minfo.data, pFrameInfo->lpRawBuffer, minfo.size);
-  } else {
-    int i;
-    GST_WARNING_OBJECT (src,
-        "Image stride not a multiple of 4, copy will be slower.");
-    for (i = 0; i < src->height; i++) {
-      memcpy (minfo.data + i * src->gst_stride,
-          ((guint8 *) pFrameInfo->lpRawBuffer) + i * src->flex_stride,
-          src->flex_stride);
-    }
-  }
-  gst_buffer_unmap (src->buffer, &minfo);
-
-  GST_BUFFER_OFFSET (src->buffer) = pFrameInfo->number;
-  /* TODO: use timestamp? */
-  /* GST_BUFFER_OFFSET (src->timestamp) = pFrameInfo->timestamp * G_GINT64_CONSTANT (1000); */
+  src->buffer = gst_framelinksrc_create_buffer_from_frameinfo (src, pFrameInfo);
 
   g_cond_signal (&src->cond);
   g_mutex_unlock (&src->mutex);
@@ -532,12 +551,19 @@ gst_framelinksrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 {
   GstFramelinkSrc *src = GST_FRAMELINK_SRC (psrc);
   VCECLB_Error err;
+  VCECLB_FrameInfoEx pFrameInfo;
 
   /* Start acquisition if not already started */
   if (!src->acq_started) {
+#if GST_FRAMELINKSRC_USE_CALLBACK
     err =
         VCECLB_StartGrabEx (src->grabber, src->channel, 0,
-        (VCECLB_GrabFrame_CallbackEx) gst_framelinksrc_callback, NULL);
+        (VCECLB_GrabFrame_CallbackEx) gst_framelinksrc_callback, src);
+#else
+    err =
+        VCECLB_StartGrabEx (src->grabber, src->channel, 0,
+        (VCECLB_GrabFrame_CallbackEx) NULL, src);
+#endif
     if (err != VCECLB_Err_Success) {
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
           ("Failed to start grabbing (code %d)", err), (NULL));
@@ -545,7 +571,7 @@ gst_framelinksrc_create (GstPushSrc * psrc, GstBuffer ** buf)
     }
     src->acq_started = TRUE;
   }
-
+#if GST_FRAMELINKSRC_USE_CALLBACK
   /* wait for a buffer to be ready */
   g_mutex_lock (&src->mutex);
   while (!src->buffer) {
@@ -558,6 +584,20 @@ gst_framelinksrc_create (GstPushSrc * psrc, GstBuffer ** buf)
     src->buffer = NULL;
   }
   g_mutex_unlock (&src->mutex);
+#else
+  pFrameInfo.lpRawBuffer = NULL;
+  while (pFrameInfo.lpRawBuffer == NULL) {
+    err = VCECLB_GetLastBufferData (src->grabber, src->channel, &pFrameInfo);
+    if (err != VCECLB_Err_Success) {
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+          ("Failed to get last buffer (code %d)", err), (NULL));
+      return GST_FLOW_ERROR;
+    }
+  }
+
+  /* TODO: check for missed frames by comparing pFrameInfo.number */
+  *buf = gst_framelinksrc_create_buffer_from_frameinfo (src, &pFrameInfo);
+#endif
 
   return GST_FLOW_OK;
 }
