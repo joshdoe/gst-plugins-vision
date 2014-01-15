@@ -545,7 +545,11 @@ gst_framelinksrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
   /* wait for a buffer to be ready */
   g_mutex_lock (&src->mutex);
-  g_cond_wait (&src->cond, &src->mutex);
+  while (!src->buffer) {
+    /* TODO: add check for halted acquisition so we don't wait forever */
+    g_cond_wait (&src->cond, &src->mutex);
+  }
+
   if (src->buffer) {
     *buf = src->buffer;
     src->buffer = NULL;
