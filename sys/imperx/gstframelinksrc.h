@@ -57,11 +57,8 @@ struct _GstFramelinkSrc
 
   GstCaps *caps;
   gint height;
-  gint widthBytesPreValid;
-  gint widthBytes;
-  gint heightPreValid;
   gint gst_stride;
-  guint flex_stride;
+  VCECLB_RawPixelInfoEx pixInfo;
 
   GMutex mutex;
   GCond cond;

@@ -319,6 +319,9 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
   /* use shortcut since we use this struct a lot */
   ci = &camConfig.pixelInfo.cameraData;
 
+  /* copy pixel info struct to be used when unpacking data */
+  memcpy (&src->pixInfo, &camConfig.pixelInfo, sizeof (VCECLB_RawPixelInfoEx));
+
   if (ci->Packed == 1) {
     GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
         ("Packed pixel data not supported yet."), (NULL));
@@ -389,10 +392,6 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
     return FALSE;
   }
 
-  src->flex_stride = (ci->WidthPreValid + ci->Width + ci->WidthPostValid) * Bpp;
-  src->widthBytesPreValid = ci->WidthPreValid * Bpp;
-  src->widthBytes = ci->Width * Bpp;
-  src->heightPreValid = ci->HeightPreValid;
   src->height = vinfo.height;
   src->gst_stride = GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0);
 
@@ -478,31 +477,51 @@ gst_framelinksrc_create_buffer_from_frameinfo (GstFramelinkSrc * src,
 {
   GstMapInfo minfo;
   GstBuffer *buf;
+  INT_PTR strideSize;
+  unsigned long outputBitDepth;
+  VCECLB_Error err;
 
   /* TODO: use allocator or use from pool */
   buf = gst_buffer_new_and_alloc (src->height * src->gst_stride);
 
-  /* Copy image to buffer from surface TODO: use orc_memcpy */
+  /* Copy image to buffer from surface */
   gst_buffer_map (buf, &minfo, GST_MAP_WRITE);
   GST_LOG_OBJECT (src,
-      "GstBuffer size=%d, gst_stride=%d, phx_stride=%d, number=%d, timestamp=%d",
-      minfo.size, src->gst_stride, src->flex_stride, pFrameInfo->number,
-      pFrameInfo->timestamp);
+      "GstBuffer size=%d, gst_stride=%d, number=%d, timestamp=%d",
+      minfo.size, src->gst_stride, pFrameInfo->number, pFrameInfo->timestamp);
 
-  if (src->gst_stride == src->flex_stride) {
+#if GST_FRAMELINKSRC_COPY_EXPLICITLY
+  guint flex_stride =
+      (ci->WidthPreValid + ci->Width + ci->WidthPostValid) * Bpp;
+  gint widthBytesPreValid = ci->WidthPreValid * Bpp;
+  gint widthBytes = ci->Width * Bpp;
+  gint heightPreValid = ci->HeightPreValid;
+  /* TODO: use orc_memcpy */
+  if (src->gst_stride == flex_stride) {
     memcpy (minfo.data,
         ((guint8 *) pFrameInfo->lpRawBuffer) +
-        src->flex_stride * src->heightPreValid, minfo.size);
+        flex_stride * heightPreValid, minfo.size);
   } else {
     int i;
     GST_LOG_OBJECT (src, "Image strides not identical, copy will be slower.");
     for (i = 0; i < src->height; i++) {
       memcpy (minfo.data + i * src->gst_stride,
           ((guint8 *) pFrameInfo->lpRawBuffer) +
-          (src->heightPreValid + i) * src->flex_stride +
-          src->widthBytesPreValid, src->widthBytes);
+          (heightPreValid + i) * flex_stride + widthBytesPreValid, widthBytes);
     }
   }
+#else
+  strideSize = src->gst_stride;
+  err =
+      VCECLB_UnpackRawPixelsEx (&src->pixInfo, pFrameInfo->lpRawBuffer,
+      minfo.data, &strideSize, VCECLB_EX_FMT_16BIT | VCECLB_EX_FMT_TopDown,
+      &outputBitDepth);
+  if (err != VCECLB_Err_Success) {
+    GST_ELEMENT_ERROR (src, STREAM, DECODE,
+        ("Failed to unpack raw pixels (code %d)", err), (NULL));
+    goto Error;
+  }
+#endif
   gst_buffer_unmap (buf, &minfo);
 
   GST_BUFFER_OFFSET (buf) = pFrameInfo->number;
@@ -510,17 +529,22 @@ gst_framelinksrc_create_buffer_from_frameinfo (GstFramelinkSrc * src,
   /* GST_BUFFER_OFFSET (src->timestamp) = pFrameInfo->timestamp * G_GINT64_CONSTANT (1000); */
 
   return buf;
+
+Error:
+  if (minfo.memory != NULL)
+    gst_buffer_unmap (buf, &minfo);
+
+  if (buf)
+    gst_buffer_unref (buf);
+
+  return NULL;
 }
 
-static void
+static void __stdcall
 gst_framelinksrc_callback (void *lpUserData, VCECLB_FrameInfoEx * pFrameInfo)
 {
-  GstFramelinkSrc *src;
-  return;
-  printf ("callback, status=%d, buffersize=%d, number=%d, timestamp=%d \n",
-      pFrameInfo->dma_status, pFrameInfo->bufferSize, pFrameInfo->number,
-      pFrameInfo->timestamp);
-  src = GST_FRAMELINK_SRC (lpUserData);
+  GstFramelinkSrc *src = GST_FRAMELINK_SRC (lpUserData);
+  guint dropped_frames;
   g_assert (src != NULL);
 
   if (pFrameInfo->dma_status == VCECLB_DMA_STATUS_FRAME_DROP) {
@@ -541,8 +565,6 @@ gst_framelinksrc_callback (void *lpUserData, VCECLB_FrameInfoEx * pFrameInfo)
     return;
   }
 
-  GST_LOG_OBJECT (src, "callback received for new buffer");
-
   g_mutex_lock (&src->mutex);
 
   if (src->buffer) {
@@ -555,6 +577,14 @@ gst_framelinksrc_callback (void *lpUserData, VCECLB_FrameInfoEx * pFrameInfo)
 
   src->buffer = gst_framelinksrc_create_buffer_from_frameinfo (src, pFrameInfo);
 
+  dropped_frames = pFrameInfo->number - src->last_buffer_number - 1;
+  if (dropped_frames > 0) {
+    src->dropped_frame_count += dropped_frames;
+    GST_WARNING_OBJECT (src, "Dropped %d frames (%d total)", dropped_frames,
+        src->dropped_frame_count);
+  }
+  src->last_buffer_number = pFrameInfo->number;
+
   g_cond_signal (&src->cond);
   g_mutex_unlock (&src->mutex);
 }
@@ -564,20 +594,12 @@ gst_framelinksrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 {
   GstFramelinkSrc *src = GST_FRAMELINK_SRC (psrc);
   VCECLB_Error err;
-  VCECLB_FrameInfoEx pFrameInfo;
-  gboolean got_new_buffer = FALSE;
 
   /* Start acquisition if not already started */
   if (!src->acq_started) {
-#if GST_FRAMELINKSRC_USE_CALLBACK
     err =
         VCECLB_StartGrabEx (src->grabber, src->channel, 0,
-        (VCECLB_GrabFrame_CallbackEx) gst_framelinksrc_callback, src);
-#else
-    err =
-        VCECLB_StartGrabEx (src->grabber, src->channel, 0,
-        (VCECLB_GrabFrame_CallbackEx) NULL, src);
-#endif
+        gst_framelinksrc_callback, src);
     if (err != VCECLB_Err_Success) {
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
           ("Failed to start grabbing (code %d)", err), (NULL));
@@ -585,7 +607,7 @@ gst_framelinksrc_create (GstPushSrc * psrc, GstBuffer ** buf)
     }
     src->acq_started = TRUE;
   }
-#if GST_FRAMELINKSRC_USE_CALLBACK
+
   /* wait for a buffer to be ready */
   g_mutex_lock (&src->mutex);
   while (!src->buffer) {
@@ -598,35 +620,6 @@ gst_framelinksrc_create (GstPushSrc * psrc, GstBuffer ** buf)
     src->buffer = NULL;
   }
   g_mutex_unlock (&src->mutex);
-#else
-  while (!got_new_buffer) {
-    guint dropped_frames;
-    err = VCECLB_GetLastBufferData (src->grabber, src->channel, &pFrameInfo);
-    if (err != VCECLB_Err_Success) {
-      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          ("Failed to get last buffer (code %d)", err), (NULL));
-      return GST_FLOW_ERROR;
-    }
-
-    if (pFrameInfo.lpRawBuffer == NULL
-        || pFrameInfo.number == src->last_buffer_number)
-      continue;
-
-    got_new_buffer = TRUE;
-
-    dropped_frames = pFrameInfo.number - src->last_buffer_number - 1;
-    if (dropped_frames > 0) {
-      src->dropped_frame_count += dropped_frames;
-      GST_WARNING_OBJECT (src, "Dropped %d frames (%d total)", dropped_frames,
-          src->dropped_frame_count);
-    }
-    src->last_buffer_number = pFrameInfo.number;
-
-  }
-
-  /* TODO: check for missed frames by comparing pFrameInfo.number */
-  *buf = gst_framelinksrc_create_buffer_from_frameinfo (src, &pFrameInfo);
-#endif
 
   return GST_FLOW_OK;
 }
