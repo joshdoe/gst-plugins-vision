@@ -129,7 +129,7 @@ gst_framelinksrc_class_init (GstFramelinkSrcClass * klass)
           DEFAULT_PROP_NUM_CAPTURE_BUFFERS,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_BOARD,
-      g_param_spec_uint ("board", "Board", "Board number (0 for auto)", 0, 7,
+      g_param_spec_uint ("board", "Board", "Board number", 0, 7,
           DEFAULT_PROP_BOARD,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_CHANNEL,
@@ -278,6 +278,8 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
   GstVideoInfo vinfo;
   int bpp, Bpp;
   VCECLB_CameraDataEx *ci;
+  VCECLB_EnumData enumData;
+  HANDLE hDevEnum;
 
   GST_DEBUG_OBJECT (src, "start");
 
@@ -328,12 +330,24 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
     return FALSE;
   }
 
-  /* TODO: use VCECLB_InitByHandle */
-  src->grabber = VCECLB_Init ();
+  /* enumerate devices */
+  enumData.cbSize = sizeof (VCECLB_EnumData);
+  hDevEnum = VCECLB_EnumInit ();
+  while (VCECLB_EnumNext (hDevEnum, &enumData) == VCECLB_Err_Success) {
+    GST_DEBUG_OBJECT (src, "Found device: slot #%d, name '%s'",
+        enumData.dwSlot, enumData.pSlotName);
+
+    if (enumData.dwSlot == src->board) {
+      src->grabber = VCECLB_InitByHandle (enumData.pDeviceData, 0);
+      break;
+    }
+  }
+  VCECLB_EnumClose (hDevEnum);
+
   if (src->grabber == NULL) {
     GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
-        ("Failed to initialize grabber (code %d)", VCECLB_CardLastError ()),
-        (NULL));
+        ("Invalid board/device number or failed to initialize grabber (code %d)",
+            VCECLB_CardLastError ()), (NULL));
     return FALSE;
   }
 
