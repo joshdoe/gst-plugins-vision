@@ -141,14 +141,20 @@ gst_framelinksrc_class_init (GstFramelinkSrcClass * klass)
 static void
 gst_framelinksrc_reset (GstFramelinkSrc * src)
 {
-  src->grabber = NULL;
+  g_assert_null (src->grabber);
 
   src->dropped_frame_count = 0;
   src->last_buffer_number = 0;
   src->acq_started = FALSE;
 
-  src->caps = NULL;
-  src->buffer = NULL;
+  if (src->caps) {
+    gst_caps_unref (src->caps);
+    src->caps = NULL;
+  }
+  if (src->buffer) {
+    gst_buffer_unref (src->buffer);
+    src->buffer = NULL;
+  }
 }
 
 static void
@@ -166,6 +172,9 @@ gst_framelinksrc_init (GstFramelinkSrc * src)
 
   g_mutex_init (&src->mutex);
   g_cond_init (&src->cond);
+
+  src->caps = NULL;
+  src->buffer = NULL;
 
   gst_framelinksrc_reset (src);
 }
@@ -538,10 +547,6 @@ gst_framelinksrc_create_buffer_from_frameinfo (GstFramelinkSrc * src,
 #endif
   gst_buffer_unmap (buf, &minfo);
 
-  GST_BUFFER_OFFSET (buf) = pFrameInfo->number;
-  /* TODO: use timestamp? */
-  /* GST_BUFFER_OFFSET (src->timestamp) = pFrameInfo->timestamp * G_GINT64_CONSTANT (1000); */
-
   return buf;
 
 Error:
@@ -591,6 +596,14 @@ gst_framelinksrc_callback (void *lpUserData, VCECLB_FrameInfoEx * pFrameInfo)
 
   src->buffer = gst_framelinksrc_create_buffer_from_frameinfo (src, pFrameInfo);
 
+  /* number always starts at one for IMPERX, zero for GStreamer */
+  GST_BUFFER_OFFSET (src->buffer) = pFrameInfo->number - 1;
+
+  /* TODO: this isn't quite right, I think */
+  GST_BUFFER_TIMESTAMP (src->buffer) =
+      GST_ELEMENT_CAST (src)->base_time +
+      (pFrameInfo->timestamp * G_GINT64_CONSTANT (1000));
+
   dropped_frames = pFrameInfo->number - src->last_buffer_number - 1;
   if (dropped_frames > 0) {
     src->dropped_frame_count += dropped_frames;
@@ -610,7 +623,7 @@ gst_framelinksrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   VCECLB_Error err;
 
   /* Start acquisition if not already started */
-  if (!src->acq_started) {
+  if (G_UNLIKELY (!src->acq_started)) {
     err =
         VCECLB_StartGrabEx (src->grabber, src->channel, 0,
         gst_framelinksrc_callback, src);
