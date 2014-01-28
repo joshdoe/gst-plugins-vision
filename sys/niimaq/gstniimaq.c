@@ -410,7 +410,7 @@ gst_niimaqsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 {
   GstNiImaqSrc *src = GST_NIIMAQSRC (bsrc);
   gboolean res = TRUE;
-  int depth;
+  int depth, ncomps;
   GstVideoInfo vinfo;
 
   res = gst_video_info_from_caps (&vinfo, caps);
@@ -427,10 +427,12 @@ gst_niimaqsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 
   gst_base_src_set_blocksize (bsrc, src->framesize);
 
+  ncomps = GST_VIDEO_INFO_N_COMPONENTS (&vinfo);
   depth = GST_VIDEO_INFO_COMP_DEPTH (&vinfo, 0);
 
   /* use this so NI can give us proper byte alignment */
-  src->rowpixels = GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0) / (depth / 8);
+  src->rowpixels =
+      GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0) / (ncomps * depth / 8);
 
   GST_LOG_OBJECT (src, "Caps set, framesize=%d, rowpixels=%d",
       src->framesize, src->rowpixels);
