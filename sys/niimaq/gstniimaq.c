@@ -150,14 +150,14 @@ gst_niimaqsrc_frame_start_callback (SESSION_ID sid, IMG_ERR err,
   abstime = gst_clock_get_time (GST_ELEMENT_CLOCK (src));
   src->times[index] = abstime;
 
-  if (G_UNLIKELY (src->start_time == NULL))
+  if (G_UNLIKELY (src->start_time == NULL)) {
     src->start_time = gst_date_time_new_now_utc ();
-
-  /* first frame, use as element base time */
-  if (src->base_time == GST_CLOCK_TIME_NONE)
-    src->base_time = abstime;
+  }
 
   index = (index + 1) % src->bufsize;
+
+  src->buffers_available++;
+  g_cond_signal (&src->cond);
 
   g_mutex_unlock (&src->mutex);
 
@@ -319,6 +319,7 @@ gst_niimaqsrc_init (GstNiImaqSrc * src)
   gst_base_src_set_format (GST_BASE_SRC (src), GST_FORMAT_TIME);
 
   g_mutex_init (&src->mutex);
+  g_cond_init (&src->cond);
 
   /* initialize properties */
   src->bufsize = DEFAULT_PROP_RING_BUFFER_COUNT;
@@ -458,7 +459,7 @@ gst_niimaqsrc_reset (GstNiImaqSrc * src)
   src->rowpixels = 0;
   src->start_time = NULL;
   src->start_time_sent = FALSE;
-  src->base_time = GST_CLOCK_TIME_NONE;
+  src->buffers_available = 0;
 
   g_free (src->buflist);
   src->buflist = NULL;
@@ -590,16 +591,24 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
     /* TODO: optionally use ExamineBuffer and byteswap in transfer (to offer BIG_ENDIAN) */
     gst_buffer_map (*buffer, &minfo, GST_MAP_WRITE);
     g_mutex_lock (&src->mutex);
+
+    /* wait until the frame is available, letting FVAL callback capture the mutex first */
+    while (!src->buffers_available) {
+      g_cond_wait (&src->cond, &src->mutex);
+    }
+
     rval =
         imgSessionCopyBufferByNumber (src->sid, src->cumbufnum,
         minfo.data, IMG_OVERWRITE_GET_OLDEST, &copied_number, &copied_index);
     timestamp = src->times[copied_index];
     src->times[copied_index] = GST_CLOCK_TIME_NONE;
+    src->buffers_available--;
     g_mutex_unlock (&src->mutex);
     gst_buffer_unmap (*buffer, &minfo);
   } else {
     gst_buffer_map (*buffer, &minfo, GST_MAP_WRITE);
     g_mutex_lock (&src->mutex);
+    g_cond_wait (&src->cond, &src->mutex);
     rval =
         imgSessionCopyAreaByNumber (src->sid, src->cumbufnum, 0, 0,
         src->height, src->width, minfo.data, src->rowpixels,
@@ -640,6 +649,7 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
   if (GST_CLOCK_TIME_IS_VALID (timestamp)) {
     duration = timestamp / (copied_number + 1);
   } else {
+    GST_WARNING_OBJECT (src, "No valid timestamp");
     duration = 33 * GST_MSECOND;
   }
 
@@ -647,7 +657,8 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
   GST_BUFFER_OFFSET_END (*buffer) = copied_number + 1;
   GST_BUFFER_TIMESTAMP (*buffer) =
       timestamp - gst_element_get_base_time (GST_ELEMENT (src));
-  GST_BUFFER_DURATION (*buffer) = duration;
+  /* FIXME: estimating duration seems to cause problems with d3dvideosink, check why */
+  /* GST_BUFFER_DURATION (*buffer) = duration; */
 
   dropped = copied_number - src->cumbufnum;
   if (dropped > 0) {

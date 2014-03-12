@@ -72,12 +72,13 @@ struct _GstNiImaqSrc {
   SESSION_ID sid;
 
   gboolean session_started;
-  GstClockTime base_time;
 
   GstDateTime *start_time;
   gboolean start_time_sent;
 
   GMutex mutex;
+  GCond cond;
+  gint buffers_available;
 };
 
 struct _GstNiImaqSrcClass {
