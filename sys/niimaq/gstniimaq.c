@@ -621,18 +621,18 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
 
   /* TODO: do this above to reduce copying overhead */
   if (src->is_signed) {
-    gint16 *src;
-    guint16 *dst;
+    gint16 *srcp;
+    guint16 *dstp;
     guint i;
     gst_buffer_map (*buffer, &minfo, GST_MAP_READWRITE);
-    src = minfo.data;
-    dst = minfo.data;
+    srcp = minfo.data;
+    dstp = minfo.data;
 
     GST_DEBUG_OBJECT (src, "Shifting signed to unsigned");
 
     /* TODO: make this faster */
     for (i = 0; i < minfo.size / 2; i++)
-      *dst++ = *src++ + 32768;
+      *dstp++ = *srcp++ + 32768;
 
     gst_buffer_unmap (*buffer, &minfo);
   }
