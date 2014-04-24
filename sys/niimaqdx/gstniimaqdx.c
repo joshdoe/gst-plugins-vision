@@ -1032,7 +1032,12 @@ gst_niimaqdxsrc_get_caps (GstBaseSrc * bsrc, GstCaps * filter_caps)
   } else
     caps = gst_niimaqdxsrc_get_cam_caps (src);
 
-  GST_DEBUG_OBJECT (bsrc, "get_caps, pre-filter=%" GST_PTR_FORMAT, caps);
+  if (caps == NULL) {
+    GST_ERROR_OBJECT (src, "Unable to create caps");
+    return NULL;
+  }
+
+  GST_DEBUG_OBJECT (src, "get_caps, pre-filter=%" GST_PTR_FORMAT, caps);
 
   if (filter_caps) {
     GstCaps *tmp = gst_caps_intersect (caps, filter_caps);
@@ -1040,7 +1045,7 @@ gst_niimaqdxsrc_get_caps (GstBaseSrc * bsrc, GstCaps * filter_caps)
     caps = tmp;
   }
 
-  GST_DEBUG_OBJECT (bsrc,
+  GST_DEBUG_OBJECT (src,
       "with filter %" GST_PTR_FORMAT ", post-filter=%" GST_PTR_FORMAT,
       filter_caps, caps);
 
