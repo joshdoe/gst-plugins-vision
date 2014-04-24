@@ -168,6 +168,8 @@ ImaqDxCapsInfo imaq_dx_caps_infos[] = {
   ,
   {"Mono 16", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_BE"), 16, 16, 4}
   ,
+  {"BGRA 8 Packed", 0, GST_VIDEO_CAPS_MAKE ("BGRA"), 32, 32, 4}
+  ,
   {"YUV 422 Packed", 0, GST_VIDEO_CAPS_MAKE ("UYVY"), 16, 16, 4}
   ,
   {"Bayer BG 8", 0, VIDEO_CAPS_MAKE_BAYER8 ("bggr"), 8, 8, 1}
