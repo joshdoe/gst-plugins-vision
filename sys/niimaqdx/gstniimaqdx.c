@@ -225,7 +225,7 @@ gst_niimaqdxsrc_pixel_format_from_caps (const GstCaps * caps, int *endianness)
 }
 
 static int
-gst_niimaqdxsrc_pixel_format_get_bpp (const char *pixel_format, int endianness)
+gst_niimaqdxsrc_pixel_format_get_depth (const char *pixel_format, int endianness)
 {
   ImaqDxCapsInfo *info =
       gst_niimaqdxsrc_get_caps_info (pixel_format, endianness);
@@ -233,14 +233,14 @@ gst_niimaqdxsrc_pixel_format_get_bpp (const char *pixel_format, int endianness)
   if (!info)
     return 0;
 
-  return info->bpp;
+  return info->depth;
 }
 
 static int
 gst_niimaqdxsrc_pixel_format_get_stride (const char *pixel_format,
     int endianness, int width)
 {
-  return width * gst_niimaqdxsrc_pixel_format_get_bpp (pixel_format,
+  return width * gst_niimaqdxsrc_pixel_format_get_depth (pixel_format,
       endianness) / 8;
 }
 
