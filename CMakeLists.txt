@@ -6,21 +6,24 @@ project(gst-plugins-vision)
 
 include(MacroLogFeature)
 
-find_package(GStreamer 0.10.29 COMPONENTS base)
-macro_log_feature(GSTREAMER_FOUND "GStreamer" "Required to build gst-plugins-vision" "http://gstreamer.freedesktop.org/" TRUE "0.10.29")
-macro_log_feature(GSTREAMER_BASE_LIBRARY_FOUND "GStreamer base library" "Required to build gst-plugins-vision" "http://gstreamer.freedesktop.org/" TRUE "0.10.29")
+find_package(GStreamer REQUIRED COMPONENTS base)
+macro_log_feature(GSTREAMER_FOUND "GStreamer" "Required to build gst-plugins-vision" "http://gstreamer.freedesktop.org/" TRUE "1.2.0")
+macro_log_feature(GSTREAMER_BASE_LIBRARY_FOUND "GStreamer base library" "Required to build most plugins" "http://gstreamer.freedesktop.org/" FALSE "1.2.0")
 
-find_package(GStreamerPluginsBase 0.10.29 COMPONENTS video)
-macro_log_feature(GSTREAMER_VIDEO_LIBRARY_FOUND "GStreamer video library" "Required to build several video plugins" "http://gstreamer.freedesktop.org/" FALSE "0.10.29")
+find_package(GStreamerPluginsBase COMPONENTS video)
+macro_log_feature(GSTREAMER_VIDEO_LIBRARY_FOUND "GStreamer video library" "Required to build several video plugins" "http://gstreamer.freedesktop.org/" FALSE "1.2.0")
 
-find_package(GLIB2)
+find_package(GLIB2 REQUIRED)
 macro_log_feature(GLIB2_FOUND "GLib" "Required to build gst-plugins-vision" "http://www.gtk.org/" TRUE)
 
-find_package(GObject)
+find_package(GObject REQUIRED)
 macro_log_feature(GOBJECT_FOUND "GObject" "Required to build gst-plugins-vision" "http://www.gtk.org/" TRUE)
 
 find_package(NIIMAQ)
 macro_log_feature(NIIMAQ_FOUND "NI-IMAQ" "Required to build National Instruments IMAQ source element" "http://www.ni.com/" FALSE)
+
+find_package(NIIMAQDX)
+macro_log_feature(NIIMAQDX_FOUND "NI-IMAQdx" "Required to build National Instruments IMAQdx source element" "http://www.ni.com/" FALSE)
 
 find_package(FreeImage)
 macro_log_feature(FREEIMAGE_FOUND "FreeImage" "Required to build FreeImage plugin" "http://freeimage.sourceforge.net/" FALSE)
@@ -49,7 +52,6 @@ include_directories(
     .
     ${GSTREAMER_INCLUDE_DIR}
     ${GLIB2_INCLUDE_DIR})
-add_definitions(-DGST_DISABLE_XML -DGST_DISABLE_LOADSAVE)
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     file(TO_CMAKE_PATH "${GSTREAMER_INCLUDE_DIR}/../.." PREFIX)

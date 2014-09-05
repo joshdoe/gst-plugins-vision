@@ -16,7 +16,8 @@ add_library (libgstvideoadjust MODULE
   
 target_link_libraries (libgstvideoadjust
   ${GLIB2_LIBRARIES}
-  ${GSTREAMER_LIBRARIES}
+  ${GOBJECT_LIBRARIES}
+  ${GSTREAMER_LIBRARY}
   ${GSTREAMER_BASE_LIBRARY}
   ${GSTREAMER_VIDEO_LIBRARY})
   

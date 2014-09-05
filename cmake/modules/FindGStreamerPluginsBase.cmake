@@ -16,7 +16,7 @@
 # Redistribution and use is allowed according to the terms of the BSD license.
 # For details see the accompanying COPYING-CMAKE-SCRIPTS file.
 
-set(GSTREAMER_ABI_VERSION "0.10")
+set(GSTREAMER_ABI_VERSION "1.0")
 
 
 # Find the pkg-config file for doing the version check
@@ -47,6 +47,10 @@ foreach(_component ${GStreamerPluginsBase_FIND_COMPONENTS})
         _find_gst_plugins_base_component(FFT gstfft.h)
     elseif (${_component} STREQUAL "floatcast")
         _find_gst_plugins_base_component(FLOATCAST floatcast.h)
+    elseif (${_component} STREQUAL "interfaces")
+        _find_gst_plugins_base_component(INTERFACES xoverlay.h)
+	elseif (${_component} STREQUAL "insertbin")
+        _find_gst_plugins_base_component(INSERTBIN gstinsertbin.h)
     elseif (${_component} STREQUAL "netbuffer")
         _find_gst_plugins_base_component(NETBUFFER gstnetbuffer.h)
     elseif (${_component} STREQUAL "riff")

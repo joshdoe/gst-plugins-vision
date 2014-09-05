@@ -23,16 +23,16 @@ endif(NOT WIN32)
 
 find_path(GLIB2_MAIN_INCLUDE_DIR glib.h
           PATH_SUFFIXES glib-2.0
-          HINTS ${PKG_GLIB_INCLUDE_DIRS} ${PKG_GLIB_INCLUDEDIR})
+          HINTS ${PKG_GLIB_INCLUDE_DIRS} ${PKG_GLIB_INCLUDEDIR} $ENV{GSTREAMER_1_0_ROOT_X86}/include)
 
 # search the glibconfig.h include dir under the same root where the library is found
 find_library(GLIB2_LIBRARIES
              NAMES glib-2.0
-             HINTS ${PKG_GLIB_LIBRARY_DIRS} ${PKG_GLIB_LIBDIR})
+             HINTS ${PKG_GLIB_LIBRARY_DIRS} ${PKG_GLIB_LIBDIR} $ENV{GSTREAMER_1_0_ROOT_X86}/lib)
 
 find_path(GLIB2_INTERNAL_INCLUDE_DIR glibconfig.h
           PATH_SUFFIXES glib-2.0/include ../lib/glib-2.0/include
-          HINTS ${PKG_GLIB_INCLUDE_DIRS} ${PKG_GLIB_LIBRARIES} ${CMAKE_SYSTEM_LIBRARY_PATH})
+          HINTS ${PKG_GLIB_INCLUDE_DIRS} ${PKG_GLIB_LIBRARIES} ${CMAKE_SYSTEM_LIBRARY_PATH} $ENV{GSTREAMER_1_0_ROOT_X86}/lib)
 
 set(GLIB2_INCLUDE_DIR ${GLIB2_MAIN_INCLUDE_DIR})
 
