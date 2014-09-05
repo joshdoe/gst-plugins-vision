@@ -63,6 +63,7 @@ struct _GstNiImaqDxSrc {
   gchar *device_name;
   gint ringbuffer_count;
   gchar *attributes;
+  gboolean bayer_as_gray;
 
   /* image info */
   int width;

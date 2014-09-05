@@ -55,12 +55,14 @@ enum
   PROP_0,
   PROP_DEVICE,
   PROP_RING_BUFFER_COUNT,
-  PROP_ATTRIBUTES
+  PROP_ATTRIBUTES,
+  PROP_BAYER_AS_GRAY
 };
 
 #define DEFAULT_PROP_DEVICE "cam0"
 #define DEFAULT_PROP_RING_BUFFER_COUNT 3
 #define DEFAULT_PROP_ATTRIBUTES ""
+#define DEFAULT_PROP_BAYER_AS_GRAY FALSE
 
 static void gst_niimaqdxsrc_init_interfaces (GType type);
 
@@ -178,7 +180,7 @@ ImaqDxCapsInfo imaq_dx_caps_infos[] = {
   {"Bayer BG 16", 0, VIDEO_CAPS_MAKE_BAYER16 ("bggr16", "1234"), 16, 16, 1}
 };
 
-static ImaqDxCapsInfo *
+static const ImaqDxCapsInfo *
 gst_niimaqdxsrc_get_caps_info (const char *pixel_format, int endianness)
 {
   int i;
@@ -198,7 +200,7 @@ static const char *
 gst_niimaqdxsrc_pixel_format_to_caps_string (const char *pixel_format,
     int endianness)
 {
-  ImaqDxCapsInfo *info =
+  const ImaqDxCapsInfo *info =
       gst_niimaqdxsrc_get_caps_info (pixel_format, endianness);
 
   if (!info)
@@ -227,7 +229,7 @@ gst_niimaqdxsrc_pixel_format_from_caps (const GstCaps * caps, int *endianness)
 static int
 gst_niimaqdxsrc_pixel_format_get_depth (const char *pixel_format, int endianness)
 {
-  ImaqDxCapsInfo *info =
+  const ImaqDxCapsInfo *info =
       gst_niimaqdxsrc_get_caps_info (pixel_format, endianness);
 
   if (!info)
@@ -389,6 +391,11 @@ gst_niimaqdxsrc_class_init (GstNiImaqDxSrcClass * klass)
       PROP_ATTRIBUTES, g_param_spec_string ("attributes",
           "Attributes", "Initial attributes to set", DEFAULT_PROP_ATTRIBUTES,
           G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
+  g_object_class_install_property (G_OBJECT_CLASS (klass),
+      PROP_BAYER_AS_GRAY, g_param_spec_boolean ("bayer-as-gray",
+          "Bayer as gray",
+          "For Bayer sources use GRAY caps", DEFAULT_PROP_BAYER_AS_GRAY,
+          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
 
   {
     GstCaps *caps = gst_caps_new_empty ();
@@ -496,6 +503,9 @@ gst_niimaqdxsrc_set_property (GObject * object, guint prop_id,
         g_free (niimaqdxsrc->attributes);
       niimaqdxsrc->attributes = g_strdup (g_value_get_string (value));
       break;
+    case PROP_BAYER_AS_GRAY:
+      niimaqdxsrc->bayer_as_gray = g_value_get_boolean(value);
+      break;
     default:
       break;
   }
@@ -516,6 +526,9 @@ gst_niimaqdxsrc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_ATTRIBUTES:
       g_value_set_string (value, niimaqdxsrc->attributes);
+      break;
+    case PROP_BAYER_AS_GRAY:
+      g_value_set_boolean (value, niimaqdxsrc->bayer_as_gray);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -819,6 +832,15 @@ gst_niimaqdxsrc_get_cam_caps (GstNiImaqDxSrc * niimaqdxsrc)
     endianness = G_LITTLE_ENDIAN;
   else
     endianness = G_BIG_ENDIAN;
+
+  if (g_str_has_prefix(pixel_format, "Bayer") && niimaqdxsrc->bayer_as_gray) {
+    const ImaqDxCapsInfo *info = gst_niimaqdxsrc_get_caps_info (pixel_format, endianness);
+    if (info->depth == 8) {
+      g_strlcpy (pixel_format, "Mono 8", IMAQDX_MAX_API_STRING_LENGTH);
+    } else if (info->depth == 16) {
+      g_strlcpy (pixel_format, "Mono 16", IMAQDX_MAX_API_STRING_LENGTH);
+    }
+  }
 
   //TODO: add all available caps by enumerating PixelFormat's available, and query for framerate
   caps =
