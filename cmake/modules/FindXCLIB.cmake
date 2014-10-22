@@ -18,19 +18,25 @@ ELSE (XCLIB_INCLUDE_DIR AND XCLIB_LIBRARIES)
 ENDIF (XCLIB_INCLUDE_DIR AND XCLIB_LIBRARIES)
 
 IF (NOT XCLIB_DIR)
-    SET (XCLIB_DIR "C:/Program Files/EPIX/XCLIB" CACHE PATH "Directory containing EPIX XCLIB")
+    file(TO_CMAKE_PATH "$ENV{ProgramFiles}" _PROG_FILES)
+    file(TO_CMAKE_PATH "$ENV{ProgramFiles(x86)}" _PROG_FILES_X86)
+    if (_PROG_FILES_X86)
+        set(_PROGFILESDIR "${_PROG_FILES_X86}")
+    else ()
+        set(_PROGFILESDIR "${_PROG_FILES}")
+    endif ()
+
+    set (XCLIB_DIR "${_PROGFILESDIR}/EPIX/XCLIB" CACHE PATH "Directory containing EPIX PIXCI XCLIB includes and libraries")
 ENDIF (NOT XCLIB_DIR)
 
 FIND_PATH (XCLIB_INCLUDE_DIR xcliball.h
     PATHS
     "${XCLIB_DIR}"
-        "C:/Program Files/EPIX/XCLIB"
     DOC "Directory containing xcliball.h include file")
 
-FIND_LIBRARY (XCLIB_LIBRARIES NAMES XCLIBW64
+FIND_LIBRARY (XCLIB_LIBRARIES NAMES XCLIBWNT
     PATHS
     "${XCLIB_DIR}"
-        "C:/Program Files/EPIX/XCLIB"
     DOC "XCLIB library to link with")
 
 IF (XCLIB_INCLUDE_DIR)
