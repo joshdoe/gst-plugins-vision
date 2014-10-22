@@ -1,26 +1,26 @@
 add_definitions(-DHAVE_CONFIG_H)
 
-set ( SOURCES
-    gstpixcisrc.c )
+set(SOURCES
+    gstpixcisrc.c)
     
-set ( HEADERS
-    gstpixcisrc.h )
+set(HEADERS
+    gstpixcisrc.h)
 
-include_directories ( AFTER
-  ${PIXCI_INCLUDE_DIR}
+include_directories(AFTER
+  ${XCLIB_INCLUDE_DIR}
   .)
 
-add_library ( libgstpixci MODULE
+add_library(libgstpixci MODULE
   ${SOURCES}
-  ${HEADERS} )
+  ${HEADERS})
 
-target_link_libraries ( libgstpixci
+target_link_libraries(libgstpixci
   ${GLIB2_LIBRARIES}
-  ${GSTREAMER_LIBRARIES}
+  ${GOBJECT_LIBRARIES}
+  ${GSTREAMER_LIBRARY}
   ${GSTREAMER_BASE_LIBRARY}
-  ${GSTREAMER_INTERFACE_LIBRARY}
   ${GSTREAMER_VIDEO_LIBRARY}
-  ${PIXCI_LIBRARIES})
+  ${XCLIB_LIBRARIES})
   
-install (TARGETS libgstpixci
+install(TARGETS libgstpixci
   LIBRARY DESTINATION lib/gstreamer-0.10)
