@@ -64,6 +64,7 @@ struct _GstPixciSrc
   guint num_capture_buffers;
   guint board;
   guint channel;
+  guint timeout;
 
   gboolean pixci_open;
   int unitmap;

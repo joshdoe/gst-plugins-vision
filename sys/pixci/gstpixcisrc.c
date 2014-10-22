@@ -67,7 +67,8 @@ enum
   PROP_DRIVER_PARAMS,
   PROP_NUM_CAPTURE_BUFFERS,
   PROP_BOARD,
-  PROP_CHANNEL
+  PROP_CHANNEL,
+  PROP_TIMEOUT
 };
 
 #define DEFAULT_PROP_FORMAT_NAME ""
@@ -76,6 +77,7 @@ enum
 #define DEFAULT_PROP_NUM_CAPTURE_BUFFERS 2
 #define DEFAULT_PROP_BOARD 0
 #define DEFAULT_PROP_CHANNEL 0
+#define DEFAULT_PROP_TIMEOUT 0
 
 /* pad templates */
 
@@ -151,6 +153,10 @@ gst_pixcisrc_class_init (GstPixciSrcClass * klass)
   g_object_class_install_property (gobject_class, PROP_CHANNEL,
       g_param_spec_uint ("channel", "Channel", "Channel number (0 for auto)", 0,
           2, DEFAULT_PROP_CHANNEL,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+  g_object_class_install_property (gobject_class, PROP_TIMEOUT,
+      g_param_spec_uint ("timeout", "Timeout", "Timeout in milliseconds (0 for default)", 0,
+          G_MAXUINT, DEFAULT_PROP_TIMEOUT,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 }
 
@@ -232,6 +238,9 @@ gst_pixcisrc_set_property (GObject * object, guint property_id,
     case PROP_CHANNEL:
       src->channel = g_value_get_uint (value);
       break;
+    case PROP_TIMEOUT:
+      src->timeout = g_value_get_uint (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -265,6 +274,9 @@ gst_pixcisrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_CHANNEL:
       g_value_set_uint (value, src->channel);
+      break;
+    case PROP_TIMEOUT:
+      g_value_set_uint (value, src->timeout);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -601,7 +613,7 @@ gst_pixcisrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   //    src->frame_start_count - src->buffer_ready_count;
 
   //g_mutex_unlock (&src->mutex);
-  pxerr = pxd_doSnap (src->unitmap, buffer, 0);
+  pxerr = pxd_doSnap (src->unitmap, buffer, src->timeout);
   if (pxerr) {
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         (("Failed to get buffer.")), (NULL));
