@@ -47,205 +47,221 @@ gboolean gst_saperasrc_destroy_objects (GstSaperaSrc * src);
 class SapMyProcessing : public SapProcessing
 {
 public:
-    SapMyProcessing (SapBuffer *pBuffers, SapProCallback pCallback, void *pContext)
-        : SapProcessing (pBuffers, pCallback, pContext) {
-            src = (GstSaperaSrc*)pContext;
-    }
+  SapMyProcessing (SapBuffer * pBuffers, SapProCallback pCallback,
+      void *pContext)
+  : SapProcessing (pBuffers, pCallback, pContext)
+  {
+    src = (GstSaperaSrc *) pContext;
+  }
 
-    virtual ~SapMyProcessing () {
-        if (m_bInitOK) 
-            Destroy ();
-    }
-
-protected:
-    virtual BOOL Run () {
-        // TODO: handle bayer
-        //if (src->sap_bayer->IsEnabled () && src->sap_bayer->IsSoftware ()) {
-        //    src->sap_bayer->Convert (GetIndex());
-        //}
-
-        push_buffer ();
-
-        return TRUE;
-    }
-
-    gboolean push_buffer () {
-        void *pData;
-        GstMapInfo minfo;
-
-        // TODO: check for failure
-        src->sap_buffers->GetAddress (&pData);
-        int pitch = src->sap_buffers->GetPitch ();
-        int height = src->sap_buffers->GetHeight ();
-        gssize size = pitch * height;
-
-        GstBuffer *buf;
-        /* create a new buffer assign to it the clock time as timestamp */
-        buf = gst_buffer_new_and_alloc (size);
-
-        gst_buffer_set_size(buf, size);
-
-        GstClock *clock = gst_element_get_clock (GST_ELEMENT (src));
-        GST_BUFFER_TIMESTAMP (buf) =
-            GST_CLOCK_DIFF (gst_element_get_base_time (GST_ELEMENT (src)), gst_clock_get_time (clock));
-        gst_object_unref (clock);
-
-        // TODO: define duration?
-        //GST_BUFFER_DURATION (buf) = duration;
-
-        if (!gst_buffer_map (buf, &minfo, GST_MAP_WRITE)) {
-            gst_buffer_unref (buf);
-            GST_ERROR_OBJECT (src, "Failed to map buffer");
-            return FALSE;
-        }
-
-        // TODO: optimize this
-        if (pitch == src->gst_stride) {
-            memcpy (minfo.data, pData, size);
-        } else {
-            for (int line = 0; line < src->height; line++) {
-                memcpy (minfo.data + (line * src->gst_stride),
-                    (guint8*)pData + (line * pitch), pitch);
-            }
-        }
-
-        src->sap_buffers->ReleaseAddress(pData);
-
-        gst_buffer_unmap(buf, &minfo);
-
-        GST_DEBUG ("push_buffer => pts %" GST_TIME_FORMAT, GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buf)));
-
-        g_mutex_lock (&src->buffer_mutex);
-        if (src->buffer != NULL)
-            gst_buffer_unref (src->buffer);
-        src->buffer = buf;
-        g_cond_signal (&src->buffer_cond);
-        g_mutex_unlock (&src->buffer_mutex);
-
-        return TRUE;
-    }
+  virtual ~ SapMyProcessing ()
+  {
+    if (m_bInitOK)
+      Destroy ();
+  }
 
 protected:
-    GstSaperaSrc* src;
-}; 
+  virtual BOOL Run () {
+    // TODO: handle bayer
+    //if (src->sap_bayer->IsEnabled () && src->sap_bayer->IsSoftware ()) {
+    //    src->sap_bayer->Convert (GetIndex());
+    //}
 
-void gst_saperasrc_xfer_callback (SapXferCallbackInfo *pInfo)
-{
-    GstSaperaSrc * src = (GstSaperaSrc*) pInfo->GetContext ();
+    push_buffer ();
 
-    if (pInfo->IsTrash ()) {
-        /* TODO: update dropped buffer count */
+    return TRUE;
+  }
+
+  gboolean push_buffer ()
+  {
+    void *pData;
+    GstMapInfo minfo;
+
+    // TODO: check for failure
+    src->sap_buffers->GetAddress (&pData);
+    int pitch = src->sap_buffers->GetPitch ();
+    int height = src->sap_buffers->GetHeight ();
+    gssize size = pitch * height;
+
+    GstBuffer *buf;
+    /* create a new buffer assign to it the clock time as timestamp */
+    buf = gst_buffer_new_and_alloc (size);
+
+    gst_buffer_set_size (buf, size);
+
+    GstClock *clock = gst_element_get_clock (GST_ELEMENT (src));
+    GST_BUFFER_TIMESTAMP (buf) =
+        GST_CLOCK_DIFF (gst_element_get_base_time (GST_ELEMENT (src)),
+        gst_clock_get_time (clock));
+    gst_object_unref (clock);
+
+    // TODO: define duration?
+    //GST_BUFFER_DURATION (buf) = duration;
+
+    if (!gst_buffer_map (buf, &minfo, GST_MAP_WRITE)) {
+      gst_buffer_unref (buf);
+      GST_ERROR_OBJECT (src, "Failed to map buffer");
+      return FALSE;
+    }
+    // TODO: optimize this
+    if (pitch == src->gst_stride) {
+      memcpy (minfo.data, pData, size);
     } else {
-        /* Process current buffer */
-        src->sap_pro->Execute ();
+      for (int line = 0; line < src->height; line++) {
+        memcpy (minfo.data + (line * src->gst_stride),
+            (guint8 *) pData + (line * pitch), pitch);
+      }
     }
+
+    src->sap_buffers->ReleaseAddress (pData);
+
+    gst_buffer_unmap (buf, &minfo);
+
+    GST_DEBUG ("push_buffer => pts %" GST_TIME_FORMAT,
+        GST_TIME_ARGS (GST_BUFFER_TIMESTAMP (buf)));
+
+    g_mutex_lock (&src->buffer_mutex);
+    if (src->buffer != NULL)
+      gst_buffer_unref (src->buffer);
+    src->buffer = buf;
+    g_cond_signal (&src->buffer_cond);
+    g_mutex_unlock (&src->buffer_mutex);
+
+    return TRUE;
+  }
+
+protected:
+  GstSaperaSrc * src;
+};
+
+void
+gst_saperasrc_xfer_callback (SapXferCallbackInfo * pInfo)
+{
+  GstSaperaSrc *src = (GstSaperaSrc *) pInfo->GetContext ();
+
+  if (pInfo->IsTrash ()) {
+    /* TODO: update dropped buffer count */
+  } else {
+    /* Process current buffer */
+    src->sap_pro->Execute ();
+  }
 }
 
-void gst_saperasrc_pro_callback (SapProCallbackInfo *pInfo)
+void
+gst_saperasrc_pro_callback (SapProCallbackInfo * pInfo)
 {
-    GstSaperaSrc * src = (GstSaperaSrc*) pInfo->GetContext ();
+  GstSaperaSrc *src = (GstSaperaSrc *) pInfo->GetContext ();
 
-    /* TODO: handle buffer */
+  /* TODO: handle buffer */
 }
 
-void gst_saperasrc_init_objects (GstSaperaSrc * src)
+void
+gst_saperasrc_init_objects (GstSaperaSrc * src)
 {
-  GST_DEBUG_OBJECT (src, "Resource count: %d", SapManager::GetResourceCount(1, SapManager::ResourceAcq));
-  SapLocation loc(1, 0);
+  GST_DEBUG_OBJECT (src, "Resource count: %d", SapManager::GetResourceCount (1,
+          SapManager::ResourceAcq));
+  SapLocation loc (1, 0);
   src->sap_acq = new SapAcquisition (loc, src->format_file);
   /* TODO: allow configuring buffer count? */
   src->sap_buffers = new SapBufferWithTrash (3, src->sap_acq);
-  src->sap_xfer = new SapAcqToBuf(src->sap_acq, src->sap_buffers, gst_saperasrc_xfer_callback, src);
+  src->sap_xfer =
+      new SapAcqToBuf (src->sap_acq, src->sap_buffers,
+      gst_saperasrc_xfer_callback, src);
   // TODO: handle bayer
   //src->sap_bayer = new SapBayer(m_Acq, m_Buffers);
-  src->sap_pro = new SapMyProcessing (src->sap_buffers, gst_saperasrc_pro_callback, src);
+  src->sap_pro =
+      new SapMyProcessing (src->sap_buffers, gst_saperasrc_pro_callback, src);
 }
 
-gboolean gst_saperasrc_create_objects (GstSaperaSrc * src)
+gboolean
+gst_saperasrc_create_objects (GstSaperaSrc * src)
 {
-    UINT32 video_type = 0;
+  UINT32 video_type = 0;
 
-    /* Create acquisition object */
-    if (src->sap_acq && !*src->sap_acq && !src->sap_acq->Create()) {
-        gst_saperasrc_destroy_objects (src);
-        return FALSE;
+  /* Create acquisition object */
+  if (src->sap_acq && !*src->sap_acq && !src->sap_acq->Create ()) {
+    gst_saperasrc_destroy_objects (src);
+    return FALSE;
+  }
+
+  if (!src->sap_acq->GetParameter (CORACQ_PRM_VIDEO, &video_type)) {
+    gst_saperasrc_destroy_objects (src);
+    return FALSE;
+  }
+
+  /* TODO: handle Bayer
+     //if (videoType != CORACQ_VAL_VIDEO_BAYER)
+
+     // Enable/Disable bayer conversion
+     // This call may require to modify the acquisition output format.
+     // For this reason, it has to be done after creating the acquisition object but before
+     // creating the output buffer object.
+     //if( m_Bayer && !m_Bayer->Enable( m_BayerEnabled, m_BayerUseHardware))
+     //{
+     //    m_BayerEnabled= FALSE;
+     //} */
+
+  // Create buffer objects
+  if (src->sap_buffers && !*src->sap_buffers) {
+    if (!src->sap_buffers->Create ()) {
+      gst_saperasrc_destroy_objects (src);
+      return FALSE;
+    }
+    // Clear all buffers
+    src->sap_buffers->Clear ();
+  }
+
+  /* TODO: handle Bayer
+     // Create bayer object
+     //if (m_Bayer && !*m_Bayer && !m_Bayer->Create())
+     //{
+     //    DestroyObjects();
+     //    return FALSE;
+     //} */
+
+  /* Create transfer object */
+  if (src->sap_xfer && !*src->sap_xfer) {
+    if (!src->sap_xfer->Create ()) {
+      gst_saperasrc_destroy_objects (src);
+      return FALSE;
     }
 
-    if (!src->sap_acq->GetParameter (CORACQ_PRM_VIDEO, &video_type)) {
-        gst_saperasrc_destroy_objects (src);
-        return FALSE;
+    src->sap_xfer->SetAutoEmpty (FALSE);
+  }
+
+  /* Create processing object */
+  if (src->sap_pro && !*src->sap_pro) {
+    if (!src->sap_pro->Create ()) {
+      gst_saperasrc_destroy_objects (src);
+      return FALSE;
     }
 
-    /* TODO: handle Bayer
-    //if (videoType != CORACQ_VAL_VIDEO_BAYER)
+    src->sap_pro->SetAutoEmpty (TRUE);
+  }
 
-    // Enable/Disable bayer conversion
-    // This call may require to modify the acquisition output format.
-    // For this reason, it has to be done after creating the acquisition object but before
-    // creating the output buffer object.
-    //if( m_Bayer && !m_Bayer->Enable( m_BayerEnabled, m_BayerUseHardware))
-    //{
-    //    m_BayerEnabled= FALSE;
-    //} */
-
-    // Create buffer objects
-    if (src->sap_buffers && !*src->sap_buffers) {
-        if (!src->sap_buffers->Create ()) {
-            gst_saperasrc_destroy_objects (src);
-            return FALSE;
-        }
-        // Clear all buffers
-        src->sap_buffers->Clear ();
-    }
-
-    /* TODO: handle Bayer
-    // Create bayer object
-    //if (m_Bayer && !*m_Bayer && !m_Bayer->Create())
-    //{
-    //    DestroyObjects();
-    //    return FALSE;
-    //} */
-
-    /* Create transfer object */
-    if (src->sap_xfer && !*src->sap_xfer) {
-        if (!src->sap_xfer->Create ()) {	
-            gst_saperasrc_destroy_objects (src);
-            return FALSE;
-        }
-
-        src->sap_xfer->SetAutoEmpty (FALSE);
-    }
-
-    /* Create processing object */
-    if (src->sap_pro && !*src->sap_pro) {
-        if (!src->sap_pro->Create()) {
-            gst_saperasrc_destroy_objects (src);
-            return FALSE;
-        }
-
-        src->sap_pro->SetAutoEmpty (TRUE);
-    }
-
-    return TRUE;
+  return TRUE;
 }
 
-gboolean gst_saperasrc_destroy_objects (GstSaperaSrc * src)
+gboolean
+gst_saperasrc_destroy_objects (GstSaperaSrc * src)
 {
-    if (src->sap_xfer && *src->sap_xfer) src->sap_xfer->Destroy ();
+  if (src->sap_xfer && *src->sap_xfer)
+    src->sap_xfer->Destroy ();
 
-    if (src->sap_pro && *src->sap_pro) src->sap_pro->Destroy ();
+  if (src->sap_pro && *src->sap_pro)
+    src->sap_pro->Destroy ();
 
-    // TODO: handle bayer
-    //if (src->sap_bayer && *src->sap_bayer) src->sap_bayer->Destroy ();
+  // TODO: handle bayer
+  //if (src->sap_bayer && *src->sap_bayer) src->sap_bayer->Destroy ();
 
-    if (src->sap_buffers && *src->sap_buffers) src->sap_buffers->Destroy ();
+  if (src->sap_buffers && *src->sap_buffers)
+    src->sap_buffers->Destroy ();
 
-    if (src->sap_acq && *src->sap_acq) src->sap_acq->Destroy ();
+  if (src->sap_acq && *src->sap_acq)
+    src->sap_acq->Destroy ();
 
-    return TRUE;
+  return TRUE;
 }
-
-G_BEGIN_DECLS
 
 /* prototypes */
 static void gst_saperasrc_set_property (GObject * object,
@@ -260,12 +276,9 @@ static gboolean gst_saperasrc_stop (GstBaseSrc * src);
 static GstCaps *gst_saperasrc_get_caps (GstBaseSrc * src, GstCaps * filter);
 static gboolean gst_saperasrc_set_caps (GstBaseSrc * src, GstCaps * caps);
 
-static GstFlowReturn gst_saperasrc_create (GstPushSrc * src,
-    GstBuffer ** buf);
+static GstFlowReturn gst_saperasrc_create (GstPushSrc * src, GstBuffer ** buf);
 
 static GstCaps *gst_saperasrc_create_caps (GstSaperaSrc * src);
-
-G_END_DECLS
 
 enum
 {
@@ -520,27 +533,27 @@ gst_saperasrc_start (GstBaseSrc * bsrc)
   GST_DEBUG_OBJECT (src, "About to initialize and create Sapera objects");
   gst_saperasrc_init_objects (src);
   if (!gst_saperasrc_create_objects (src)) {
-      GST_ERROR_OBJECT (src, "Failed to create Sapera objects");
-      return FALSE;
+    GST_ERROR_OBJECT (src, "Failed to create Sapera objects");
+    return FALSE;
   }
 
   GST_DEBUG_OBJECT (src, "Creating caps from Sapera buffer format");
-  sap_format = src->sap_buffers->GetFormat();
+  sap_format = src->sap_buffers->GetFormat ();
   switch (sap_format) {
-  case SapFormatMono8:
+    case SapFormatMono8:
       gst_format = GST_VIDEO_FORMAT_GRAY8;
       break;
-  case SapFormatMono16:
+    case SapFormatMono16:
       gst_format = GST_VIDEO_FORMAT_GRAY16_LE;
       break;
-  default:
+    default:
       gst_format = GST_VIDEO_FORMAT_UNKNOWN;
   }
 
   if (gst_format == GST_VIDEO_FORMAT_UNKNOWN) {
-      char format_name[17];
-      SapManager::GetStringFromFormat (sap_format, format_name);
-      GST_ERROR_OBJECT (src, "Unsupported format: %s", format_name);
+    char format_name[17];
+    SapManager::GetStringFromFormat (sap_format, format_name);
+    GST_ERROR_OBJECT (src, "Unsupported format: %s", format_name);
 
   }
 
@@ -554,8 +567,8 @@ gst_saperasrc_start (GstBaseSrc * bsrc)
   src->gst_stride = GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0);
 
   if (!src->sap_xfer->Grab ()) {
-      GST_ERROR_OBJECT (src, "Failed to start grab");
-      return FALSE;
+    GST_ERROR_OBJECT (src, "Failed to start grab");
+    return FALSE;
   }
 
   return TRUE;
@@ -568,15 +581,15 @@ gst_saperasrc_stop (GstBaseSrc * bsrc)
 
   GST_DEBUG_OBJECT (src, "stop");
 
-  if (!src->sap_xfer->Freeze()) {
-      GST_ERROR_OBJECT (src, "Failed to stop camera acquisition");
-      return FALSE;
+  if (!src->sap_xfer->Freeze ()) {
+    GST_ERROR_OBJECT (src, "Failed to stop camera acquisition");
+    return FALSE;
   }
 
   if (!src->sap_xfer->Wait (250)) {
-      GST_ERROR_OBJECT (src, "Acquisition failed to stop camera, aborting");
-      src->sap_xfer->Abort ();
-      return FALSE;
+    GST_ERROR_OBJECT (src, "Acquisition failed to stop camera, aborting");
+    src->sap_xfer->Abort ();
+    return FALSE;
   }
 
   gst_saperasrc_reset (src);
@@ -641,7 +654,7 @@ gst_saperasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
   g_mutex_lock (&src->buffer_mutex);
   while (src->buffer == NULL)
-      g_cond_wait (&src->buffer_cond, &src->buffer_mutex);
+    g_cond_wait (&src->buffer_cond, &src->buffer_mutex);
   *buf = src->buffer;
   src->buffer = NULL;
   g_mutex_unlock (&src->buffer_mutex);
