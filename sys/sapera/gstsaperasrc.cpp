@@ -300,7 +300,7 @@ static GstStaticPadTemplate gst_saperasrc_src_template =
 GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("{ GRAY8, GRAY16_LE, GRAY16_BE }"))
+    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("{ GRAY8, GRAY16_LE, GRAY16_BE, BGR }"))
     );
 
 /* class initialization */
@@ -545,6 +545,9 @@ gst_saperasrc_start (GstBaseSrc * bsrc)
       break;
     case SapFormatMono16:
       gst_format = GST_VIDEO_FORMAT_GRAY16_LE;
+      break;
+    case SapFormatRGB888:
+      gst_format = GST_VIDEO_FORMAT_BGR;
       break;
     default:
       gst_format = GST_VIDEO_FORMAT_UNKNOWN;
