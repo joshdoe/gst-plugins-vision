@@ -6,45 +6,47 @@
 #  NIIMAQ_LIBRARIES - the libraries needed to use NI-IMAQ
 
 # Copyright (c) 2006, Tim Beaulen <tbscope@gmail.com>
-# Copyright (c) 2010, United States Government, Joshua M. Doe <oss@nvl.army.mil>
+# Copyright (c) 2014, United States Government, Joshua M. Doe <oss@nvl.army.mil>
 #
 # Redistribution and use is allowed according to the terms of the BSD license.
 # For details see the accompanying COPYING-CMAKE-SCRIPTS file.
 
-IF (NIIMAQ_INCLUDE_DIR AND NIIMAQ_LIBRARIES)
-   # in cache already
-   SET(NIIMAQ_FIND_QUIETLY TRUE)
-ELSE (NIIMAQ_INCLUDE_DIR AND NIIMAQ_LIBRARIES)
-   SET(NIIMAQ_FIND_QUIETLY FALSE)
-ENDIF (NIIMAQ_INCLUDE_DIR AND NIIMAQ_LIBRARIES)
+if (NOT NIIMAQ_DIR)
+    # 32-bit dir on win32
+    file(TO_CMAKE_PATH "$ENV{ProgramFiles}" _PROG_FILES)
+    # 32-bit dir on win64
+    file(TO_CMAKE_PATH "$ENV{ProgramFiles(x86)}" _PROG_FILES_X86)
+    # 64-bit dir on win64
+    file(TO_CMAKE_PATH "$ENV{ProgramW6432}" _PROG_FILES_W6432)
+    
+	# NI puts 64-bit lib in 32-bit Program Files directory
+	if (_PROG_FILES_X86)
+		set(_PROGFILESDIR "${_PROG_FILES_X86}")
+	else ()
+		set(_PROGFILESDIR "${_PROG_FILES}")
+	endif ()
 
-IF (NOT NIIMAQ_DIR)
-    SET (NIIMAQ_DIR "C:/Program Files/National Instruments" CACHE PATH "Directory containing NI includes and libraries")
-ENDIF (NOT NIIMAQ_DIR)
+    set(NIIMAQ_DIR "${_PROGFILESDIR}/National Instruments" CACHE PATH "Top level National Instruments directory")
+endif (NOT NIIMAQ_DIR)
 
-FIND_PATH (NIIMAQ_INCLUDE_DIR niimaq.h
+find_path(NIIMAQ_INCLUDE_DIR niimaq.h
     PATHS
     "${NIIMAQ_DIR}/Shared/ExternalCompilerSupport/C/Include"
     DOC "Directory containing niimaq.h include file")
 
-FIND_LIBRARY (NIIMAQ_LIBRARIES NAMES imaq
-    PATHS
-    "${NIIMAQ_DIR}/Shared/ExternalCompilerSupport/C/Lib32/MSVC"
-    DOC "niimaq library to link with")
+if (CMAKE_SIZEOF_VOID_P MATCHES "8")
+	find_library(NIIMAQ_LIBRARIES NAMES imaq
+		PATHS
+		"${NIIMAQ_DIR}/Shared/ExternalCompilerSupport/C/Lib64/MSVC"
+		DOC "niimaq library to link with")
+else ()
+	find_library(NIIMAQ_LIBRARIES NAMES imaq
+		PATHS
+		"${NIIMAQ_DIR}/Shared/ExternalCompilerSupport/C/Lib32/MSVC"
+		DOC "niimaq library to link with")
+endif ()
 
-IF (NIIMAQ_INCLUDE_DIR)
-   #MESSAGE(STATUS "DEBUG: Found NI-IMAQ include dir: ${NIIMAQ_INCLUDE_DIR}")
-ELSE (NIIMAQ_INCLUDE_DIR)
-   MESSAGE(STATUS "NI-IMAQ: WARNING: include dir not found")
-ENDIF (NIIMAQ_INCLUDE_DIR)
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(NIIMAQ DEFAULT_MSG NIIMAQ_INCLUDE_DIR NIIMAQ_LIBRARIES)
 
-IF (NIIMAQ_LIBRARIES)
-   #MESSAGE(STATUS "DEBUG: Found NI-IMAQ library: ${NIIMAQ_LIBRARIES}")
-ELSE (NIIMAQ_LIBRARIES)
-   MESSAGE(STATUS "NI-IMAQ: WARNING: library not found")
-ENDIF (NIIMAQ_LIBRARIES)
-
-INCLUDE (FindPackageHandleStandardArgs)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS (NIIMAQ  DEFAULT_MSG  NIIMAQ_INCLUDE_DIR NIIMAQ_LIBRARIES)
-
-MARK_AS_ADVANCED(NIIMAQ_INCLUDE_DIR NIIMAQ_LIBRARIES)
+mark_as_advanced(NIIMAQ_INCLUDE_DIR NIIMAQ_LIBRARIES)

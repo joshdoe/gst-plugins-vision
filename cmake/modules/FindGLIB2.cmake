@@ -21,18 +21,24 @@ if (NOT WIN32)
    pkg_check_modules(PKG_GLIB REQUIRED glib-2.0)
 endif(NOT WIN32)
 
+if (CMAKE_SIZEOF_VOID_P MATCHES "8")
+    set(GSTREAMER_ROOT $ENV{GSTREAMER_1_0_ROOT_X86_64})
+else ()
+    set(GSTREAMER_ROOT $ENV{GSTREAMER_1_0_ROOT_X86})
+endif ()
+
 find_path(GLIB2_MAIN_INCLUDE_DIR glib.h
           PATH_SUFFIXES glib-2.0
-          HINTS ${PKG_GLIB_INCLUDE_DIRS} ${PKG_GLIB_INCLUDEDIR} $ENV{GSTREAMER_1_0_ROOT_X86}/include)
+          HINTS ${PKG_GLIB_INCLUDE_DIRS} ${PKG_GLIB_INCLUDEDIR} ${GSTREAMER_ROOT}/include)
 
 # search the glibconfig.h include dir under the same root where the library is found
 find_library(GLIB2_LIBRARIES
              NAMES glib-2.0
-             HINTS ${PKG_GLIB_LIBRARY_DIRS} ${PKG_GLIB_LIBDIR} $ENV{GSTREAMER_1_0_ROOT_X86}/lib)
+             HINTS ${PKG_GLIB_LIBRARY_DIRS} ${PKG_GLIB_LIBDIR} ${GSTREAMER_ROOT}/lib)
 
 find_path(GLIB2_INTERNAL_INCLUDE_DIR glibconfig.h
           PATH_SUFFIXES glib-2.0/include ../lib/glib-2.0/include
-          HINTS ${PKG_GLIB_INCLUDE_DIRS} ${PKG_GLIB_LIBRARIES} ${CMAKE_SYSTEM_LIBRARY_PATH} $ENV{GSTREAMER_1_0_ROOT_X86}/lib)
+          HINTS ${PKG_GLIB_INCLUDE_DIRS} ${PKG_GLIB_LIBRARIES} ${CMAKE_SYSTEM_LIBRARY_PATH} ${GSTREAMER_ROOT}/lib)
 
 set(GLIB2_INCLUDE_DIR ${GLIB2_MAIN_INCLUDE_DIR})
 

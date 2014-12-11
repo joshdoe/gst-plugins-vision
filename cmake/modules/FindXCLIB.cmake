@@ -8,50 +8,59 @@
 # Redistribution and use is allowed according to the terms of the BSD license.
 # For details see the accompanying COPYING-CMAKE-SCRIPTS file.
 
-# TODO: properly handle 32-/64-bit differences, and Linux
+# TODO: properly handle Linux
 
-IF (XCLIB_INCLUDE_DIR AND XCLIB_LIBRARIES)
-   # in cache already
-   SET(XCLIB_FIND_QUIETLY TRUE)
-ELSE (XCLIB_INCLUDE_DIR AND XCLIB_LIBRARIES)
-   SET(XCLIB_FIND_QUIETLY FALSE)
-ENDIF (XCLIB_INCLUDE_DIR AND XCLIB_LIBRARIES)
-
-IF (NOT XCLIB_DIR)
+if (NOT XCLIB_DIR)
+    # 32-bit dir on win32
     file(TO_CMAKE_PATH "$ENV{ProgramFiles}" _PROG_FILES)
+    # 32-bit dir on win64
     file(TO_CMAKE_PATH "$ENV{ProgramFiles(x86)}" _PROG_FILES_X86)
-    if (_PROG_FILES_X86)
-        set(_PROGFILESDIR "${_PROG_FILES_X86}")
+    # 64-bit dir on win64
+    file(TO_CMAKE_PATH "$ENV{ProgramW6432}" _PROG_FILES_W6432)
+    
+    if (CMAKE_SIZEOF_VOID_P MATCHES "8")
+        set(_PROGFILESDIR "${_PROG_FILES_W6432}")
     else ()
-        set(_PROGFILESDIR "${_PROG_FILES}")
+        if (_PROG_FILES_X86)
+            set(_PROGFILESDIR "${_PROG_FILES_X86}")
+        else ()
+            set(_PROGFILESDIR "${_PROG_FILES}")
+        endif ()
     endif ()
 
     set (XCLIB_DIR "${_PROGFILESDIR}/EPIX/XCLIB" CACHE PATH "Directory containing EPIX PIXCI XCLIB includes and libraries")
-ENDIF (NOT XCLIB_DIR)
+endif (NOT XCLIB_DIR)
 
-FIND_PATH (XCLIB_INCLUDE_DIR xcliball.h
+find_path (XCLIB_INCLUDE_DIR xcliball.h
     PATHS
     "${XCLIB_DIR}"
     DOC "Directory containing xcliball.h include file")
 
-FIND_LIBRARY (XCLIB_LIBRARIES NAMES XCLIBWNT
-    PATHS
-    "${XCLIB_DIR}"
-    DOC "XCLIB library to link with")
+if (CMAKE_SIZEOF_VOID_P MATCHES "8")
+    find_library (XCLIB_LIBRARIES NAMES XCLIBW64
+        PATHS
+        "${XCLIB_DIR}"
+        DOC "XCLIB 64-bit library to link with")
+else ()
+    find_library (XCLIB_LIBRARIES NAMES XCLIBWNT
+        PATHS
+        "${XCLIB_DIR}"
+        DOC "XCLIB 32-bit library to link with")
+endif ()
 
-IF (XCLIB_INCLUDE_DIR)
-   #MESSAGE(STATUS "DEBUG: Found EPIX XCLIB include dir: ${XCLIB_INCLUDE_DIR}")
-ELSE (XCLIB_INCLUDE_DIR)
-   MESSAGE(STATUS "XCLIB: WARNING: include dir not found")
-ENDIF (XCLIB_INCLUDE_DIR)
+if (XCLIB_INCLUDE_DIR)
+   #message(STATUS "DEBUG: Found EPIX XCLIB include dir: ${XCLIB_INCLUDE_DIR}")
+else (XCLIB_INCLUDE_DIR)
+   message(STATUS "XCLIB: WARNING: include dir not found")
+endif (XCLIB_INCLUDE_DIR)
 
-IF (XCLIB_LIBRARIES)
-   #MESSAGE(STATUS "DEBUG: Found EPIX XCLIB library: ${XCLIB_LIBRARIES}")
-ELSE (XCLIB_LIBRARIES)
-   MESSAGE(STATUS "XCLIB: WARNING: library not found")
-ENDIF (XCLIB_LIBRARIES)
+if (XCLIB_LIBRARIES)
+   #message(STATUS "DEBUG: Found EPIX XCLIB library: ${XCLIB_LIBRARIES}")
+else (XCLIB_LIBRARIES)
+   message(STATUS "XCLIB: WARNING: library not found")
+endif (XCLIB_LIBRARIES)
 
-INCLUDE (FindPackageHandleStandardArgs)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS (XCLIB  DEFAULT_MSG  XCLIB_INCLUDE_DIR XCLIB_LIBRARIES)
+include (FindPackageHandleStandardArgs)
+find_package_handle_standard_args (XCLIB  DEFAULT_MSG  XCLIB_INCLUDE_DIR XCLIB_LIBRARIES)
 
-MARK_AS_ADVANCED(XCLIB_INCLUDE_DIR XCLIB_LIBRARIES)
+mark_as_advanced(XCLIB_INCLUDE_DIR XCLIB_LIBRARIES)
