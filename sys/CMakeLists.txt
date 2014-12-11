@@ -22,6 +22,10 @@ if (PHOENIX_FOUND)
 	add_subdirectory(phoenix)
 endif (PHOENIX_FOUND)
 
+if (SAPERA_FOUND)
+	add_subdirectory(sapera)
+endif (SAPERA_FOUND)
+
 if (XCLIB_FOUND)
 	add_subdirectory(pixci)
 endif (XCLIB_FOUND)
