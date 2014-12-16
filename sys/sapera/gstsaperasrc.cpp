@@ -44,7 +44,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_saperasrc_debug);
 gboolean gst_saperasrc_create_objects (GstSaperaSrc * src);
 gboolean gst_saperasrc_destroy_objects (GstSaperaSrc * src);
 
-class SapMyProcessing : public SapProcessing
+class SapMyProcessing:public SapProcessing
 {
 public:
   SapMyProcessing (SapBuffer * pBuffers, SapProCallback pCallback,
@@ -155,12 +155,34 @@ gst_saperasrc_pro_callback (SapProCallbackInfo * pInfo)
   /* TODO: handle buffer */
 }
 
-void
+gboolean
 gst_saperasrc_init_objects (GstSaperaSrc * src)
 {
-  GST_DEBUG_OBJECT (src, "Resource count: %d", SapManager::GetResourceCount (1,
+  char name[128];
+
+  GST_DEBUG_OBJECT (src, "There are %d servers available",
+      SapManager::GetServerCount ());
+
+  if (!SapManager::GetServerName (src->server_index, name)) {
+    GST_ERROR_OBJECT (src, "Invalid server index %d", src->server_index);
+    return FALSE;
+  }
+
+  GST_DEBUG_OBJECT (src, "Trying to open server index %d ('%s')",
+      src->server_index, name);
+
+  GST_DEBUG_OBJECT (src, "Resource count: %d",
+      SapManager::GetResourceCount (src->server_index,
           SapManager::ResourceAcq));
-  SapLocation loc (1, 0);
+
+  if (!SapManager::GetResourceName (src->server_index, SapManager::ResourceAcq,
+          src->resource_index, name, 128)) {
+    GST_ERROR_OBJECT (src, "Invalid resource index %d", src->resource_index);
+    return FALSE;
+  }
+  GST_DEBUG_OBJECT (src, "Trying to open resource '%s'", name);
+
+  SapLocation loc (src->server_index, src->resource_index);
   src->sap_acq = new SapAcquisition (loc, src->format_file);
   /* TODO: allow configuring buffer count? */
   src->sap_buffers = new SapBufferWithTrash (3, src->sap_acq);
@@ -171,6 +193,8 @@ gst_saperasrc_init_objects (GstSaperaSrc * src)
   //src->sap_bayer = new SapBayer(m_Acq, m_Buffers);
   src->sap_pro =
       new SapMyProcessing (src->sap_buffers, gst_saperasrc_pro_callback, src);
+
+  return TRUE;
 }
 
 gboolean
@@ -285,14 +309,14 @@ enum
   PROP_0,
   PROP_FORMAT_FILE,
   PROP_NUM_CAPTURE_BUFFERS,
-  PROP_BOARD,
-  PROP_CHANNEL
+  PROP_SERVER_INDEX,
+  PROP_RESOURCE_INDEX,
 };
 
 #define DEFAULT_PROP_FORMAT_FILE ""
 #define DEFAULT_PROP_NUM_CAPTURE_BUFFERS 2
-#define DEFAULT_PROP_BOARD 0
-#define DEFAULT_PROP_CHANNEL 0
+#define DEFAULT_PROP_SERVER_INDEX 1
+#define DEFAULT_PROP_RESOURCE_INDEX 0
 
 /* pad templates */
 
@@ -349,13 +373,15 @@ gst_saperasrc_class_init (GstSaperaSrcClass * klass)
           "Number of capture buffers", 1, G_MAXUINT,
           DEFAULT_PROP_NUM_CAPTURE_BUFFERS,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
-  g_object_class_install_property (gobject_class, PROP_BOARD,
-      g_param_spec_uint ("board", "Board", "Board number", 0, 7,
-          DEFAULT_PROP_BOARD,
+  g_object_class_install_property (gobject_class, PROP_SERVER_INDEX,
+      g_param_spec_int ("server-index", "Server index",
+          "Server (frame grabber card) index", 0, G_MAXINT,
+          DEFAULT_PROP_SERVER_INDEX,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
-  g_object_class_install_property (gobject_class, PROP_CHANNEL,
-      g_param_spec_uint ("channel", "Channel", "Channel number", 0,
-          1, DEFAULT_PROP_CHANNEL,
+  g_object_class_install_property (gobject_class, PROP_RESOURCE_INDEX,
+      g_param_spec_int ("resource-index", "Resource index",
+          "Resource index, such as different ports or configurations", 0,
+          G_MAXINT, DEFAULT_PROP_RESOURCE_INDEX,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 }
 
@@ -433,11 +459,11 @@ gst_saperasrc_set_property (GObject * object, guint property_id,
         src->num_capture_buffers = g_value_get_uint (value);
       }
       break;
-    case PROP_BOARD:
-      src->board = g_value_get_uint (value);
+    case PROP_SERVER_INDEX:
+      src->server_index = g_value_get_int (value);
       break;
-    case PROP_CHANNEL:
-      src->channel = g_value_get_uint (value);
+    case PROP_RESOURCE_INDEX:
+      src->resource_index = g_value_get_int (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -461,11 +487,11 @@ gst_saperasrc_get_property (GObject * object, guint property_id,
     case PROP_NUM_CAPTURE_BUFFERS:
       g_value_set_uint (value, src->num_capture_buffers);
       break;
-    case PROP_BOARD:
-      g_value_set_uint (value, src->board);
+    case PROP_SERVER_INDEX:
+      g_value_set_int (value, src->server_index);
       break;
-    case PROP_CHANNEL:
-      g_value_set_uint (value, src->channel);
+    case PROP_RESOURCE_INDEX:
+      g_value_set_int (value, src->resource_index);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -532,8 +558,7 @@ gst_saperasrc_start (GstBaseSrc * bsrc)
   }
 
   GST_DEBUG_OBJECT (src, "About to initialize and create Sapera objects");
-  gst_saperasrc_init_objects (src);
-  if (!gst_saperasrc_create_objects (src)) {
+  if (!gst_saperasrc_init_objects (src) || !gst_saperasrc_create_objects (src)) {
     GST_ERROR_OBJECT (src, "Failed to create Sapera objects");
     return FALSE;
   }

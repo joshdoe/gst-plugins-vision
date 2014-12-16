@@ -56,8 +56,8 @@ struct _GstSaperaSrc
   /* properties */
   gchar *format_file;
   guint num_capture_buffers;
-  guint board;
-  guint channel;
+  gint server_index;
+  gint resource_index;
 
   GstBuffer *buffer;
 
