@@ -58,10 +58,12 @@ struct _GstSaperaSrc
   guint num_capture_buffers;
   gint server_index;
   gint resource_index;
+  gint channel_extract;
 
   GstBuffer *buffer;
 
   GstCaps *caps;
+  gint width;
   gint height;
   gint gst_stride;
 

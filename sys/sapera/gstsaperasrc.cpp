@@ -104,12 +104,37 @@ protected:
       return FALSE;
     }
     // TODO: optimize this
-    if (pitch == src->gst_stride) {
-      memcpy (minfo.data, pData, size);
+    if (src->channel_extract == 0) {
+      if (pitch == src->gst_stride) {
+        memcpy (minfo.data, pData, size);
+      } else {
+        for (int line = 0; line < src->height; line++) {
+          memcpy (minfo.data + (line * src->gst_stride),
+              (guint8 *) pData + (line * pitch), pitch);
+        }
+      }
     } else {
-      for (int line = 0; line < src->height; line++) {
-        memcpy (minfo.data + (line * src->gst_stride),
-            (guint8 *) pData + (line * pitch), pitch);
+      guint32 mask, shift;
+      if (src->channel_extract == 1) {
+        mask = 0x3ff00000;
+        shift = 20;
+      } else if (src->channel_extract == 2) {
+        mask = 0xffc00;
+        shift = 10;
+      } else if (src->channel_extract == 3) {
+        mask = 0x3ff;
+        shift = 0;
+      } else
+        g_assert_not_reached ();
+
+      guint32 *packed = (guint32 *) pData;
+      guint16 *dst = (guint16 *) minfo.data;
+      for (int r = 0; r < src->height; ++r) {
+        for (int c = 0; c < src->width; ++c) {
+          *dst = (*packed & mask) >> shift;
+          ++dst;
+          ++packed;
+        }
       }
     }
 
@@ -311,12 +336,14 @@ enum
   PROP_NUM_CAPTURE_BUFFERS,
   PROP_SERVER_INDEX,
   PROP_RESOURCE_INDEX,
+  PROP_CHANNEL_EXTRACT
 };
 
 #define DEFAULT_PROP_FORMAT_FILE ""
 #define DEFAULT_PROP_NUM_CAPTURE_BUFFERS 2
 #define DEFAULT_PROP_SERVER_INDEX 1
 #define DEFAULT_PROP_RESOURCE_INDEX 0
+#define DEFAULT_PROP_CHANNEL_EXTRACT 0
 
 /* pad templates */
 
@@ -382,6 +409,10 @@ gst_saperasrc_class_init (GstSaperaSrcClass * klass)
       g_param_spec_int ("resource-index", "Resource index",
           "Resource index, such as different ports or configurations", 0,
           G_MAXINT, DEFAULT_PROP_RESOURCE_INDEX,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+  g_object_class_install_property (gobject_class, PROP_CHANNEL_EXTRACT,
+      g_param_spec_int ("color-channel", "Color channel", "Color channel", 0, 3,
+          DEFAULT_PROP_CHANNEL_EXTRACT,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 }
 
@@ -465,6 +496,9 @@ gst_saperasrc_set_property (GObject * object, guint property_id,
     case PROP_RESOURCE_INDEX:
       src->resource_index = g_value_get_int (value);
       break;
+    case PROP_CHANNEL_EXTRACT:
+      src->channel_extract = g_value_get_int (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -492,6 +526,9 @@ gst_saperasrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_RESOURCE_INDEX:
       g_value_set_int (value, src->resource_index);
+      break;
+    case PROP_CHANNEL_EXTRACT:
+      g_value_set_int (value, src->channel_extract);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -578,6 +615,9 @@ gst_saperasrc_start (GstBaseSrc * bsrc)
     case SapFormatRGB8888:
       gst_format = GST_VIDEO_FORMAT_BGRA;
       break;
+    case SapFormatRGB101010:
+      gst_format = GST_VIDEO_FORMAT_GRAY16_LE;
+      break;
     default:
       gst_format = GST_VIDEO_FORMAT_UNKNOWN;
   }
@@ -595,6 +635,7 @@ gst_saperasrc_start (GstBaseSrc * bsrc)
   vinfo.finfo = gst_video_format_get_info (gst_format);
   src->caps = gst_video_info_to_caps (&vinfo);
 
+  src->width = vinfo.width;
   src->height = vinfo.height;
   src->gst_stride = GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0);
 
