@@ -13,6 +13,7 @@ Image acquisition elements
 - niimaqdxsrc: Video source for [National Instruments IMAQdx library][7] (GigE Vision, FireWire, USB3 Vision)
 - phoenixsrc: Video source for [Active Silicon Phoenix frame grabbers][8] (HD-SDI, LVDS, Camera Link)
 - pixcisrc: Video source for [EPIX PIXCI frame grabbers][4] (analog, LVDS, Camera Link)
+- saperasrc: Video source for [Teledyne DALSA frame grabbers][9] (analog, Camera Link, HSLink, LVDS)
 
 Other elements
 --------------
@@ -32,3 +33,4 @@ Dependencies
 [6]: http://sine.ni.com/nips/cds/view/p/lang/en/nid/1292
 [7]: http://sine.ni.com/nips/cds/view/p/lang/en/nid/12892
 [8]: http://www.activesilicon.com/products_fg_phx.htm
+[9]: https://www.teledynedalsa.com/imaging/products/fg/
