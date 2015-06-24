@@ -187,6 +187,10 @@ ImaqDxCapsInfo imaq_dx_caps_infos[] = {
   ,
   {"Bayer BG 8", 0, VIDEO_CAPS_MAKE_BAYER8 ("bggr"), 8, 8, 1}
   ,
+  {"Bayer GR 8", 0, VIDEO_CAPS_MAKE_BAYER8 ("grbg"), 8, 8, 1}
+  ,
+  {"Bayer GR 12", 0, VIDEO_CAPS_MAKE_BAYER16 ("grbg16", "1234"), 12, 16, 1}
+  ,
   //TODO: use a caps string that agrees with Aravis
   {"Bayer BG 16", 0, VIDEO_CAPS_MAKE_BAYER16 ("bggr16", "1234"), 16, 16, 1}
 };
