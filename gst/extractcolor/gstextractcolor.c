@@ -42,6 +42,8 @@
 
 #include <gst/video/video.h>
 
+#include "gstextractcolororc-dist.h"
+
 /* GstExtractColor signals and args */
 enum
 {
@@ -338,18 +340,54 @@ gst_extract_color_transform_frame (GstVideoFilter * filter,
     GstVideoFrame * in_frame, GstVideoFrame * out_frame)
 {
   GstExtractColor *filt = GST_EXTRACT_COLOR (filter);
-  GstClockTime start =
-      gst_clock_get_time (gst_element_get_clock (GST_ELEMENT (filt)));
+  GTimer *timer = NULL;
   guint comp = filt->component;
 
   GST_LOG_OBJECT (filt, "Performing non-inplace transform");
 
-  /* TODO: create orc functions for these to speed them up */
+#if 0
+  timer = g_timer_new ();
+#endif
+
   if (GST_VIDEO_FRAME_COMP_DEPTH (in_frame, comp) == 8) {
+    guint8 *src, *dst;
+
+    src = GST_VIDEO_FRAME_PLANE_DATA (in_frame, 0);
+    dst = GST_VIDEO_FRAME_PLANE_DATA (out_frame, 0);
+
+    switch (GST_VIDEO_FRAME_COMP_OFFSET (in_frame, comp)) {
+      case 0:
+        extractcolor_orc_copy32_0 (dst, GST_VIDEO_FRAME_PLANE_STRIDE (out_frame,
+                0), src, GST_VIDEO_FRAME_PLANE_STRIDE (in_frame, 0),
+            GST_VIDEO_FRAME_WIDTH (in_frame),
+            GST_VIDEO_FRAME_HEIGHT (out_frame));
+        break;
+      case 1:
+        extractcolor_orc_copy32_1 (dst, GST_VIDEO_FRAME_PLANE_STRIDE (out_frame,
+                0), src, GST_VIDEO_FRAME_PLANE_STRIDE (in_frame, 0),
+            GST_VIDEO_FRAME_WIDTH (in_frame),
+            GST_VIDEO_FRAME_HEIGHT (out_frame));
+        break;
+      case 2:
+        extractcolor_orc_copy32_2 (dst, GST_VIDEO_FRAME_PLANE_STRIDE (out_frame,
+                0), src, GST_VIDEO_FRAME_PLANE_STRIDE (in_frame, 0),
+            GST_VIDEO_FRAME_WIDTH (in_frame),
+            GST_VIDEO_FRAME_HEIGHT (out_frame));
+        break;
+      case 3:
+        extractcolor_orc_copy32_3 (dst, GST_VIDEO_FRAME_PLANE_STRIDE (out_frame,
+                0), src, GST_VIDEO_FRAME_PLANE_STRIDE (in_frame, 0),
+            GST_VIDEO_FRAME_WIDTH (in_frame),
+            GST_VIDEO_FRAME_HEIGHT (out_frame));
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+#if 0
     gint x, y;
-    guint8 *src = GST_VIDEO_FRAME_COMP_DATA (in_frame, comp);
-    guint8 *dst = GST_VIDEO_FRAME_COMP_DATA (out_frame, 0);
     const guint pstride = GST_VIDEO_FRAME_COMP_PSTRIDE (in_frame, comp);
+    src = GST_VIDEO_FRAME_COMP_DATA (in_frame, comp);
+    dst = GST_VIDEO_FRAME_COMP_DATA (out_frame, 0);
     for (y = 0; y < GST_VIDEO_FRAME_COMP_HEIGHT (in_frame, comp); y++) {
       for (x = 0; x < GST_VIDEO_FRAME_COMP_WIDTH (in_frame, comp); x++) {
         dst[x] = src[x * pstride];
@@ -357,6 +395,7 @@ gst_extract_color_transform_frame (GstVideoFilter * filter,
       src += GST_VIDEO_FRAME_COMP_STRIDE (in_frame, comp);
       dst += GST_VIDEO_FRAME_COMP_STRIDE (out_frame, 0);
     }
+#endif
   } else {
     gint x, y;
     guint16 *src = (guint16 *) GST_VIDEO_FRAME_COMP_DATA (in_frame, comp);
@@ -371,10 +410,11 @@ gst_extract_color_transform_frame (GstVideoFilter * filter,
     }
   }
 
-  GST_LOG_OBJECT (filt, "Processing took %" G_GINT64_FORMAT "ms",
-      GST_TIME_AS_MSECONDS (GST_CLOCK_DIFF (start,
-              gst_clock_get_time (gst_element_get_clock (GST_ELEMENT
-                      (filt))))));
+#if 0
+  GST_LOG_OBJECT (filt, "Processing took %.3f ms", g_timer_elapsed (timer,
+          NULL) * 1000);
+  g_timer_destroy (timer);
+#endif
 
   return GST_FLOW_OK;
 }

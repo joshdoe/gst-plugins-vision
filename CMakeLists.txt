@@ -19,6 +19,9 @@ macro_log_feature(GLIB2_FOUND "GLib" "Required to build gst-plugins-vision" "htt
 find_package(GObject REQUIRED)
 macro_log_feature(GOBJECT_FOUND "GObject" "Required to build gst-plugins-vision" "http://www.gtk.org/" TRUE)
 
+find_package(Orc REQUIRED)
+macro_log_feature(ORC_FOUND "Orc" "Required library to improve performance" "http://code.entropywave.com/orc/" TRUE)
+
 find_package(NIIMAQ)
 macro_log_feature(NIIMAQ_FOUND "NI-IMAQ" "Required to build National Instruments IMAQ source element" "http://www.ni.com/" FALSE)
 
