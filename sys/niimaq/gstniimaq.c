@@ -684,6 +684,9 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
 
 error:
   {
+    /* make sure we return an error */
+    if (ret == GST_FLOW_OK)
+      ret = GST_FLOW_ERROR;
     return ret;
   }
 }
