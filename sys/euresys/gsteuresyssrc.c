@@ -71,13 +71,15 @@ enum
   PROP_BOARD_INDEX,
   PROP_CAMERA_TYPE,
   PROP_CONNECTOR,
-  PROP_COLOR_FORMAT
+  PROP_COLOR_FORMAT,
+  PROP_PIXEL_TIMING
 };
 
 #define DEFAULT_PROP_BOARD_INDEX  0
 #define DEFAULT_PROP_CAMERA_TYPE  GST_EURESYS_CAMERA_EIA
 #define DEFAULT_PROP_CONNECTOR    GST_EURESYS_CONNECTOR_VID1
 #define DEFAULT_PROP_COLOR_FORMAT GST_EURESYS_COLOR_FORMAT_Y8
+#define DEFAULT_PROP_PIXEL_TIMING GST_EURESYS_PIXEL_TIMING_SQUARE
 
 /* pad templates */
 
@@ -200,6 +202,30 @@ gst_euresys_camera_get_type (void)
   return euresys_camera_type;
 }
 
+int gst_euresys_pixel_timing_map[] = {
+  MC_PixelTiming_SQUARE,
+  MC_PixelTiming_BROADCAST
+};
+
+#define GST_TYPE_EURESYS_PIXEL_TIMING (gst_euresys_pixel_timing_get_type())
+static GType
+gst_euresys_pixel_timing_get_type (void)
+{
+  static GType euresys_pixel_timing_type = 0;
+  static const GEnumValue euresys_pixel_timing[] = {
+    {GST_EURESYS_PIXEL_TIMING_SQUARE, "square", "Produce square pixels"},
+    {GST_EURESYS_PIXEL_TIMING_BROADCAST, "broadcast",
+          "Produce broadcast pixels"},
+    {0, NULL, NULL},
+  };
+
+  if (!euresys_pixel_timing_type) {
+    euresys_pixel_timing_type =
+        g_enum_register_static ("GstEuresysPixelTiming", euresys_pixel_timing);
+  }
+  return euresys_pixel_timing_type;
+}
+
 /* class initialization */
 G_DEFINE_TYPE (GstEuresys, gst_euresys, GST_TYPE_PUSH_SRC);
 
@@ -302,6 +328,12 @@ gst_euresys_class_init (GstEuresysClass * klass)
           DEFAULT_PROP_COLOR_FORMAT,
           G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE |
           GST_PARAM_MUTABLE_READY));
+  g_object_class_install_property (gobject_class, PROP_PIXEL_TIMING,
+      g_param_spec_enum ("pixel-timing", "Pixel timing",
+          "Pixel timing that produces square or broadcast timing",
+          GST_TYPE_EURESYS_PIXEL_TIMING, DEFAULT_PROP_PIXEL_TIMING,
+          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE |
+          GST_PARAM_MUTABLE_READY));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&gst_euresys_src_template));
@@ -333,6 +365,7 @@ gst_euresys_init (GstEuresys * euresys)
   euresys->cameraType = DEFAULT_PROP_CAMERA_TYPE;
   euresys->connector = DEFAULT_PROP_CONNECTOR;
   euresys->colorFormat = DEFAULT_PROP_COLOR_FORMAT;
+  euresys->pixelTiming = DEFAULT_PROP_PIXEL_TIMING;
 
   euresys->hChannel = 0;
 
@@ -370,6 +403,9 @@ gst_euresys_set_property (GObject * object, guint property_id,
     case PROP_COLOR_FORMAT:
       euresys->colorFormat = g_value_get_enum (value);
       break;
+    case PROP_PIXEL_TIMING:
+      euresys->pixelTiming = g_value_get_enum (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -397,6 +433,9 @@ gst_euresys_get_property (GObject * object, guint property_id,
       break;
     case PROP_COLOR_FORMAT:
       g_value_set_enum (value, euresys->colorFormat);
+      break;
+    case PROP_PIXEL_TIMING:
+      g_value_set_enum (value, euresys->pixelTiming);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -485,7 +524,17 @@ gst_euresys_start (GstBaseSrc * bsrc)
       gst_euresys_color_format_map[euresys->colorFormat]);
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
-        (("Failed to set color format = %d."), MC_ColorFormat_Y8), (NULL));
+        (("Failed to set color format = %d."), euresys->colorFormat), (NULL));
+    goto error;
+  }
+
+  /* Set the pixel timing */
+  status =
+      McSetParamInt (euresys->hChannel, MC_PixelTiming,
+      gst_euresys_pixel_timing_map[euresys->pixelTiming]);
+  if (status != MC_OK) {
+    GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
+        (("Failed to set pixel timing = %d."), euresys->pixelTiming), (NULL));
     goto error;
   }
 

@@ -63,6 +63,11 @@ typedef enum {
   GST_EURESYS_CAMERA_PAL
 } GstEuresysCameraEnum;
 
+typedef enum {
+    GST_EURESYS_PIXEL_TIMING_SQUARE,
+    GST_EURESYS_PIXEL_TIMING_BROADCAST
+} GstEuresysPixelTimingEnum;
+
 struct _GstEuresys
 {
   GstPushSrc base_euresys;
@@ -79,6 +84,7 @@ struct _GstEuresys
   GstEuresysCameraEnum cameraType;
   GstEuresysConnectorEnum connector;
   GstEuresysColorFormatEnum colorFormat;
+  GstEuresysPixelTimingEnum pixelTiming;
 };
 
 struct _GstEuresysClass
