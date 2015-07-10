@@ -1,10 +1,10 @@
 add_definitions(-DHAVE_CONFIG_H)
 
 set ( SOURCES
-    gsteuresys.c )
+    gsteuresyssrc.c )
     
 set ( HEADERS
-    gsteuresys.h )
+    gsteuresyssrc.h )
 
 include_directories ( AFTER
   .
@@ -16,7 +16,8 @@ add_library ( libgsteuresys MODULE
 
 target_link_libraries ( libgsteuresys
   ${GLIB2_LIBRARIES}
-  ${GSTREAMER_LIBRARIES}
+  ${GOBJECT_LIBRARIES}
+  ${GSTREAMER_LIBRARY}
   ${GSTREAMER_BASE_LIBRARY}
   ${GSTREAMER_INTERFACE_LIBRARY}
   ${GSTREAMER_VIDEO_LIBRARY}

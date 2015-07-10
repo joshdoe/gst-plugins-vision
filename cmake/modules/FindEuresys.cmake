@@ -6,45 +6,33 @@
 #  EURESYS_LIBRARIES - the libraries needed to use Euresys Multicam
 
 # Copyright (c) 2006, Tim Beaulen <tbscope@gmail.com>
-# Copyright (c) 2011, United States Government, Joshua M. Doe <oss@nvl.army.mil>
+# Copyright (c) 2015, United States Government, Joshua M. Doe <oss@nvl.army.mil>
 #
 # Redistribution and use is allowed according to the terms of the BSD license.
 # For details see the accompanying COPYING-CMAKE-SCRIPTS file.
 
-IF (EURESYS_INCLUDE_DIR AND EURESYS_LIBRARIES)
-   # in cache already
-   SET(EURESYS_FIND_QUIETLY TRUE)
-ELSE (EURESYS_INCLUDE_DIR AND EURESYS_LIBRARIES)
-   SET(EURESYS_FIND_QUIETLY FALSE)
-ENDIF (EURESYS_INCLUDE_DIR AND EURESYS_LIBRARIES)
+if (NOT EURESYS_DIR)
+    # Euresys seems to be installed in the 32-bit dir on 32- or 64-bit Windows
+    file(TO_CMAKE_PATH "$ENV{ProgramFiles}" _PROG_FILES)
+	
+	set (EURESYS_DIR "${_PROG_FILES}/Euresys/MultiCam" CACHE PATH "Directory containing Euresys Multicam includes and libraries")
+	
+	if (CMAKE_SIZEOF_VOID_P MATCHES "8")
+        set(_LIB_PATH "${EURESYS_DIR}/lib/amd64")
+    else ()
+        set(_LIB_PATH "${EURESYS_DIR}/lib")
+    endif ()
+endif ()
 
-IF (NOT EURESYS_DIR)
-    SET (EURESYS_DIR "C:/Program Files/Euresys/MultiCam" CACHE PATH "Directory containing Euresys Multicam includes and libraries")
-ENDIF (NOT EURESYS_DIR)
-
-FIND_PATH (EURESYS_INCLUDE_DIR multicam.h
+find_path (EURESYS_INCLUDE_DIR multicam.h
     PATHS
     "${EURESYS_DIR}/include"
     DOC "Directory containing multicam.h include file")
 
-FIND_LIBRARY (EURESYS_LIBRARIES NAMES MultiCam
+find_library (EURESYS_LIBRARIES NAMES MultiCam
     PATHS
-    "${EURESYS_DIR}/lib"
+    "${_LIB_PATH}"
     DOC "EURESYS library to link with")
 
-IF (EURESYS_INCLUDE_DIR)
-   #MESSAGE(STATUS "DEBUG: Found Euresys Multicam include dir: ${EURESYS_INCLUDE_DIR}")
-ELSE (EURESYS_INCLUDE_DIR)
-   MESSAGE(STATUS "EURESYS: WARNING: include dir not found")
-ENDIF (EURESYS_INCLUDE_DIR)
-
-IF (EURESYS_LIBRARIES)
-   #MESSAGE(STATUS "DEBUG: Found Euresys Multicam library: ${EURESYS_LIBRARIES}")
-ELSE (EURESYS_LIBRARIES)
-   MESSAGE(STATUS "EURESYS: WARNING: library not found")
-ENDIF (EURESYS_LIBRARIES)
-
-INCLUDE (FindPackageHandleStandardArgs)
-FIND_PACKAGE_HANDLE_STANDARD_ARGS (EURESYS  DEFAULT_MSG  EURESYS_INCLUDE_DIR EURESYS_LIBRARIES)
-
-MARK_AS_ADVANCED(EURESYS_INCLUDE_DIR EURESYS_LIBRARIES)
+include (FindPackageHandleStandardArgs)
+find_package_handle_standard_args (EURESYS  DEFAULT_MSG  EURESYS_INCLUDE_DIR EURESYS_LIBRARIES)
