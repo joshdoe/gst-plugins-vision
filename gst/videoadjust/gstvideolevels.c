@@ -63,10 +63,10 @@ enum
 
 static GParamSpec *properties[PROP_LAST];
 
-#define DEFAULT_PROP_LOWIN  0.0
-#define DEFAULT_PROP_HIGHIN  1.0
-#define DEFAULT_PROP_LOWOUT  0.0
-#define DEFAULT_PROP_HIGHOUT  1.0
+#define DEFAULT_PROP_LOWIN  0
+#define DEFAULT_PROP_HIGHIN  65535
+#define DEFAULT_PROP_LOWOUT  0
+#define DEFAULT_PROP_HIGHOUT  255
 #define DEFAULT_PROP_AUTO 0
 #define DEFAULT_PROP_INTERVAL (GST_SECOND / 2)
 
@@ -193,20 +193,20 @@ gst_videolevels_class_init (GstVideoLevelsClass * klass)
 
   /* Install GObject properties */
   properties[PROP_LOWIN] =
-      g_param_spec_double ("lower-input-level", "Lower Input Level",
-      "Lower Input Level", 0.0, 1.0, DEFAULT_PROP_LOWIN,
+      g_param_spec_int ("lower-input-level", "Lower Input Level",
+      "Lower Input Level", -1, DEFAULT_PROP_HIGHIN, DEFAULT_PROP_LOWIN,
       G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
   properties[PROP_HIGHIN] =
-      g_param_spec_double ("upper-input-level", "Upper Input Level",
-      "Upper Input Level", 0.0, 1.0, DEFAULT_PROP_HIGHIN,
+      g_param_spec_int ("upper-input-level", "Upper Input Level",
+      "Upper Input Level", -1, DEFAULT_PROP_HIGHIN, DEFAULT_PROP_HIGHIN,
       G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
   properties[PROP_LOWOUT] =
-      g_param_spec_double ("lower-output-level", "Lower Output Level",
-      "Lower Output Level", 0.0, 1.0, DEFAULT_PROP_LOWOUT,
+      g_param_spec_int ("lower-output-level", "Lower Output Level",
+      "Lower Output Level", 0, DEFAULT_PROP_HIGHOUT, DEFAULT_PROP_LOWOUT,
       G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
   properties[PROP_HIGHOUT] =
-      g_param_spec_double ("upper-output-level", "Upper Output Level",
-      "Upper Output Level", 0.0, 1.0, DEFAULT_PROP_HIGHOUT,
+      g_param_spec_int ("upper-output-level", "Upper Output Level",
+      "Upper Output Level", 0, DEFAULT_PROP_HIGHOUT, DEFAULT_PROP_HIGHOUT,
       G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
   g_object_class_install_property (gobject_class, PROP_LOWIN,
       properties[PROP_LOWIN]);
@@ -276,19 +276,19 @@ gst_videolevels_set_property (GObject * object, guint prop_id,
 
   switch (prop_id) {
     case PROP_LOWIN:
-      videolevels->lower_input = g_value_get_double (value);
+      videolevels->lower_input = g_value_get_int (value);
       gst_videolevels_calculate_lut (videolevels);
       break;
     case PROP_HIGHIN:
-      videolevels->upper_input = g_value_get_double (value);
+      videolevels->upper_input = g_value_get_int (value);
       gst_videolevels_calculate_lut (videolevels);
       break;
     case PROP_LOWOUT:
-      videolevels->lower_output = g_value_get_double (value);
+      videolevels->lower_output = g_value_get_int (value);
       gst_videolevels_calculate_lut (videolevels);
       break;
     case PROP_HIGHOUT:
-      videolevels->upper_output = g_value_get_double (value);
+      videolevels->upper_output = g_value_get_int (value);
       gst_videolevels_calculate_lut (videolevels);
       break;
     case PROP_AUTO:{
@@ -323,16 +323,16 @@ gst_videolevels_get_property (GObject * object, guint prop_id, GValue * value,
 
   switch (prop_id) {
     case PROP_LOWIN:
-      g_value_set_double (value, videolevels->lower_input);
+      g_value_set_int (value, videolevels->lower_input);
       break;
     case PROP_HIGHIN:
-      g_value_set_double (value, videolevels->upper_input);
+      g_value_set_int (value, videolevels->upper_input);
       break;
     case PROP_LOWOUT:
-      g_value_set_double (value, videolevels->lower_output);
+      g_value_set_int (value, videolevels->lower_output);
       break;
     case PROP_HIGHOUT:
-      g_value_set_double (value, videolevels->upper_output);
+      g_value_set_int (value, videolevels->upper_output);
       break;
     case PROP_AUTO:
       g_value_set_enum (value, videolevels->auto_adjust);
@@ -384,10 +384,11 @@ gst_videolevels_transform_caps (GstBaseTransform * trans,
       continue;
 
     if (direction == GST_PAD_SRC) {
-        newst = gst_structure_from_string (
-            "video/x-raw,format={GRAY16_LE,GRAY16_BE}", NULL);
+      newst =
+          gst_structure_from_string ("video/x-raw,format={GRAY16_LE,GRAY16_BE}",
+          NULL);
     } else {
-        newst = gst_structure_from_string ("video/x-raw,format=GRAY8", NULL);
+      newst = gst_structure_from_string ("video/x-raw,format=GRAY8", NULL);
     }
 
     value = gst_structure_get_value (st, "width");
@@ -557,13 +558,25 @@ gst_videolevels_calculate_lut_uint16_to_uint8 (GstVideoLevels * videolevels,
   gdouble b;
   guint8 *lut = (guint8 *) videolevels->lookup_table;
   const guint16 max_in = (1 << videolevels->bpp_in) - 1;
-  const guint16 low_in = (guint16) (videolevels->lower_input * max_in);
-  const guint16 high_in = (guint16) (videolevels->upper_input * max_in);
+  guint16 low_in;
+  guint16 high_in;
   const guint8 max_out = (1 << videolevels->info_out.finfo->bits) - 1;
-  const guint8 low_out = (guint8) (videolevels->lower_output * max_out);
-  const guint8 high_out = (guint8) (videolevels->upper_output * max_out);
+  const guint8 low_out = videolevels->lower_output;
+  const guint8 high_out = videolevels->upper_output;
 
-  GST_LOG_OBJECT (videolevels, "Applying linear mapping (%d, %d) -> (%d, %d)",
+  if (videolevels->lower_input < 0 || videolevels->lower_input > max_in) {
+    videolevels->lower_input = 0;
+    g_object_notify_by_pspec (G_OBJECT (videolevels), properties[PROP_LOWIN]);
+  }
+  if (videolevels->upper_input < 0 || videolevels->upper_input > max_in) {
+    videolevels->lower_input = max_in;
+    g_object_notify_by_pspec (G_OBJECT (videolevels), properties[PROP_HIGHIN]);
+  }
+
+  low_in = videolevels->lower_input;
+  high_in = videolevels->upper_input;
+
+  GST_LOG_OBJECT (videolevels, "Make linear LUT mapping (%d, %d) -> (%d, %d)",
       low_in, high_in, low_out, high_out);
 
   if (low_in == high_in)
@@ -638,7 +651,7 @@ gst_videolevels_calculate_histogram (GstVideoLevels * videolevels,
   gfloat factor;
   gint stride = GST_VIDEO_INFO_COMP_STRIDE (&videolevels->info_in, 0);
   gint endianness;
-
+  gint maxVal = (1 << videolevels->bpp_in) - 1;
   if (videolevels->info_in.finfo->format == GST_VIDEO_FORMAT_GRAY16_BE)
     endianness = G_BIG_ENDIAN;
   else if (videolevels->info_in.finfo->format == GST_VIDEO_FORMAT_GRAY16_LE)
@@ -647,7 +660,7 @@ gst_videolevels_calculate_histogram (GstVideoLevels * videolevels,
     endianness = G_BYTE_ORDER;
 
 
-  factor = nbins / (gfloat) (1 << videolevels->bpp_in);
+  factor = (nbins - 1.0) / maxVal;
 
   if (videolevels->histogram == NULL) {
     GST_DEBUG_OBJECT (videolevels,
@@ -695,9 +708,9 @@ gst_videolevels_auto_adjust (GstVideoLevels * videolevels, guint16 * data)
   guint sum;
   gint i;
   gint size;
-  gdouble min = 0.0;
-  gdouble max = (1 << videolevels->bpp_in) - 1.0;
-
+  gint minVal = 0;
+  gint maxVal = (1 << videolevels->bpp_in) - 1;
+  float factor = maxVal / (videolevels->nbins - 1.0f);
   gst_videolevels_calculate_histogram (videolevels, data);
 
   size = videolevels->info_in.width * videolevels->info_in.height;
@@ -708,8 +721,7 @@ gst_videolevels_auto_adjust (GstVideoLevels * videolevels, guint16 * data)
   for (i = 0; i < videolevels->nbins; i++) {
     sum += videolevels->histogram[i];
     if (sum > npixsat) {
-      videolevels->lower_input =
-          CLAMP (i / (gdouble) videolevels->nbins, 0.0, 1.0);
+      videolevels->lower_input = CLAMP (i * factor, minVal, maxVal);
       break;
     }
   }
@@ -720,15 +732,14 @@ gst_videolevels_auto_adjust (GstVideoLevels * videolevels, guint16 * data)
   for (i = videolevels->nbins - 1; i >= 0; i--) {
     sum += videolevels->histogram[i];
     if (sum > npixsat) {
-      videolevels->upper_input =
-          CLAMP ((i + 1) / (gdouble) videolevels->nbins, 0.0, 1.0);
+      videolevels->upper_input = CLAMP (i * factor, minVal, maxVal);
       break;
     }
   }
 
   gst_videolevels_calculate_lut (videolevels);
 
-  GST_LOG_OBJECT (videolevels, "Contrast stretch with npixsat=%d, (%.6f, %.6f)",
+  GST_LOG_OBJECT (videolevels, "Contrast stretch with npixsat=%d, (%d, %d)",
       npixsat, videolevels->lower_input, videolevels->upper_input);
 
   g_object_notify_by_pspec (G_OBJECT (videolevels), properties[PROP_LOWIN]);

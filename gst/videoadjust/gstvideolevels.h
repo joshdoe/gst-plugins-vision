@@ -75,10 +75,10 @@ struct _GstVideoLevels
   GstVideoInfo info_out;
 
   /* properties */
-  gdouble lower_input;
-  gdouble upper_input;
-  gdouble lower_output;
-  gdouble upper_output;
+  gint lower_input;
+  gint upper_input;
+  gint lower_output;
+  gint upper_output;
 
   /* tables */
   gpointer lookup_table;
