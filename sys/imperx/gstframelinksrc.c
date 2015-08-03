@@ -17,16 +17,16 @@
  * Boston, MA 02110-1335, USA.
  */
 /**
- * SECTION:element-gstframelinksrc
+ * SECTION:element-gstimperxflexsrc
  *
- * The framelinksrc element is a source for IMPERX FrameLink and FrameLink Express framegrabbers.
+ * The imperxflexsrc element is a source for IMPERX and FrameLink Express framegrabbers.
  *
  * <refsect2>
  * <title>Example launch line</title>
  * |[
- * gst-launch -v framelinksrc ! ffmpegcolorspace ! autovideosink
+ * gst-launch -v imperxflexsrc ! videoconvert ! autovideosink
  * ]|
- * Shows video from the default IMPERX FrameLink framegrabber
+ * Shows video from the default IMPERX FrameLink Express framegrabber
  * </refsect2>
  */
 
@@ -654,9 +654,9 @@ gst_framelinksrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  GST_DEBUG_CATEGORY_INIT (gst_framelinksrc_debug, "framelinksrc", 0,
+  GST_DEBUG_CATEGORY_INIT (gst_framelinksrc_debug, "imperxflexsrc", 0,
       "debug category for framelinksrc element");
-  gst_element_register (plugin, "framelinksrc", GST_RANK_NONE,
+  gst_element_register (plugin, "imperxflexsrc", GST_RANK_NONE,
       gst_framelinksrc_get_type ());
 
   return TRUE;

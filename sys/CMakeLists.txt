@@ -14,6 +14,10 @@ if (NIIMAQDX_FOUND)
 	add_subdirectory (niimaqdx)
 endif (NIIMAQDX_FOUND)
 
+if (IMPERX_FLEX_FOUND)
+    add_subdirectory (imperx)
+endif ()
+
 if (IOTECHDAQX_FOUND)
 	add_subdirectory (iotechdaqx)
 endif (IOTECHDAQX_FOUND)

@@ -22,7 +22,10 @@
 
 #include <gst/base/gstpushsrc.h>
 
+#define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
+
+#define bool gboolean
 #include <VCECLB.h>
 
 G_BEGIN_DECLS

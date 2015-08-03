@@ -7,20 +7,21 @@ set ( HEADERS
     gstframelinksrc.h )
 
 include_directories ( AFTER
-  ${FRAMELINK_INCLUDE_DIR}
+  ${IMPERX_FLEX_INCLUDE_DIR}
   .)
 
-add_library ( libgstframelink MODULE
+add_library ( libgstimperxflex MODULE
   ${SOURCES}
   ${HEADERS} )
 
-target_link_libraries ( libgstframelink
+target_link_libraries ( libgstimperxflex
   ${GLIB2_LIBRARIES}
-  ${GSTREAMER_LIBRARIES}
+  ${GOBJECT_LIBRARIES}
+  ${GSTREAMER_LIBRARY}
   ${GSTREAMER_BASE_LIBRARY}
   ${GSTREAMER_INTERFACE_LIBRARY}
   ${GSTREAMER_VIDEO_LIBRARY}
-  ${FRAMELINK_LIBRARIES})
+  ${IMPERX_FLEX_LIBRARIES})
   
-install (TARGETS libgstframelink
-  LIBRARY DESTINATION lib/gstreamer-0.10)
+install (TARGETS libgstimperxflex
+  LIBRARY DESTINATION lib/gstreamer-1.0)
