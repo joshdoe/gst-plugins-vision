@@ -433,8 +433,9 @@ gst_niimaqdxsrc_class_init (GstNiImaqDxSrcClass * klass)
 
     for (i = 0; i < G_N_ELEMENTS (imaq_dx_caps_infos); i++) {
       ImaqDxCapsInfo *info = &imaq_dx_caps_infos[i];
-      gst_caps_append (caps, gst_caps_from_string (info->gst_caps_string));
+      gst_caps_merge (caps, gst_caps_from_string (info->gst_caps_string));
     }
+    caps = gst_caps_simplify (caps);
     gst_element_class_add_pad_template (gstelement_class,
         gst_pad_template_new ("src", GST_PAD_SRC, GST_PAD_ALWAYS, caps));
   }
