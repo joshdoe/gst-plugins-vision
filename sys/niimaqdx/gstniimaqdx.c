@@ -581,6 +581,8 @@ gst_niimaqdxsrc_reset (GstNiImaqDxSrc * niimaqdxsrc)
   niimaqdxsrc->width = 0;
   niimaqdxsrc->height = 0;
   niimaqdxsrc->dx_row_stride = 0;
+  niimaqdxsrc->caps_info = NULL;
+  niimaqdxsrc->pixel_format[0] = 0;
   niimaqdxsrc->start_time = NULL;
   niimaqdxsrc->start_time_sent = FALSE;
   niimaqdxsrc->base_time = GST_CLOCK_TIME_NONE;
@@ -662,10 +664,15 @@ gst_niimaqdxsrc_fill (GstPushSrc * src, GstBuffer * buf)
     }
   }
 
+  if (niimaqdxsrc->caps_info == NULL) {
+    GST_ELEMENT_ERROR (niimaqdxsrc, RESOURCE, FAILED,
+        ("Failed to create caps, possibly unsupported format (%s).",
+            niimaqdxsrc->pixel_format), (NULL));
+    return GST_FLOW_ERROR;
+  }
+
   GST_LOG_OBJECT (niimaqdxsrc, "Copying IMAQ buffer #%d, buffersize %d",
       niimaqdxsrc->cumbufnum, gst_buffer_get_size (buf));
-
-  g_assert (niimaqdxsrc->caps_info != NULL);
 
   do_align_stride =
       (niimaqdxsrc->dx_row_stride % niimaqdxsrc->caps_info->row_multiple) != 0;

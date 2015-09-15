@@ -66,6 +66,7 @@ struct _GstNiImaqDxSrc {
   gboolean bayer_as_gray;
 
   /* image info */
+  char pixel_format[IMAQDX_MAX_API_STRING_LENGTH];
   int width;
   int height;
   int dx_row_stride;
