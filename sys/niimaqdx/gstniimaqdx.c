@@ -162,13 +162,23 @@ gst_niimaqdxsrc_frame_done_callback (IMAQdxSession session, uInt32 bufferNumber,
 ImaqDxCapsInfo imaq_dx_caps_infos[] = {
   {"Mono 8", 0, GST_VIDEO_CAPS_MAKE ("GRAY8"), 8, 8, 4}
   ,
+  {"Mono8", 0, GST_VIDEO_CAPS_MAKE ("GRAY8"), 8, 8, 4}
+  ,
   {"Mono 10", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 10, 16, 4}
   ,
   {"Mono 10", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_BE"), 10, 16, 4}
   ,
+  {"Mono10", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 10, 16, 4}
+  ,
+  {"Mono10", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_BE"), 10, 16, 4}
+  ,
   {"Mono 12", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 12, 16, 4}
   ,
   {"Mono 12", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_BE"), 12, 16, 4}
+  ,
+  {"Mono12", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 12, 16, 4}
+  ,
+  {"Mono12", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_BE"), 12, 16, 4}
   ,
   {"Mono 14", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 14, 16, 4}
   ,
@@ -176,10 +186,15 @@ ImaqDxCapsInfo imaq_dx_caps_infos[] = {
   ,
   {"Mono14", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 14, 16, 4}
   ,
-  {"Mono 16", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 16, 16,
-      4}
+  {"Mono14", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 14, 16, 4}
+  ,
+  {"Mono 16", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 16, 16, 4}
   ,
   {"Mono 16", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_BE"), 16, 16, 4}
+  ,
+  {"Mono16", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 16, 16, 4}
+  ,
+  {"Mono16", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_BE"), 16, 16, 4}
   ,
   {"BGRA 8 Packed", 0, GST_VIDEO_CAPS_MAKE ("BGRA"), 32, 32, 4}
   ,
