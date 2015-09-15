@@ -257,7 +257,8 @@ gst_niimaqdxsrc_pixel_format_from_caps (const GstCaps * caps, int *endianness)
 }
 
 static int
-gst_niimaqdxsrc_pixel_format_get_depth (const char *pixel_format, int endianness)
+gst_niimaqdxsrc_pixel_format_get_depth (const char *pixel_format,
+    int endianness)
 {
   const ImaqDxCapsInfo *info =
       gst_niimaqdxsrc_get_caps_info (pixel_format, endianness);
@@ -535,7 +536,7 @@ gst_niimaqdxsrc_set_property (GObject * object, guint prop_id,
       niimaqdxsrc->attributes = g_strdup (g_value_get_string (value));
       break;
     case PROP_BAYER_AS_GRAY:
-      niimaqdxsrc->bayer_as_gray = g_value_get_boolean(value);
+      niimaqdxsrc->bayer_as_gray = g_value_get_boolean (value);
       break;
     default:
       break;
@@ -866,20 +867,23 @@ gst_niimaqdxsrc_get_cam_caps (GstNiImaqDxSrc * niimaqdxsrc)
     goto error;
   }
 
+  g_strlcpy (niimaqdxsrc->pixel_format, pixel_format,
+      IMAQDX_MAX_API_STRING_LENGTH);
+
   if (g_strcmp0 (bus_type, "Ethernet") == 0)
     endianness = G_LITTLE_ENDIAN;
   else
     endianness = G_BIG_ENDIAN;
 
-  if (g_str_has_prefix(pixel_format, "Bayer") && niimaqdxsrc->bayer_as_gray) {
-    const ImaqDxCapsInfo *info = gst_niimaqdxsrc_get_caps_info (pixel_format, endianness);
+  if (g_str_has_prefix (pixel_format, "Bayer") && niimaqdxsrc->bayer_as_gray) {
+    const ImaqDxCapsInfo *info =
+        gst_niimaqdxsrc_get_caps_info (pixel_format, endianness);
     if (info->depth == 8) {
       g_strlcpy (pixel_format, "Mono 8", IMAQDX_MAX_API_STRING_LENGTH);
     } else if (info->depth == 16) {
       g_strlcpy (pixel_format, "Mono 16", IMAQDX_MAX_API_STRING_LENGTH);
     }
   }
-
   //TODO: add all available caps by enumerating PixelFormat's available, and query for framerate
   caps =
       gst_niimaqdxsrc_new_caps_from_pixel_format (pixel_format, endianness,
