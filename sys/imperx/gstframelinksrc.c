@@ -118,9 +118,8 @@ gst_framelinksrc_class_init (GstFramelinkSrcClass * klass)
 
   /* Install GObject properties */
   g_object_class_install_property (gobject_class, PROP_FORMAT_FILE,
-      g_param_spec_string ("format-file", "Format file",
-          "Filepath of the video file for the selected camera "
-          "(specify only one of format-name or format-file)",
+      g_param_spec_string ("config-file", "Config file",
+          "Filepath of the video file for the selected camera",
           DEFAULT_PROP_FORMAT_FILE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               GST_PARAM_MUTABLE_READY)));
