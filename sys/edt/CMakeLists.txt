@@ -1,26 +1,28 @@
 add_definitions(-DHAVE_CONFIG_H)
 
-set ( SOURCES
-    gstedtpdvsrc.c )
-    
-set ( HEADERS
-    gstedtpdvsrc.h )
+set(SOURCES
+  gstedt.c
+  gstedtpdvsink.c
+  gstedtpdvsrc.c)
 
-include_directories ( AFTER
-  .
-  ${EDT_INCLUDE_DIR} )
+set(HEADERS
+  gstedtpdvsink.h
+  gstedtpdvsrc.h)
 
-add_library ( libgstedt MODULE
+include_directories(AFTER
+  ${EDT_INCLUDE_DIR})
+
+add_library(libgstedt MODULE
   ${SOURCES}
-  ${HEADERS} )
+  ${HEADERS})
 
-target_link_libraries ( libgsteuresys
+target_link_libraries(libgstedt
   ${GLIB2_LIBRARIES}
-  ${GSTREAMER_LIBRARIES}
+  ${GOBJECT_LIBRARIES}
+  ${GSTREAMER_LIBRARY}
   ${GSTREAMER_BASE_LIBRARY}
-  ${GSTREAMER_INTERFACE_LIBRARY}
   ${GSTREAMER_VIDEO_LIBRARY}
   ${EDT_LIBRARIES})
   
-install (TARGETS libgsteuresys
-  LIBRARY DESTINATION lib/gstreamer-0.10)
+install(TARGETS libgstedt
+  LIBRARY DESTINATION lib/gstreamer-1.0)
