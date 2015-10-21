@@ -80,7 +80,8 @@ static GstStaticPadTemplate gst_framelinksrc_src_template =
 GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("{ GRAY8, GRAY16_LE, GRAY16_BE }"))
+    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE
+        ("{ GRAY8, GRAY16_LE, GRAY16_BE, RGBA }"))
     );
 
 /* class initialization */
@@ -285,7 +286,6 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
   VCECLB_ConfigurationA camConfig;
   VCECLB_Error err;
   GstVideoInfo vinfo;
-  int bpp, Bpp;
   VCECLB_CameraDataEx *ci;
   VCECLB_EnumData enumData;
   HANDLE hDevEnum;
@@ -384,13 +384,11 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
   vinfo.width = ci->Width;
   vinfo.height = ci->Height;
 
-  bpp = ci->BitDepth;
-  if (bpp <= 8) {
+  ci->BitDepth = ci->BitDepth;
+  if (ci->BitDepth <= 8) {
     vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_GRAY8);
     src->caps = gst_video_info_to_caps (&vinfo);
-
-    Bpp = 1;
-  } else if (bpp > 8 && bpp <= 16) {
+  } else if (ci->BitDepth > 8 && ci->BitDepth <= 16) {
     GValue val = G_VALUE_INIT;
     GstStructure *s;
 
@@ -403,15 +401,15 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
     /* set bpp, extra info for GRAY16 so elements can scale properly */
     s = gst_caps_get_structure (src->caps, 0);
     g_value_init (&val, G_TYPE_INT);
-    g_value_set_int (&val, bpp);
+    g_value_set_int (&val, ci->BitDepth);
     gst_structure_set_value (s, "bpp", &val);
     g_value_unset (&val);
-
-    Bpp = 2;
+  } else if (ci->BitDepth == 24) {
+    vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_RGBA);
+    src->caps = gst_video_info_to_caps (&vinfo);
   } else {
-    /* TODO: support 24-bit RGB */
     GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
-        ("Unknown or unsupported bit depth (%d).", bpp), (NULL));
+        ("Unknown or unsupported bit depth (%d).", ci->BitDepth), (NULL));
     return FALSE;
   }
 
@@ -537,7 +535,8 @@ gst_framelinksrc_create_buffer_from_frameinfo (GstFramelinkSrc * src,
   strideSize = src->gst_stride;
   err =
       VCECLB_UnpackRawPixelsEx (&src->pixInfo, pFrameInfo->lpRawBuffer,
-      minfo.data, &strideSize, VCECLB_EX_FMT_16BIT | VCECLB_EX_FMT_TopDown,
+      minfo.data, &strideSize,
+      VCECLB_EX_FMT_16BIT | VCECLB_EX_FMT_4Channel | VCECLB_EX_FMT_TopDown,
       &outputBitDepth);
   if (err != VCECLB_Err_Success) {
     GST_ELEMENT_ERROR (src, STREAM, DECODE,
