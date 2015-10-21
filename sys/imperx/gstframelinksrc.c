@@ -81,7 +81,7 @@ GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE
-        ("{ GRAY8, GRAY16_LE, GRAY16_BE, RGBA }"))
+        ("{ GRAY8, GRAY16_LE, GRAY16_BE, BGRA }"))
     );
 
 /* class initialization */
@@ -385,11 +385,22 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
 
   ci->BitDepth = ci->BitDepth;
   if (ci->BitDepth <= 8) {
-    vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_GRAY8);
+    if (src->pixInfo.BayerPattern == 0) {
+      vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_GRAY8);
+    } else if (src->pixInfo.BayerPattern == 1 || src->pixInfo.BayerPattern == 2) {
+      /* Bayer and TRUESENSE will be demosaiced by Imperx into BGRA */
+      vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_BGRA);
+    }
     src->caps = gst_video_info_to_caps (&vinfo);
   } else if (ci->BitDepth > 8 && ci->BitDepth <= 16) {
     GValue val = G_VALUE_INIT;
     GstStructure *s;
+
+    if (src->pixInfo.BayerPattern != 0) {
+      GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
+          ("Bayer greater than 8-bit not supported yet."), (NULL));
+      return FALSE;
+    }
 
     if (G_BYTE_ORDER == G_LITTLE_ENDIAN)
       vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_GRAY16_LE);
@@ -404,7 +415,7 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
     gst_structure_set_value (s, "bpp", &val);
     g_value_unset (&val);
   } else if (ci->BitDepth == 24) {
-    vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_RGBA);
+    vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_BGRA);
     src->caps = gst_video_info_to_caps (&vinfo);
   } else {
     GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
@@ -500,6 +511,7 @@ gst_framelinksrc_create_buffer_from_frameinfo (GstFramelinkSrc * src,
   INT_PTR strideSize;
   unsigned long outputBitDepth;
   VCECLB_Error err;
+  unsigned char outputFormat;
 
   /* TODO: use allocator or use from pool */
   buf = gst_buffer_new_and_alloc (src->height * src->gst_stride);
@@ -531,12 +543,12 @@ gst_framelinksrc_create_buffer_from_frameinfo (GstFramelinkSrc * src,
     }
   }
 #else
+  outputFormat =
+      VCECLB_EX_FMT_16BIT | VCECLB_EX_FMT_TopDown | VCECLB_EX_FMT_4Channel;
   strideSize = src->gst_stride;
   err =
       VCECLB_UnpackRawPixelsEx (&src->pixInfo, pFrameInfo->lpRawBuffer,
-      minfo.data, &strideSize,
-      VCECLB_EX_FMT_16BIT | VCECLB_EX_FMT_4Channel | VCECLB_EX_FMT_TopDown,
-      &outputBitDepth);
+      minfo.data, &strideSize, outputFormat, &outputBitDepth);
   if (err != VCECLB_Err_Success) {
     GST_ELEMENT_ERROR (src, STREAM, DECODE,
         ("Failed to unpack raw pixels (code %d)", err), (NULL));
