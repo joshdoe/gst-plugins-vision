@@ -1,25 +1,26 @@
-add_definitions(-DHAVE_CONFIG_H)
+add_definitions (-DHAVE_CONFIG_H)
 
-set(SOURCES
-    gstniimaqdx.c)
+set (SOURCES
+  gstniimaqdx.c)
     
-set(HEADERS
-    gstniimaqdx.h)
+set (HEADERS
+  gstniimaqdx.h)
 
-include_directories(AFTER
-  .
+include_directories (AFTER
   ${NIIMAQDX_INCLUDE_DIR})
 
-add_library(libgstniimaqdx MODULE
+set (libname libgstniimaqdx)
+
+add_library (${libname} MODULE
   ${SOURCES}
-  ${HEADERS} )
+  ${HEADERS})
 
 # National Instruments doesn't provide a .lib for 64-bit, so use our own
 if (CMAKE_SIZEOF_VOID_P EQUAL 8)
-  set(NIIMAQDX_LIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/win64/niimaqdx.lib")
-endif()
+  set (NIIMAQDX_LIBRARIES "${CMAKE_CURRENT_SOURCE_DIR}/win64/niimaqdx.lib")
+endif ()
 
-target_link_libraries(libgstniimaqdx
+target_link_libraries (${libname}
   ${GLIB2_LIBRARIES}
   ${GOBJECT_LIBRARIES}
   ${GSTREAMER_LIBRARY}
@@ -27,5 +28,7 @@ target_link_libraries(libgstniimaqdx
   ${GSTREAMER_VIDEO_LIBRARY}
   ${NIIMAQDX_LIBRARIES})
   
-install (TARGETS libgstniimaqdx
-  LIBRARY DESTINATION lib/gstreamer-0.10)
+set (pdbfile "${CMAKE_CURRENT_BINARY_DIR}/\${CMAKE_INSTALL_CONFIG_NAME}/${libname}.pdb")
+install (FILES ${pdbfile} DESTINATION lib/gstreamer-1.0)
+install(TARGETS ${libname}
+  LIBRARY DESTINATION lib/gstreamer-1.0)

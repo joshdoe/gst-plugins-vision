@@ -1,22 +1,24 @@
-add_definitions(-DHAVE_CONFIG_H)
+add_definitions (-DHAVE_CONFIG_H)
 
-set(SOURCES
+set (SOURCES
   gstedt.c
   gstedtpdvsink.c
   gstedtpdvsrc.c)
 
-set(HEADERS
+set (HEADERS
   gstedtpdvsink.h
   gstedtpdvsrc.h)
 
-include_directories(AFTER
+include_directories (AFTER
   ${EDT_INCLUDE_DIR})
 
-add_library(libgstedt MODULE
+set (libname libgstedt)
+
+add_library (${libname} MODULE
   ${SOURCES}
   ${HEADERS})
 
-target_link_libraries(libgstedt
+target_link_libraries (${libname}
   ${GLIB2_LIBRARIES}
   ${GOBJECT_LIBRARIES}
   ${GSTREAMER_LIBRARY}
@@ -24,5 +26,7 @@ target_link_libraries(libgstedt
   ${GSTREAMER_VIDEO_LIBRARY}
   ${EDT_LIBRARIES})
   
-install(TARGETS libgstedt
+set (pdbfile "${CMAKE_CURRENT_BINARY_DIR}/\${CMAKE_INSTALL_CONFIG_NAME}/${libname}.pdb")
+install (FILES ${pdbfile} DESTINATION lib/gstreamer-1.0)
+install(TARGETS ${libname}
   LIBRARY DESTINATION lib/gstreamer-1.0)

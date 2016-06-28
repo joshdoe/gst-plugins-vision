@@ -1,26 +1,29 @@
-add_definitions(-DHAVE_CONFIG_H)
+add_definitions (-DHAVE_CONFIG_H)
 
-set ( SOURCES
-    gstniimaq.c )
+set (SOURCES
+  gstniimaq.c)
     
-set ( HEADERS
-    gstniimaq.h )
+set (HEADERS
+  gstniimaq.h)
 
-include_directories ( AFTER
-  .
-  ${NIIMAQ_INCLUDE_DIR} )
+include_directories (AFTER
+  ${NIIMAQ_INCLUDE_DIR})
 
-add_library ( libgstimaq MODULE
+set (libname libgstimaq)
+
+add_library (${libname} MODULE
   ${SOURCES}
-  ${HEADERS} )
+  ${HEADERS})
 
-target_link_libraries ( libgstimaq
-  general ${GLIB2_LIBRARIES}
-  general ${GOBJECT_LIBRARIES}
-  general ${GSTREAMER_LIBRARY}
-  general ${GSTREAMER_BASE_LIBRARY}
-  general ${GSTREAMER_VIDEO_LIBRARY}
-  general ${NIIMAQ_LIBRARIES} )
+target_link_libraries (${libname}
+  ${GLIB2_LIBRARIES}
+  ${GOBJECT_LIBRARIES}
+  ${GSTREAMER_LIBRARY}
+  ${GSTREAMER_BASE_LIBRARY}
+  ${GSTREAMER_VIDEO_LIBRARY}
+  ${NIIMAQ_LIBRARIES})
   
-install (TARGETS libgstimaq
-  LIBRARY DESTINATION lib/gstreamer-0.10)
+set (pdbfile "${CMAKE_CURRENT_BINARY_DIR}/\${CMAKE_INSTALL_CONFIG_NAME}/${libname}.pdb")
+install (FILES ${pdbfile} DESTINATION lib/gstreamer-1.0)
+install(TARGETS ${libname}
+  LIBRARY DESTINATION lib/gstreamer-1.0)

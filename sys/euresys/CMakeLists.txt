@@ -1,27 +1,29 @@
-add_definitions(-DHAVE_CONFIG_H)
+add_definitions (-DHAVE_CONFIG_H)
 
-set ( SOURCES
-    gsteuresyssrc.c )
+set (SOURCES
+  gsteuresyssrc.c)
     
-set ( HEADERS
-    gsteuresyssrc.h )
+set (HEADERS
+  gsteuresyssrc.h)
 
-include_directories ( AFTER
-  .
-  ${EURESYS_INCLUDE_DIR} )
+include_directories (AFTER
+  ${EURESYS_INCLUDE_DIR})
 
-add_library ( libgsteuresys MODULE
+set (libname libgsteuresys)
+
+add_library (${libname} MODULE
   ${SOURCES}
-  ${HEADERS} )
+  ${HEADERS})
 
-target_link_libraries ( libgsteuresys
+target_link_libraries (${libname}
   ${GLIB2_LIBRARIES}
   ${GOBJECT_LIBRARIES}
   ${GSTREAMER_LIBRARY}
   ${GSTREAMER_BASE_LIBRARY}
-  ${GSTREAMER_INTERFACE_LIBRARY}
   ${GSTREAMER_VIDEO_LIBRARY}
   ${EURESYS_LIBRARIES})
   
-install (TARGETS libgsteuresys
-  LIBRARY DESTINATION lib/gstreamer-0.10)
+set (pdbfile "${CMAKE_CURRENT_BINARY_DIR}/\${CMAKE_INSTALL_CONFIG_NAME}/${libname}.pdb")
+install (FILES ${pdbfile} DESTINATION lib/gstreamer-1.0)
+install (TARGETS ${libname}
+  LIBRARY DESTINATION lib/gstreamer-1.0)

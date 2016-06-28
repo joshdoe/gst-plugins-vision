@@ -1,27 +1,29 @@
-add_definitions(-DHAVE_CONFIG_H)
+add_definitions (-DHAVE_CONFIG_H)
 
-set ( SOURCES
-    gstphoenixsrc.c )
+set (SOURCES
+  gstphoenixsrc.c)
     
-set ( HEADERS
-    gstphoenixsrc.h )
+set (HEADERS
+  gstphoenixsrc.h)
 
-include_directories ( AFTER
-  ${PHOENIX_INCLUDE_DIR}
-  .)
+include_directories (AFTER
+  ${PHOENIX_INCLUDE_DIR})
 
-add_library ( libgstphoenix MODULE
+set (libname libgstphoenix)
+
+add_library (${libname} MODULE
   ${SOURCES}
-  ${HEADERS} )
+  ${HEADERS})
 
-target_link_libraries ( libgstphoenix
+target_link_libraries (${libname}
   ${GLIB2_LIBRARIES}
   ${GOBJECT_LIBRARIES}
   ${GSTREAMER_LIBRARY}
   ${GSTREAMER_BASE_LIBRARY}
-  ${GSTREAMER_INTERFACE_LIBRARY}
   ${GSTREAMER_VIDEO_LIBRARY}
   ${PHOENIX_LIBRARIES})
   
-install (TARGETS libgstphoenix
-  LIBRARY DESTINATION lib/gstreamer-0.10)
+set (pdbfile "${CMAKE_CURRENT_BINARY_DIR}/\${CMAKE_INSTALL_CONFIG_NAME}/${libname}.pdb")
+install (FILES ${pdbfile} DESTINATION lib/gstreamer-1.0)
+install(TARGETS ${libname}
+  LIBRARY DESTINATION lib/gstreamer-1.0)

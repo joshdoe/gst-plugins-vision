@@ -8,21 +8,23 @@ set (HEADERS
   gstextractcolor.h)
     
 include_directories (AFTER
-  ${GSTREAMER_BASE_INCLUDE_DIR}
-  ${GSTREAMER_VIDEO_INCLUDE_DIR}
   ${ORC_INCLUDE_DIR})
 
-add_library (libgstextractcolor MODULE
+set (libname libgstextractcolor)
+
+add_library (${libname} MODULE
   ${SOURCES}
   ${HEADERS})
   
-target_link_libraries (libgstextractcolor
+target_link_libraries (${libname}
+  ${ORC_LIBRARIES}
   ${GLIB2_LIBRARIES}
   ${GOBJECT_LIBRARIES}
   ${GSTREAMER_LIBRARY}
   ${GSTREAMER_BASE_LIBRARY}
-  ${GSTREAMER_VIDEO_LIBRARY}
-  ${ORC_LIBRARIES})
+  ${GSTREAMER_VIDEO_LIBRARY})
   
-install (TARGETS libgstextractcolor
+set (pdbfile "${CMAKE_CURRENT_BINARY_DIR}/\${CMAKE_INSTALL_CONFIG_NAME}/${libname}.pdb")
+install (FILES ${pdbfile} DESTINATION lib/gstreamer-1.0)
+install(TARGETS ${libname}
   LIBRARY DESTINATION lib/gstreamer-1.0)

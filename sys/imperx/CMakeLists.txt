@@ -1,27 +1,29 @@
-add_definitions(-DHAVE_CONFIG_H)
+add_definitions (-DHAVE_CONFIG_H)
 
-set ( SOURCES
-    gstframelinksrc.c )
+set (SOURCES
+  gstframelinksrc.c)
     
-set ( HEADERS
-    gstframelinksrc.h )
+set (HEADERS
+  gstframelinksrc.h)
 
-include_directories ( AFTER
-  ${IMPERX_FLEX_INCLUDE_DIR}
-  .)
+include_directories (AFTER
+  ${IMPERX_FLEX_INCLUDE_DIR})
 
-add_library ( libgstimperxflex MODULE
+set (libname libgstimperxflex)
+
+add_library (${libname} MODULE
   ${SOURCES}
-  ${HEADERS} )
+  ${HEADERS})
 
-target_link_libraries ( libgstimperxflex
+target_link_libraries (${libname}
   ${GLIB2_LIBRARIES}
   ${GOBJECT_LIBRARIES}
   ${GSTREAMER_LIBRARY}
   ${GSTREAMER_BASE_LIBRARY}
-  ${GSTREAMER_INTERFACE_LIBRARY}
   ${GSTREAMER_VIDEO_LIBRARY}
   ${IMPERX_FLEX_LIBRARIES})
-  
-install (TARGETS libgstimperxflex
+
+set (pdbfile "${CMAKE_CURRENT_BINARY_DIR}/\${CMAKE_INSTALL_CONFIG_NAME}/${libname}.pdb")
+install (FILES ${pdbfile} DESTINATION lib/gstreamer-1.0)
+install(TARGETS ${libname}
   LIBRARY DESTINATION lib/gstreamer-1.0)
