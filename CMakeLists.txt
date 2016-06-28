@@ -65,7 +65,7 @@ include_directories(
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     file(TO_CMAKE_PATH "${GSTREAMER_INCLUDE_DIR}/../.." PREFIX)
     set(CMAKE_INSTALL_PREFIX
-        ${PREFIX} CACHE PATH "Directory to install plugins, under lib/gstreamer-0.10" FORCE)
+        ${PREFIX} CACHE PATH "Directory to install plugins, under lib/gstreamer-1.0" FORCE)
 endif(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 
 # Build the plugins
