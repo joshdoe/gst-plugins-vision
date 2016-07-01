@@ -54,6 +54,7 @@ struct _GstNiImaqSrc {
   gint bufsize;
   gboolean avoid_copy;
   gboolean is_signed;
+  guint32 timeout;
 
   /* image info */
   GstVideoFormat format;

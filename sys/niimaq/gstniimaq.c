@@ -57,13 +57,15 @@ enum
   PROP_DEVICE,
   PROP_RING_BUFFER_COUNT,
   PROP_AVOID_COPY,
-  PROP_IS_SIGNED
+  PROP_IS_SIGNED,
+  PROP_TIMEOUT
 };
 
 #define DEFAULT_PROP_DEVICE "img0"
 #define DEFAULT_PROP_RING_BUFFER_COUNT  2
 #define DEFAULT_PROP_AVOID_COPY FALSE
 #define DEFAULT_PROP_IS_SIGNED FALSE
+#define DEFAULT_PROP_TIMEOUT 0
 
 static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
@@ -287,6 +289,11 @@ gst_niimaqsrc_class_init (GstNiImaqSrcClass * klass)
       g_param_spec_boolean ("is-signed", "Image is signed 16-bit",
           "Image is signed 16-bit, shift to unsigned 16-bit",
           DEFAULT_PROP_IS_SIGNED, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
+  g_object_class_install_property (G_OBJECT_CLASS (klass),
+      PROP_TIMEOUT, g_param_spec_int ("timeout",
+          "Timeout (ms)",
+          "Timeout in ms (0 to use default)", 0, G_MAXINT,
+          DEFAULT_PROP_TIMEOUT, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&src_factory));
@@ -326,6 +333,7 @@ gst_niimaqsrc_init (GstNiImaqSrc * src)
   src->interface_name = g_strdup (DEFAULT_PROP_DEVICE);
   src->avoid_copy = DEFAULT_PROP_AVOID_COPY;
   src->is_signed = DEFAULT_PROP_IS_SIGNED;
+  src->timeout = DEFAULT_PROP_TIMEOUT;
 }
 
 /**
@@ -376,6 +384,9 @@ gst_niimaqsrc_set_property (GObject * object, guint prop_id,
     case PROP_IS_SIGNED:
       src->is_signed = g_value_get_boolean (value);
       break;
+    case PROP_TIMEOUT:
+      src->timeout = g_value_get_int (value);
+      break;
     default:
       break;
   }
@@ -399,6 +410,9 @@ gst_niimaqsrc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_IS_SIGNED:
       g_value_set_boolean (value, src->is_signed);
+      break;
+    case PROP_TIMEOUT:
+      g_value_set_int (value, src->timeout);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -779,6 +793,7 @@ gst_niimaqsrc_start (GstBaseSrc * bsrc)
   GstNiImaqSrc *src = GST_NIIMAQSRC (bsrc);
   Int32 rval;
   gint i;
+  uInt32 timeout;
 
   gst_niimaqsrc_reset (src);
 
@@ -848,6 +863,22 @@ gst_niimaqsrc_start (GstBaseSrc * bsrc)
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Failed to register callback(s)"), ("Failed to register callback(s)"));
     goto error;
+  }
+
+  imgGetAttribute (src->iid, IMG_ATTR_FRAMEWAIT_MSEC, &timeout);
+  if (src->timeout != 0) {
+    rval = imgSetAttribute2 (src->sid, IMG_ATTR_FRAMEWAIT_MSEC, src->timeout);
+    if (rval) {
+      gst_niimaqsrc_report_imaq_error (rval);
+      GST_WARNING_OBJECT (src, "Failed to change timeout from %d to %d msecs",
+          timeout, src->timeout);
+    } else {
+      GST_DEBUG_OBJECT (src, "Changed timeout from %d to %d msecs", timeout,
+          src->timeout);
+    }
+  } else {
+    src->timeout = timeout;
+    GST_DEBUG_OBJECT (src, "Current timeout is %d msecs", timeout);
   }
 
   return TRUE;
