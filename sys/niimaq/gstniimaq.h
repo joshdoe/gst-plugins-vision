@@ -52,7 +52,6 @@ struct _GstNiImaqSrc {
   /* properties */
   gchar *interface_name;
   gint bufsize;
-  gboolean avoid_copy;
   gboolean is_signed;
   guint32 timeout;
 
@@ -63,23 +62,16 @@ struct _GstNiImaqSrc {
   gint framesize;
   int rowpixels;
 
-  gint64 n_frames;      /* total frames sent */
   uInt32 cumbufnum;
   gint64 n_dropped_frames;
   
   guint32** buflist;
-  GstClockTime *times;
   INTERFACE_ID iid;
   SESSION_ID sid;
 
   gboolean session_started;
 
-  GstDateTime *start_time;
-  gboolean start_time_sent;
-
-  GMutex mutex;
-  GCond cond;
-  gint buffers_available;
+  GAsyncQueue *time_queue;
 };
 
 struct _GstNiImaqSrcClass {
