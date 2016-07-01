@@ -114,7 +114,7 @@ protected:
         }
       }
     } else {
-      guint32 mask, shift;
+      guint32 mask = 0x0, shift = 0;
       if (src->channel_extract == 1) {
         mask = 0x3ff00000;
         shift = 20;
@@ -175,7 +175,7 @@ gst_saperasrc_xfer_callback (SapXferCallbackInfo * pInfo)
 void
 gst_saperasrc_pro_callback (SapProCallbackInfo * pInfo)
 {
-  GstSaperaSrc *src = (GstSaperaSrc *) pInfo->GetContext ();
+  /* GstSaperaSrc *src = (GstSaperaSrc *) pInfo->GetContext (); */
 
   /* TODO: handle buffer */
 }
@@ -228,9 +228,11 @@ gst_saperasrc_create_objects (GstSaperaSrc * src)
   UINT32 video_type = 0;
 
   /* Create acquisition object */
-  if (src->sap_acq && !*src->sap_acq && !src->sap_acq->Create ()) {
-    gst_saperasrc_destroy_objects (src);
-    return FALSE;
+  if (src->sap_acq && !*src->sap_acq) {
+    if (!src->sap_acq->Create ()) {
+      gst_saperasrc_destroy_objects (src);
+      return FALSE;
+    }
   }
 
   if (!src->sap_acq->GetParameter (CORACQ_PRM_VIDEO, &video_type)) {
@@ -433,16 +435,26 @@ gst_saperasrc_reset (GstSaperaSrc * src)
 
   gst_saperasrc_destroy_objects (src);
 
-  delete src->sap_acq;
-  src->sap_acq = NULL;
-  delete src->sap_buffers;
-  src->sap_buffers = NULL;
-  delete src->sap_bayer;
-  src->sap_bayer = NULL;
-  delete src->sap_xfer;
-  src->sap_xfer = NULL;
-  delete src->sap_pro;
-  src->sap_pro = NULL;
+  if (src->sap_acq) {
+    delete src->sap_acq;
+    src->sap_acq = NULL;
+  }
+  if (src->sap_buffers) {
+    delete src->sap_buffers;
+    src->sap_buffers = NULL;
+  }
+  if (src->sap_bayer) {
+    delete src->sap_bayer;
+    src->sap_bayer = NULL;
+  }
+  if (src->sap_xfer) {
+    delete src->sap_xfer;
+    src->sap_xfer = NULL;
+  }
+  if (src->sap_pro) {
+    delete src->sap_pro;
+    src->sap_pro = NULL;
+  }
 }
 
 static void
@@ -463,6 +475,12 @@ gst_saperasrc_init (GstSaperaSrc * src)
 
   src->caps = NULL;
   src->buffer = NULL;
+
+  src->sap_acq = NULL;
+  src->sap_buffers = NULL;
+  src->sap_bayer = NULL;
+  src->sap_xfer = NULL;
+  src->sap_pro = NULL;
 
   gst_saperasrc_reset (src);
 }
@@ -538,11 +556,6 @@ gst_saperasrc_get_property (GObject * object, guint property_id,
 void
 gst_saperasrc_dispose (GObject * object)
 {
-  GstSaperaSrc *src;
-
-  g_return_if_fail (GST_IS_SAPERA_SRC (object));
-  src = GST_SAPERA_SRC (object);
-
   /* clean up as possible.  may be called multiple times */
 
   G_OBJECT_CLASS (gst_saperasrc_parent_class)->dispose (object);
@@ -700,7 +713,6 @@ gst_saperasrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 {
   GstSaperaSrc *src = GST_SAPERA_SRC (bsrc);
   GstVideoInfo vinfo;
-  GstStructure *s = gst_caps_get_structure (caps, 0);
 
   GST_DEBUG_OBJECT (src, "The caps being set are %" GST_PTR_FORMAT, caps);
 
