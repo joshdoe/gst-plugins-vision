@@ -55,6 +55,8 @@ static gboolean gst_framelinksrc_start (GstBaseSrc * src);
 static gboolean gst_framelinksrc_stop (GstBaseSrc * src);
 static GstCaps *gst_framelinksrc_get_caps (GstBaseSrc * src, GstCaps * filter);
 static gboolean gst_framelinksrc_set_caps (GstBaseSrc * src, GstCaps * caps);
+static gboolean gst_framelinksrc_unlock (GstBaseSrc * src);
+static gboolean gst_framelinksrc_unlock_stop (GstBaseSrc * src);
 
 static GstFlowReturn gst_framelinksrc_create (GstPushSrc * src,
     GstBuffer ** buf);
@@ -66,13 +68,15 @@ enum
   PROP_FORMAT_FILE,
   PROP_NUM_CAPTURE_BUFFERS,
   PROP_BOARD,
-  PROP_CHANNEL
+  PROP_CHANNEL,
+  PROP_TIMEOUT
 };
 
 #define DEFAULT_PROP_FORMAT_FILE ""
 #define DEFAULT_PROP_NUM_CAPTURE_BUFFERS 2
 #define DEFAULT_PROP_BOARD 0
 #define DEFAULT_PROP_CHANNEL 0
+#define DEFAULT_PROP_TIMEOUT 1000
 
 /* pad templates */
 
@@ -113,6 +117,9 @@ gst_framelinksrc_class_init (GstFramelinkSrcClass * klass)
   gstbasesrc_class->stop = GST_DEBUG_FUNCPTR (gst_framelinksrc_stop);
   gstbasesrc_class->get_caps = GST_DEBUG_FUNCPTR (gst_framelinksrc_get_caps);
   gstbasesrc_class->set_caps = GST_DEBUG_FUNCPTR (gst_framelinksrc_set_caps);
+  gstbasesrc_class->unlock = GST_DEBUG_FUNCPTR (gst_framelinksrc_unlock);
+  gstbasesrc_class->unlock_stop =
+      GST_DEBUG_FUNCPTR (gst_framelinksrc_unlock_stop);
 
   gstpushsrc_class->create = GST_DEBUG_FUNCPTR (gst_framelinksrc_create);
 
@@ -136,6 +143,12 @@ gst_framelinksrc_class_init (GstFramelinkSrcClass * klass)
       g_param_spec_uint ("channel", "Channel", "Channel number", 0,
           1, DEFAULT_PROP_CHANNEL,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+  g_object_class_install_property (G_OBJECT_CLASS (klass),
+      PROP_TIMEOUT, g_param_spec_int ("timeout",
+          "Timeout (ms)",
+          "Timeout in ms (0 to use default)", 0, G_MAXINT,
+          DEFAULT_PROP_TIMEOUT, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
+
 }
 
 static void
@@ -169,10 +182,13 @@ gst_framelinksrc_init (GstFramelinkSrc * src)
   /* initialize member variables */
   src->format_file = g_strdup (DEFAULT_PROP_FORMAT_FILE);
   src->num_capture_buffers = DEFAULT_PROP_NUM_CAPTURE_BUFFERS;
+  src->board = DEFAULT_PROP_BOARD;
+  src->channel = DEFAULT_PROP_CHANNEL;
+  src->timeout = DEFAULT_PROP_TIMEOUT;
 
   g_mutex_init (&src->mutex);
   g_cond_init (&src->cond);
-
+  src->stop_requested = FALSE;
   src->caps = NULL;
   src->buffer = NULL;
 
@@ -207,6 +223,9 @@ gst_framelinksrc_set_property (GObject * object, guint property_id,
     case PROP_CHANNEL:
       src->channel = g_value_get_uint (value);
       break;
+    case PROP_TIMEOUT:
+      src->timeout = g_value_get_int (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -235,6 +254,9 @@ gst_framelinksrc_get_property (GObject * object, guint property_id,
     case PROP_CHANNEL:
       g_value_set_uint (value, src->channel);
       break;
+    case PROP_TIMEOUT:
+      g_value_set_int (value, src->timeout);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -250,6 +272,9 @@ gst_framelinksrc_dispose (GObject * object)
   src = GST_FRAMELINK_SRC (object);
 
   /* clean up as possible.  may be called multiple times */
+
+  g_mutex_clear (&src->mutex);
+  g_cond_clear (&src->cond);
 
   G_OBJECT_CLASS (gst_framelinksrc_parent_class)->dispose (object);
 }
@@ -433,17 +458,28 @@ static gboolean
 gst_framelinksrc_stop (GstBaseSrc * bsrc)
 {
   GstFramelinkSrc *src = GST_FRAMELINK_SRC (bsrc);
+  VCECLB_Error err;
 
   GST_DEBUG_OBJECT (src, "stop");
 
   if (src->acq_started) {
-    VCECLB_StopGrabEx (src->grabber, src->channel);
+    err = VCECLB_StopGrabEx (src->grabber, src->channel);
+    if (err) {
+      GST_WARNING_OBJECT (src, "Error calling VCECLB_StopGrabEx: %d", err);
+    }
     src->acq_started = FALSE;
   }
 
   if (src->grabber) {
-    VCECLB_ReleaseDMAAccessEx (src->grabber, src->channel);
-    VCECLB_Done (src->grabber);
+    err = VCECLB_ReleaseDMAAccessEx (src->grabber, src->channel);
+    if (err) {
+      GST_WARNING_OBJECT (src, "Error calling VCECLB_ReleaseDMAAccessEx: %d",
+          err);
+    }
+    err = VCECLB_Done (src->grabber);
+    if (err) {
+      GST_WARNING_OBJECT (src, "Error calling VCECLB_Done: %d", err);
+    }
     src->grabber = NULL;
   }
 
@@ -500,6 +536,33 @@ gst_framelinksrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 unsupported_caps:
   GST_ERROR_OBJECT (src, "Unsupported caps: %" GST_PTR_FORMAT, caps);
   return FALSE;
+}
+
+static gboolean
+gst_framelinksrc_unlock (GstBaseSrc * bsrc)
+{
+  GstFramelinkSrc *src = GST_FRAMELINK_SRC (bsrc);
+
+  GST_LOG_OBJECT (src, "unlock");
+
+  g_mutex_lock (&src->mutex);
+  src->stop_requested = TRUE;
+  g_cond_signal (&src->cond);
+  g_mutex_unlock (&src->mutex);
+
+  return TRUE;
+}
+
+static gboolean
+gst_framelinksrc_unlock_stop (GstBaseSrc * bsrc)
+{
+  GstFramelinkSrc *src = GST_FRAMELINK_SRC (bsrc);
+
+  GST_LOG_OBJECT (src, "unlock_stop");
+
+  src->stop_requested = FALSE;
+
+  return TRUE;
 }
 
 static GstBuffer *
@@ -631,9 +694,13 @@ gst_framelinksrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 {
   GstFramelinkSrc *src = GST_FRAMELINK_SRC (psrc);
   VCECLB_Error err;
+  gint64 end_time;
+
+  GST_LOG_OBJECT (src, "create");
 
   /* Start acquisition if not already started */
   if (G_UNLIKELY (!src->acq_started)) {
+    GST_LOG_OBJECT (src, "starting acquisition");
     err =
         VCECLB_StartGrabEx (src->grabber, src->channel, 0,
         gst_framelinksrc_callback, src);
@@ -647,16 +714,26 @@ gst_framelinksrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
   /* wait for a buffer to be ready */
   g_mutex_lock (&src->mutex);
-  while (!src->buffer) {
-    /* TODO: add check for halted acquisition so we don't wait forever */
-    g_cond_wait (&src->cond, &src->mutex);
+  end_time = g_get_monotonic_time () + src->timeout * G_TIME_SPAN_MILLISECOND;
+  while (!src->buffer && !src->stop_requested) {
+    if (!g_cond_wait_until (&src->cond, &src->mutex, end_time)) {
+      g_mutex_unlock (&src->mutex);
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+          ("Timeout, no data received after %d ms", src->timeout), (NULL));
+      return GST_FLOW_ERROR;
+    }
   }
-
-  if (src->buffer) {
-    *buf = src->buffer;
-    src->buffer = NULL;
-  }
+  *buf = src->buffer;
+  src->buffer = NULL;
   g_mutex_unlock (&src->mutex);
+
+  if (src->stop_requested) {
+    if (*buf != NULL) {
+      gst_buffer_unref (*buf);
+      *buf = NULL;
+    }
+    return GST_FLOW_FLUSHING;
+  }
 
   return GST_FLOW_OK;
 }

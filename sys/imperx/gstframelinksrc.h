@@ -55,6 +55,7 @@ struct _GstFramelinkSrc
   guint num_capture_buffers;
   guint board;
   guint channel;
+  gint timeout;
 
   GstBuffer *buffer;
 
@@ -65,6 +66,7 @@ struct _GstFramelinkSrc
 
   GMutex mutex;
   GCond cond;
+  gboolean stop_requested;
 };
 
 struct _GstFramelinkSrcClass
