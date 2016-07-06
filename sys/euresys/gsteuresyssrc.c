@@ -620,11 +620,9 @@ gst_euresys_get_camera_caps (GstEuresys * src)
   }
 
   gst_video_info_init (&vinfo);
-
-  vinfo.width = width;
-  vinfo.height = height;
-  vinfo.finfo = gst_video_format_get_info (videoFormat);
-
+  gst_video_info_set_format (&vinfo, videoFormat, width, height);
+  vinfo.fps_n = 30;
+  vinfo.fps_d = 1;
   caps = gst_video_info_to_caps (&vinfo);
 
   if (caps == NULL) {
