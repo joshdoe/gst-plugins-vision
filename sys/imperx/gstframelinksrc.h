@@ -43,8 +43,6 @@ struct _GstFramelinkSrc
 {
   GstPushSrc base_framelinksrc;
 
-  guint last_buffer_number;
-  gint dropped_frame_count;
   gboolean acq_started;
 
   /* camera handle */
@@ -58,6 +56,7 @@ struct _GstFramelinkSrc
   gint timeout;
 
   GstBuffer *buffer;
+  GstClockTime acq_start_time;
 
   GstCaps *caps;
   gint height;

@@ -156,8 +156,6 @@ gst_framelinksrc_reset (GstFramelinkSrc * src)
 {
   g_assert_null (src->grabber);
 
-  src->dropped_frame_count = 0;
-  src->last_buffer_number = 0;
   src->acq_started = FALSE;
 
   if (src->caps) {
@@ -636,9 +634,14 @@ static void __stdcall
 gst_framelinksrc_callback (void *lpUserData, VCECLB_FrameInfoEx * pFrameInfo)
 {
   GstFramelinkSrc *src = GST_FRAMELINK_SRC (lpUserData);
-  guint dropped_frames;
+  gint dropped_frames;
+  static guint64 last_frame_number = 0;
+  static guint64 buffers_processed = 0;
+  static guint64 total_dropped_frames = 0;
+
   g_assert (src != NULL);
 
+  /* check for DMA errors */
   if (pFrameInfo->dma_status == VCECLB_DMA_STATUS_FRAME_DROP) {
     /* TODO: save this in dropped frame total? */
     GST_WARNING_OBJECT (src, "Frame dropped from DMA system.");
@@ -657,6 +660,23 @@ gst_framelinksrc_callback (void *lpUserData, VCECLB_FrameInfoEx * pFrameInfo)
     return;
   }
 
+  /* check for dropped frames and disrupted signal */
+  dropped_frames = (pFrameInfo->number - last_frame_number) - 1;
+  if (dropped_frames > 0) {
+    total_dropped_frames += dropped_frames;
+    GST_WARNING_OBJECT (src, "Dropped %d frames (%d total)", dropped_frames,
+        total_dropped_frames);
+  } else if (dropped_frames < 0) {
+    GST_WARNING_OBJECT (src,
+        "Signal disrupted, frames likely dropped and timestamps inaccurate");
+
+    /* frame timestamps reset, so adjust start time, accuracy reduced */
+    src->acq_start_time =
+        gst_clock_get_time (gst_element_get_clock (GST_ELEMENT (src))) -
+        pFrameInfo->timestamp * GST_USECOND;
+  }
+  last_frame_number = pFrameInfo->number;
+
   g_mutex_lock (&src->mutex);
 
   if (src->buffer) {
@@ -669,21 +689,11 @@ gst_framelinksrc_callback (void *lpUserData, VCECLB_FrameInfoEx * pFrameInfo)
 
   src->buffer = gst_framelinksrc_create_buffer_from_frameinfo (src, pFrameInfo);
 
-  /* number always starts at one for IMPERX, zero for GStreamer */
-  GST_BUFFER_OFFSET (src->buffer) = pFrameInfo->number - 1;
-
-  /* TODO: this isn't quite right, I think */
   GST_BUFFER_TIMESTAMP (src->buffer) =
-      GST_ELEMENT_CAST (src)->base_time +
-      (pFrameInfo->timestamp * G_GINT64_CONSTANT (1000));
-
-  dropped_frames = pFrameInfo->number - src->last_buffer_number - 1;
-  if (dropped_frames > 0) {
-    src->dropped_frame_count += dropped_frames;
-    GST_WARNING_OBJECT (src, "Dropped %d frames (%d total)", dropped_frames,
-        src->dropped_frame_count);
-  }
-  src->last_buffer_number = pFrameInfo->number;
+      GST_CLOCK_DIFF (gst_element_get_base_time (GST_ELEMENT (src)),
+      src->acq_start_time + pFrameInfo->timestamp * GST_USECOND);
+  GST_BUFFER_OFFSET (src->buffer) = buffers_processed;
+  ++buffers_processed;
 
   g_cond_signal (&src->cond);
   g_mutex_unlock (&src->mutex);
@@ -701,9 +711,12 @@ gst_framelinksrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   /* Start acquisition if not already started */
   if (G_UNLIKELY (!src->acq_started)) {
     GST_LOG_OBJECT (src, "starting acquisition");
+    src->acq_start_time =
+        gst_clock_get_time (gst_element_get_clock (GST_ELEMENT (src)));
     err =
         VCECLB_StartGrabEx (src->grabber, src->channel, 0,
         gst_framelinksrc_callback, src);
+
     if (err != VCECLB_Err_Success) {
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
           ("Failed to start grabbing (code %d)", err), (NULL));
