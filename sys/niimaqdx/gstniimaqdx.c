@@ -90,6 +90,7 @@ static GstFlowReturn gst_niimaqdxsrc_fill (GstPushSrc * src, GstBuffer * buf);
 static GstCaps *gst_niimaqdxsrc_get_cam_caps (GstNiImaqDxSrc * src);
 static gboolean gst_niimaqdxsrc_close_interface (GstNiImaqDxSrc * niimaqdxsrc);
 static void gst_niimaqdxsrc_reset (GstNiImaqDxSrc * niimaqdxsrc);
+static void gst_niimaqdxsrc_set_dx_attributes (GstNiImaqDxSrc * niimaqdxsrc);
 
 IMAQdxError
 gst_niimaqdxsrc_report_imaq_error (IMAQdxError code)
@@ -420,11 +421,10 @@ gst_niimaqdxsrc_class_init (GstNiImaqDxSrcClass * klass)
           G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
   g_object_class_install_property (G_OBJECT_CLASS (klass),
       PROP_ATTRIBUTES, g_param_spec_string ("attributes",
-          "Attributes", "Initial attributes to set", DEFAULT_PROP_ATTRIBUTES,
-          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
-  g_object_class_install_property (G_OBJECT_CLASS (klass),
-      PROP_BAYER_AS_GRAY, g_param_spec_boolean ("bayer-as-gray",
-          "Bayer as gray",
+          "Attributes", "Attributes to change, comma separated key=value pairs",
+          DEFAULT_PROP_ATTRIBUTES, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
+  g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_BAYER_AS_GRAY,
+      g_param_spec_boolean ("bayer-as-gray", "Bayer as gray",
           "For Bayer sources use GRAY caps", DEFAULT_PROP_BAYER_AS_GRAY,
           G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
 
@@ -664,6 +664,9 @@ gst_niimaqdxsrc_fill (GstPushSrc * src, GstBuffer * buf)
       return GST_FLOW_ERROR;
     }
   }
+
+  /* will change attributes if provided */
+  gst_niimaqdxsrc_set_dx_attributes (niimaqdxsrc);
 
   if (niimaqdxsrc->caps_info == NULL) {
     GST_ELEMENT_ERROR (niimaqdxsrc, RESOURCE, FAILED,
@@ -907,12 +910,19 @@ error:
   return NULL;
 }
 
-void
+static void
 gst_niimaqdxsrc_set_dx_attributes (GstNiImaqDxSrc * niimaqdxsrc)
 {
   gchar **pairs;
   int i;
   IMAQdxError rval;
+
+  if (!niimaqdxsrc->attributes) {
+    return;
+  }
+
+  GST_DEBUG_OBJECT (niimaqdxsrc, "Trying to set following attributes: %s",
+      niimaqdxsrc->attributes);
 
   pairs = g_strsplit (niimaqdxsrc->attributes, ";", 0);
 
@@ -938,6 +948,11 @@ gst_niimaqdxsrc_set_dx_attributes (GstNiImaqDxSrc * niimaqdxsrc)
     g_strfreev (pair);
   }
   g_strfreev (pairs);
+
+  if (niimaqdxsrc->attributes) {
+    g_free (niimaqdxsrc->attributes);
+    niimaqdxsrc->attributes = NULL;
+  }
 }
 
 /**
