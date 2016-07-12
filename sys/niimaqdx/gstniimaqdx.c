@@ -934,8 +934,12 @@ gst_niimaqdxsrc_set_dx_attributes (GstNiImaqDxSrc * niimaqdxsrc)
 
     pair = g_strsplit (pairs[i], "=", 2);
 
-    g_assert (pair[0]);
-    g_assert (pair[1]);
+    if (!pair[0] || !pair[1]) {
+      GST_WARNING_OBJECT (niimaqdxsrc, "Failed to parse attribute/value: '%s'",
+          pair);
+      continue;
+    }
+
     GST_DEBUG_OBJECT (niimaqdxsrc, "Setting attribute, '%s'='%s'", pair[0],
         pair[1]);
 
