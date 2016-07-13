@@ -32,8 +32,7 @@
  * </refsect2>
  */
 
-/* FIXME: timestamps sent in GST_TAG_DATE_TIME are off, need to adjust for time of first buffer
-   TODO: Firewire cameras that have an ROI less than the full frame will be
+/* TODO: Firewire cameras that have an ROI less than the full frame will be
          corrupted, the only fix is to use NI Vision library */
 
 #ifdef HAVE_CONFIG_H
@@ -104,40 +103,29 @@ gst_niimaqdxsrc_report_imaq_error (IMAQdxError code)
   return code;
 }
 
-/* This will be called "when a frame done event occurs."
- * FIXME true?: If acquisition blocks because we don't copy buffers fast enough, the number
- * of times this function is called will be less than the IMAQ cumulative
- * buffer count. */
+typedef struct _GstNiImaqDxSrcTimeEntry GstNiImaqDxSrcTimeEntry;
+struct _GstNiImaqDxSrcTimeEntry
+{
+  guint64 frame_index;
+  GstClockTime clock_time;
+};
+
+/* This will be called "when a frame done event occurs", so not start of frame */
 uInt32
 gst_niimaqdxsrc_frame_done_callback (IMAQdxSession session, uInt32 bufferNumber,
     void *userdata)
 {
   GstNiImaqDxSrc *src = GST_NIIMAQDXSRC (userdata);
-  GstClockTime abstime;
-  static guint32 index = 0;
+  GstNiImaqDxSrcTimeEntry *time_entry;
 
-  g_mutex_lock (&src->mutex);
-
-  /* time hasn't been read yet, this frame will be dropped */
-  if (src->times[index] != GST_CLOCK_TIME_NONE) {
-    g_mutex_unlock (&src->mutex);
-    return 1;
-  }
+  time_entry = g_new (GstNiImaqDxSrcTimeEntry, 1);
 
   /* get clock time */
-  abstime = gst_clock_get_time (GST_ELEMENT_CLOCK (src));
-  src->times[index] = abstime;
+  time_entry->clock_time =
+      gst_clock_get_time (gst_element_get_clock (GST_ELEMENT (src)));
+  time_entry->frame_index = bufferNumber;
 
-  if (G_UNLIKELY (src->start_time == NULL))
-    src->start_time = gst_date_time_new_now_utc ();
-
-  /* first frame, use as element base time */
-  if (src->base_time == GST_CLOCK_TIME_NONE)
-    src->base_time = abstime;
-
-  index = (index + 1) % src->ringbuffer_count;
-
-  g_mutex_unlock (&src->mutex);
+  g_async_queue_push (src->time_queue, time_entry);
 
   /* return 1 to rearm the callback */
   return 1;
@@ -475,16 +463,14 @@ gst_niimaqdxsrc_init (GstNiImaqDxSrc * src)
   /* override default of BYTES to operate in time mode */
   gst_base_src_set_format (GST_BASE_SRC (src), GST_FORMAT_TIME);
 
-  g_mutex_init (&src->mutex);
-
   /* initialize properties */
   src->ringbuffer_count = DEFAULT_PROP_RING_BUFFER_COUNT;
   src->device_name = g_strdup (DEFAULT_PROP_DEVICE);
   src->attributes = g_strdup (DEFAULT_PROP_ATTRIBUTES);
 
   /* initialize pointers, then call reset to initialize the rest */
-  src->times = NULL;
   src->temp_buffer = NULL;
+  src->time_queue = NULL;
   gst_niimaqdxsrc_reset (src);
 }
 
@@ -506,10 +492,7 @@ gst_niimaqdxsrc_dispose (GObject * object)
   src->device_name = NULL;
 
   /* unref objects */
-  if (src->start_time) {
-    gst_date_time_unref (src->start_time);
-    src->start_time = NULL;
-  }
+  g_async_queue_unref (src->time_queue);
 
   /* chain dispose fuction of parent class */
   G_OBJECT_CLASS (gst_niimaqdxsrc_parent_class)->dispose (object);
@@ -574,7 +557,6 @@ gst_niimaqdxsrc_reset (GstNiImaqDxSrc * src)
   GST_LOG_OBJECT (src, "Resetting instance");
 
   /* initialize member variables */
-  src->n_frames = 0;
   src->cumbufnum = 0;
   src->n_dropped_frames = 0;
   src->session = 0;
@@ -584,15 +566,14 @@ gst_niimaqdxsrc_reset (GstNiImaqDxSrc * src)
   src->dx_row_stride = 0;
   src->caps_info = NULL;
   src->pixel_format[0] = 0;
-  src->start_time = NULL;
-  src->start_time_sent = FALSE;
-  src->base_time = GST_CLOCK_TIME_NONE;
 
   g_free (src->temp_buffer);
   src->temp_buffer = NULL;
 
-  g_free (src->times);
-  src->times = NULL;
+  if (src->time_queue) {
+    g_async_queue_unref (src->time_queue);
+  }
+  src->time_queue = g_async_queue_new ();
 }
 
 static gboolean
@@ -622,22 +603,6 @@ gst_niimaqdxsrc_start_acquisition (GstNiImaqDxSrc * src)
   gst_niimaqdxsrc_close_interface (src);
 
   return FALSE;
-}
-
-static GstClockTime
-gst_niimaqdxsrc_get_timestamp_from_buffer_number (GstNiImaqDxSrc * src,
-    guint32 buffer_number)
-{
-  GstClockTime abstime;
-
-  abstime = src->times[(buffer_number) % src->ringbuffer_count];
-  src->times[(buffer_number) % src->ringbuffer_count] = GST_CLOCK_TIME_NONE;
-
-  if (abstime == GST_CLOCK_TIME_NONE)
-    GST_WARNING_OBJECT (src,
-        "No valid time found for buffer %d, callback failed?", buffer_number);
-
-  return abstime;
 }
 
 #define ROUND_UP_N(num, n)  (((num)+((n)-1))&~((n)-1))
@@ -679,7 +644,6 @@ gst_niimaqdxsrc_fill (GstPushSrc * psrc, GstBuffer * buf)
 
   do_align_stride = (src->dx_row_stride % src->caps_info->row_multiple) != 0;
 
-  g_mutex_lock (&src->mutex);
   if (!do_align_stride) {
     gst_buffer_map (buf, &minfo, GST_MAP_WRITE);
     // we have properly aligned strides, copy directly to buffer
@@ -694,10 +658,39 @@ gst_niimaqdxsrc_fill (GstPushSrc * psrc, GstBuffer * buf)
         src->cumbufnum, &copied_number);
   }
 
-  //FIXME: handle timestamps
-  //timestamp = src->times[copied_index];
-  //src->times[copied_index] = GST_CLOCK_TIME_NONE;
-  g_mutex_unlock (&src->mutex);
+  if (rval) {
+    gst_niimaqdxsrc_report_imaq_error (rval);
+    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+        ("failed to copy buffer %d", src->cumbufnum), (NULL));
+    goto error;
+  }
+
+  while (timestamp == GST_CLOCK_TIME_NONE) {
+    /* wait 100 ms, shouldn't be needed if callback is working as expected */
+    GstNiImaqDxSrcTimeEntry *entry =
+        (GstNiImaqDxSrcTimeEntry *) g_async_queue_timeout_pop (src->time_queue,
+        100000);
+    if (entry == NULL) {
+      GST_WARNING_OBJECT (src, "No timestamps received, callback failed?");
+      break;
+    }
+
+    if (entry->frame_index < copied_number) {
+      GST_DEBUG_OBJECT (src,
+          "Got clocktime for frame %d while handling frame %d, frames dropped?",
+          entry->frame_index, copied_number);
+      g_free (entry);
+      continue;
+    } else if (entry->frame_index > copied_number) {
+      GST_DEBUG_OBJECT (src,
+          "Failed to get clocktime for frame %d, got one for frame %d instead",
+          copied_number, entry->frame_index);
+      g_free (entry);
+      break;
+    }
+    timestamp = entry->clock_time;
+    g_free (entry);
+  }
 
   // adjust for row stride if needed (must be multiple of 4)
   if (do_align_stride) {
@@ -719,13 +712,6 @@ gst_niimaqdxsrc_fill (GstPushSrc * psrc, GstBuffer * buf)
     gst_buffer_unmap (buf, &minfo);
   }
 
-  if (rval) {
-    gst_niimaqdxsrc_report_imaq_error (rval);
-    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-        ("failed to copy buffer %d", src->cumbufnum), (NULL));
-    goto error;
-  }
-
   /* make guess of duration from timestamp and cumulative buffer number */
   if (GST_CLOCK_TIME_IS_VALID (timestamp)) {
     duration = timestamp / (copied_number + 1);
@@ -735,10 +721,10 @@ gst_niimaqdxsrc_fill (GstPushSrc * psrc, GstBuffer * buf)
 
   GST_BUFFER_OFFSET (buf) = copied_number;
   GST_BUFFER_OFFSET_END (buf) = copied_number + 1;
-  //TODO: handle timestamps
-  //GST_BUFFER_TIMESTAMP (*buffer) =
-  //    timestamp - gst_element_get_base_time (GST_ELEMENT (src));
-  GST_BUFFER_DURATION (buf) = duration;
+  GST_BUFFER_TIMESTAMP (buf) =
+      timestamp - gst_element_get_base_time (GST_ELEMENT (src));
+  // TODO: fix duration
+  //GST_BUFFER_DURATION (buf) = duration;
 
   dropped = copied_number - src->cumbufnum;
   if (dropped > 0) {
@@ -750,16 +736,7 @@ gst_niimaqdxsrc_fill (GstPushSrc * psrc, GstBuffer * buf)
 
   /* set cumulative buffer number to get next frame */
   src->cumbufnum = copied_number + 1;
-  src->n_frames++;
 
-  if (G_UNLIKELY (src->start_time && !src->start_time_sent)) {
-    GstTagList *tl =
-        gst_tag_list_new (GST_TAG_DATE_TIME, src->start_time, NULL);
-    GstEvent *e = gst_event_new_tag (tl);
-    GST_DEBUG_OBJECT (src, "Sending start time event: %" GST_PTR_FORMAT, e);
-    gst_pad_push_event (GST_BASE_SRC_PAD (src), e);
-    src->start_time_sent = TRUE;
-  }
   return ret;
 
 error:
@@ -964,7 +941,6 @@ gst_niimaqdxsrc_start (GstBaseSrc * bsrc)
 {
   GstNiImaqDxSrc *src = GST_NIIMAQDXSRC (bsrc);
   IMAQdxError rval;
-  gint i;
 
   gst_niimaqdxsrc_reset (src);
 
@@ -985,12 +961,6 @@ gst_niimaqdxsrc_start (GstBaseSrc * bsrc)
 
   GST_LOG_OBJECT (src, "Creating ring with %d buffers", src->ringbuffer_count);
 
-  /* create array of times */
-  src->times = g_new (GstClockTime, src->ringbuffer_count);
-  for (i = 0; i < src->ringbuffer_count; i++) {
-    src->times[i] = GST_CLOCK_TIME_NONE;
-  }
-
   rval = IMAQdxConfigureAcquisition (src->session, TRUE, src->ringbuffer_count);
   if (rval) {
     gst_niimaqdxsrc_report_imaq_error (rval);
@@ -1002,8 +972,9 @@ gst_niimaqdxsrc_start (GstBaseSrc * bsrc)
   }
 
   GST_LOG_OBJECT (src, "Registering callback functions");
-  //TODO: enable this callback
-  //rval = IMAQdxRegisterFrameDoneEvent (src->session, 1, gst_niimaqdxsrc_frame_done_callback, src);
+  rval =
+      IMAQdxRegisterFrameDoneEvent (src->session, 1,
+      gst_niimaqdxsrc_frame_done_callback, src);
   if (rval) {
     gst_niimaqdxsrc_report_imaq_error (rval);
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,

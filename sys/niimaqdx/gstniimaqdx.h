@@ -74,20 +74,14 @@ struct _GstNiImaqDxSrc {
   guint8 *temp_buffer;
   const ImaqDxCapsInfo *caps_info;
 
-  gint64 n_frames;      /* total frames sent */
   uInt32 cumbufnum;
   gint64 n_dropped_frames;
   
-  GstClockTime *times;
   IMAQdxSession session;
 
   gboolean session_started;
-  GstClockTime base_time;
 
-  GstDateTime *start_time;
-  gboolean start_time_sent;
-
-  GMutex mutex;
+  GAsyncQueue *time_queue;
 };
 
 struct _GstNiImaqDxSrcClass {
