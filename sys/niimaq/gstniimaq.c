@@ -131,7 +131,6 @@ struct _GstNiImaqSrcTimeEntry
 {
   guint64 frame_index;
   GstClockTime clock_time;
-  GstDateTime *datetime;
 };
 
 /* This will be called "at the start of acquisition into each image buffer."
@@ -152,13 +151,6 @@ gst_niimaqsrc_frame_start_callback (SESSION_ID sid, IMG_ERR err,
   time_entry->clock_time =
       gst_clock_get_time (gst_element_get_clock (GST_ELEMENT (src)));
   time_entry->frame_index = index;
-
-  if (index == 0) {
-    /* we only need datetime for first frame, so only call once */
-    time_entry->datetime = gst_date_time_new_now_utc ();
-  } else {
-    time_entry->datetime = NULL;
-  }
 
   g_async_queue_push (src->time_queue, time_entry);
 
@@ -352,6 +344,8 @@ gst_niimaqsrc_dispose (GObject * object)
   g_free (src->interface_name);
   src->interface_name = NULL;
 
+  g_async_queue_unref (src->time_queue);
+
   /* chain dispose fuction of parent class */
   G_OBJECT_CLASS (gst_niimaqsrc_parent_class)->dispose (object);
 }
@@ -460,6 +454,11 @@ gst_niimaqsrc_reset (GstNiImaqSrc * src)
 
   g_free (src->buflist);
   src->buflist = NULL;
+
+  if (src->time_queue) {
+    g_async_queue_unref (src->time_queue);
+  }
+  src->time_queue = g_async_queue_new ();
 }
 
 static gboolean
@@ -501,7 +500,6 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
   Int32 rval;
   uInt32 dropped;
   GstMapInfo minfo;
-  GstDateTime *start_time = NULL;
 
   GST_LOG_OBJECT (src, "create");
 
@@ -547,10 +545,6 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
     if (entry == NULL) {
       GST_WARNING_OBJECT (src, "No timestamps received, callback failed?");
       break;
-    }
-
-    if (entry->frame_index == 0) {
-      start_time = entry->datetime;
     }
 
     if (entry->frame_index < copied_number) {
@@ -604,12 +598,6 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
   /* set cumulative buffer number to get next frame */
   src->cumbufnum = copied_number + 1;
 
-  if (G_UNLIKELY (start_time)) {
-    GstTagList *tl = gst_tag_list_new (GST_TAG_DATE_TIME, start_time, NULL);
-    GstEvent *e = gst_event_new_tag (tl);
-    GST_DEBUG_OBJECT (src, "Sending start time event: %" GST_PTR_FORMAT, e);
-    gst_pad_push_event (GST_BASE_SRC_PAD (src), e);
-  }
   return ret;
 
 error:
