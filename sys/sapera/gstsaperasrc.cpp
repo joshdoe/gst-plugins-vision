@@ -596,19 +596,21 @@ gst_saperasrc_start (GstBaseSrc * bsrc)
   GST_DEBUG_OBJECT (src, "start");
 
   if (!strlen (src->format_file)) {
-    GST_ERROR_OBJECT (src, "Format file must be specified");
+    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+        ("Configuration file has not been specified"), (NULL));
     return FALSE;
   }
 
   if (!g_file_test (src->format_file, G_FILE_TEST_EXISTS)) {
     GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
-        ("Format file does not exist: %s", src->format_file), (NULL));
+        ("Configuration file does not exist: %s", src->format_file), (NULL));
     return FALSE;
   }
 
   GST_DEBUG_OBJECT (src, "About to initialize and create Sapera objects");
   if (!gst_saperasrc_init_objects (src) || !gst_saperasrc_create_objects (src)) {
-    GST_ERROR_OBJECT (src, "Failed to create Sapera objects");
+    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+        ("Failed to create Sapera objects"), (NULL));
     return FALSE;
   }
 
@@ -637,8 +639,9 @@ gst_saperasrc_start (GstBaseSrc * bsrc)
   if (gst_format == GST_VIDEO_FORMAT_UNKNOWN) {
     char format_name[17];
     SapManager::GetStringFromFormat (sap_format, format_name);
-    GST_ERROR_OBJECT (src, "Unsupported format: %s", format_name);
-
+    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+        ("Unsupported format: %s", format_name), (NULL));
+    return FALSE;
   }
 
   gst_video_info_init (&vinfo);
@@ -652,7 +655,7 @@ gst_saperasrc_start (GstBaseSrc * bsrc)
   src->gst_stride = GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0);
 
   if (!src->sap_xfer->Grab ()) {
-    GST_ERROR_OBJECT (src, "Failed to start grab");
+    GST_ELEMENT_ERROR (src, RESOURCE, FAILED, ("Failed to start grab"), (NULL));
     return FALSE;
   }
 
