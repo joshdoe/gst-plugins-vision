@@ -71,6 +71,8 @@ struct _GstNiImaqDxSrc {
   int height;
   int dx_row_stride;
   gint dx_framesize;
+  int gst_row_stride;
+  gint gst_framesize;
   guint8 *temp_buffer;
   const ImaqDxCapsInfo *caps_info;
 

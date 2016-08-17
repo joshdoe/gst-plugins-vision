@@ -564,6 +564,9 @@ gst_niimaqdxsrc_reset (GstNiImaqDxSrc * src)
   src->width = 0;
   src->height = 0;
   src->dx_row_stride = 0;
+  src->dx_framesize = 0;
+  src->gst_row_stride = 0;
+  src->gst_framesize = 0;
   src->caps_info = NULL;
   src->pixel_format[0] = 0;
 
@@ -642,7 +645,7 @@ gst_niimaqdxsrc_fill (GstPushSrc * psrc, GstBuffer * buf)
   GST_LOG_OBJECT (src, "Copying IMAQ buffer #%d, buffersize %d",
       src->cumbufnum, gst_buffer_get_size (buf));
 
-  do_align_stride = (src->dx_row_stride % src->caps_info->row_multiple) != 0;
+  do_align_stride = src->dx_row_stride != src->gst_row_stride;
 
   if (!do_align_stride) {
     gst_buffer_map (buf, &minfo, GST_MAP_WRITE);
@@ -695,9 +698,6 @@ gst_niimaqdxsrc_fill (GstPushSrc * psrc, GstBuffer * buf)
   // adjust for row stride if needed (must be multiple of 4)
   if (do_align_stride) {
     int i;
-    int dx_row_stride = src->dx_row_stride;
-    int gst_row_stride =
-        ROUND_UP_N (dx_row_stride, src->caps_info->row_multiple);
     guint8 *tmpbuf = src->temp_buffer;
     guint8 *dst;
 
@@ -705,10 +705,11 @@ gst_niimaqdxsrc_fill (GstPushSrc * psrc, GstBuffer * buf)
     dst = minfo.data;
     GST_LOG_OBJECT (src,
         "Row stride not aligned, copying %d -> %d",
-        dx_row_stride, gst_row_stride);
+        src->dx_row_stride, src->gst_row_stride);
+    g_assert (minfo.size >= src->gst_framesize);
     for (i = 0; i < src->height; i++)
-      memcpy (dst + i * gst_row_stride, tmpbuf + i * dx_row_stride,
-          dx_row_stride);
+      memcpy (dst + i * src->gst_row_stride, tmpbuf + i * src->dx_row_stride,
+          src->dx_row_stride);
     gst_buffer_unmap (buf, &minfo);
   }
 
@@ -1121,8 +1122,12 @@ gst_niimaqdxsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 
   src->dx_framesize = src->dx_row_stride * src->height;
 
-  /* TODO: test stride alignment */
-  gst_base_src_set_blocksize (bsrc, src->dx_framesize);
+  src->gst_row_stride =
+      ROUND_UP_N (src->dx_row_stride, src->caps_info->row_multiple);
+
+  src->gst_framesize = src->gst_row_stride * src->height;
+
+  gst_base_src_set_blocksize (bsrc, src->gst_framesize);
 
   if (src->temp_buffer)
     g_free (src->temp_buffer);
