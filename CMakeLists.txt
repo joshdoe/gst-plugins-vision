@@ -22,6 +22,9 @@ macro_log_feature(GOBJECT_FOUND "GObject" "Required to build gst-plugins-vision"
 find_package(Orc REQUIRED)
 macro_log_feature(ORC_FOUND "Orc" "Required library to improve performance" "http://code.entropywave.com/orc/" TRUE)
 
+find_package(Bitflow)
+macro_log_feature(BITFLOW_FOUND "BitFlow" "Required to build BitFlow source element" "http://www.bitflow.com/" FALSE)
+
 find_package(NIIMAQ)
 macro_log_feature(NIIMAQ_FOUND "NI-IMAQ" "Required to build National Instruments IMAQ source element" "http://www.ni.com/" FALSE)
 

@@ -1,3 +1,7 @@
+if (BITFLOW_FOUND)
+	add_subdirectory(bitflow)
+endif (BITFLOW_FOUND)
+
 if (EDT_FOUND)
 	add_subdirectory(edt)
 endif (EDT_FOUND)
