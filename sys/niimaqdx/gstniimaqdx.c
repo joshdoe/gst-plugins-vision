@@ -968,10 +968,19 @@ gst_niimaqdxsrc_start (GstBaseSrc * bsrc)
       IMAQdxCameraControlModeController, &src->session);
   if (rval != IMAQdxErrorSuccess) {
     gst_niimaqdxsrc_report_imaq_error (rval);
-    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-        ("Failed to open IMAQdx interface"),
-        ("Failed to open camera interface %s", src->device_name));
-    goto error;
+    GST_WARNING_OBJECT (src, "Failed to open camera '%s', will try resetting.",
+        src->device_name);
+
+    rval = IMAQdxResetCamera (src->device_name, FALSE);
+    rval = IMAQdxOpenCamera (src->device_name,
+        IMAQdxCameraControlModeController, &src->session);
+    if (rval != IMAQdxErrorSuccess) {
+      gst_niimaqdxsrc_report_imaq_error (rval);
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+          ("Failed to open IMAQdx interface"),
+          ("Failed to open camera interface %s", src->device_name));
+      goto error;
+    }
   }
 
   gst_niimaqdxsrc_list_attributes (src);
