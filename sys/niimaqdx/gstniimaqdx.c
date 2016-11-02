@@ -193,10 +193,26 @@ ImaqDxCapsInfo imaq_dx_caps_infos[] = {
   ,
   {"Bayer GR 8", 0, VIDEO_CAPS_MAKE_BAYER8 ("grbg"), 8, 8, 1}
   ,
+  {"Bayer RG 8", 0, VIDEO_CAPS_MAKE_BAYER8 ("rggb"), 8, 8, 1}
+  ,
+  {"Bayer GB 8", 0, VIDEO_CAPS_MAKE_BAYER8 ("gbrg"), 8, 8, 1}
+  ,
+  {"Bayer BG 12", 0, VIDEO_CAPS_MAKE_BAYER16 ("bggr16", "1234"), 12, 16, 1}
+  ,
   {"Bayer GR 12", 0, VIDEO_CAPS_MAKE_BAYER16 ("grbg16", "1234"), 12, 16, 1}
+  ,
+  {"Bayer RG 12", 0, VIDEO_CAPS_MAKE_BAYER16 ("rggb16", "1234"), 12, 16, 1}
+  ,
+  {"Bayer GB 12", 0, VIDEO_CAPS_MAKE_BAYER16 ("gbrg16", "1234"), 12, 16, 1}
   ,
   //TODO: use a caps string that agrees with Aravis
   {"Bayer BG 16", 0, VIDEO_CAPS_MAKE_BAYER16 ("bggr16", "1234"), 16, 16, 1}
+  ,
+  {"Bayer GR 16", 0, VIDEO_CAPS_MAKE_BAYER16 ("grbg16", "1234"), 16, 16, 1}
+  ,
+  {"Bayer RG 16", 0, VIDEO_CAPS_MAKE_BAYER16 ("rggb16", "1234"), 16, 16, 1}
+  ,
+  {"Bayer GB 16", 0, VIDEO_CAPS_MAKE_BAYER16 ("gbrg16", "1234"), 16, 16, 1}
 };
 
 static const ImaqDxCapsInfo *
