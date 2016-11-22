@@ -71,7 +71,7 @@ enum
   PROP_TIMEOUT
 };
 
-#define DEFAULT_PROP_FORMAT_NAME ""
+#define DEFAULT_PROP_FORMAT_NAME GST_PIXCI_VIDEO_FORMAT_RS_170
 #define DEFAULT_PROP_FORMAT_FILE ""
 #define DEFAULT_PROP_DRIVER_PARAMS ""
 #define DEFAULT_PROP_NUM_CAPTURE_BUFFERS 2
@@ -87,6 +87,118 @@ GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("{ GRAY8, GRAY16_LE, GRAY16_BE }"))
     );
+
+
+#define GST_TYPE_PIXCI_VIDEO_FORMAT (gst_pixci_video_format_get_type())
+static GType
+gst_pixci_video_format_get_type (void)
+{
+  static GType pixci_video_format_type = 0;
+  static const GEnumValue pixci_video_format[] = {
+    {GST_PIXCI_VIDEO_FORMAT_CCIR, "CCIR",
+          "CCIR composite video, capturing 720 pixels per line, 574 lines, monochrome grey level pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_CCIR_SQR, "CCIR(SQR)",
+          "CCIR composite video, capturing 768 pixels per line, 576 lines, monochrome grey level pixels, yielding pixels with a 1:1 aspect ratio."},
+    {GST_PIXCI_VIDEO_FORMAT_NTSC, "NTSC",
+          "NTSC composite video, capturing 720 pixels per line, 480 lines, color YCrCb pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_NTSC_4_43, "NTSC(4.43)",
+          "NTSC(4.43) composite video, capturing 720 pixels per line, 480 lines, color YCrCb pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_NTSC_J, "NTSC(J)",
+          "NTSC(J) composite video, capturing 720 pixels per line, 480 lines, color YCrCb pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_NTSC_SQR, "NTSC(SQR)",
+          "NTSC composite video, capturing 640 pixels per line, 480 lines, color YCrCb pixels using the High Density BNC connector closest to the S-Video connector, yielding pixels with a 1:1 aspect ratio."},
+    {GST_PIXCI_VIDEO_FORMAT_NTSC_YC, "NTSC/YC",
+          "NTSC S-Video, capturing 720 pixels per line, 480 lines, color YCrCb pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_NTSC_YC_SQR, "NTSC/YC(SQR)",
+          "NTSC S-Video, capturing 640 pixels per line, 480 lines, color YCrCb pixels using the S-Video connector, yielding pixels with a 1:1 aspect ratio."},
+    {GST_PIXCI_VIDEO_FORMAT_PAL, "PAL",
+          "PAL (B,D,G,H,I) composite video, capturing 720 pixels per line, 576 lines, color YCrCb pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_PAL_60, "PAL(60)",
+          "PAL(60) composite video, capturing 720 pixels per line, 576 lines, color YCrCb pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_PAL_M, "PAL(M)",
+          "PAL(M) composite video, capturing 920 pixels per line, 576 lines, color YCrCb or color RGB."},
+    {GST_PIXCI_VIDEO_FORMAT_PAL_M_YC, "PAL(M)/YC",
+          "PAL(M) S-VIDEO (Super VHS), capturing 920 pixels per line, 576 lines, color YCrCb or color RGB."},
+    {GST_PIXCI_VIDEO_FORMAT_PAL_N, "PAL(N)",
+          "PAL(N) composite video, capturing 920 pixels per line, 576 lines, color YCrCb or color RGB."},
+    {GST_PIXCI_VIDEO_FORMAT_PAL_N_YC, "PAL(N)/YC",
+          "PAL(N) S-VIDEO (Super VHS), capturing 920 pixels per line, 576 lines, color YCrCb or color RGB."},
+    {GST_PIXCI_VIDEO_FORMAT_PAL_SQR, "PAL(SQR)",
+          "PAL (B,D,G,H,I) composite video, capturing 768 pixels per line, 576 lines, color YCrCb pixels, yielding pixels with a 1:1 aspect ratio."},
+    {GST_PIXCI_VIDEO_FORMAT_PAL_YC, "PAL/YC",
+          "PAL (B,D,G,H,I) S-Video, capturing 720 pixels per line, 576 lines, color YCrCb pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_PAL_YC_SQR, "PAL/YC(SQR)",
+          "PAL (B,D,G,H,I) S-Video, capturing 768 pixels per line, 576 lines, color YCrCb pixels using the S-Video connector, yielding pixels with a 1:1 aspect ratio."},
+    {GST_PIXCI_VIDEO_FORMAT_RS_170, "RS-170",
+          "RS-170 composite video, capturing 720 pixels per line, 480 lines, monochrome grey level pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_RS_170_SQR, "RS-170(SQR)",
+          "RS-170 composite video, capturing 640 pixels per line, 480 lines, monochrome grey level pixels using the High Density BNC connector closest to the S-Video connector, yielding pixels with a 1:1 aspect ratio."},
+    {GST_PIXCI_VIDEO_FORMAT_RS343_875i_60Hz, "RS343 875i 60Hz",
+          "Composite interlaced RS-343 video, 875 total lines per frame, 60 Hz, capturing 1332 pixels per line, 806 lines, monochrome grey level pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_RS343_875i_60Hz_RGB, "RS343 875i 60Hz RGB",
+          "Interlaced RS-343 RGB component video, composite sync on green, 875 total lines per frame, 60 Hz, capturing 1332 pixels per line, 806 lines, RGB color pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_SECAM, "SECAM",
+          "SECAM composite video, capturing 920 pixels per line, 576 lines, color YCrCb or color RGB."},
+    {GST_PIXCI_VIDEO_FORMAT_SECAM_YC, "SECAM/YC",
+          "SECAM S-VIDEO (Super VHS), capturing 920 pixels per line, 576 lines, color YCrCb or color RGB."},
+    {GST_PIXCI_VIDEO_FORMAT_SVGA_800x600_60Hz_RGB, "SVGA 800x600 60Hz RGB",
+          "Progressive RGB+HSYNC+VSYNC component SVGA video, 60.371 Hz, capturing 800 pixels per line, 600 lines, RGB color pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_SXGA_1280x1024_60Hz_RGB, "SXGA 1280x1024 60Hz RGB",
+          "Progressive RGB+HSYNC+VSYNC component SXGA video, 60.02 Hz, capturing 1280 pixels per line, 1024 lines, RGB color pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_VGA_640x480_60Hz_RGB, "VGA 640x480 60Hz RGB",
+          "Progressive RGB+HSYNC+VSYNC component VGA video, 59.94 Hz, capturing 640 pixels per line, 480 lines, RGB color pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_Video_1280x720p_50Hz, "Video 1280x720p 50Hz",
+          "Composite progressive video, 50 Hz, capturing 1280 pixels per line, 720 lines, monochrome grey level pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_Video_1280x720p_50Hz_RGB,
+          "Video 1280x720p 50Hz RGB",
+          "Progressive RGB component video, composite sync on green, 50 Hz, capturing 1280 pixels per line, 720 lines, RGB color pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_Video_1280x720p_60Hz, "Video 1280x720p 60Hz",
+          "Composite progressive video, 60 Hz, capturing 1280 pixels per line, 720 lines, monochrome grey level pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_Video_1280x720p_60Hz_RGB,
+          "Video 1280x720p 60Hz RGB",
+          "Progressive RGB component video, composite sync on green, 60 Hz, capturing 1280 pixels per line, 720 lines, RGB color pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_Video_1920x1080i_50Hz, "Video 1920x1080i 50Hz",
+          "Composite interlaced video, 50 Hz, capturing 1920 pixels per line, 1080 lines, monochrome grey level pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_Video_1920x1080i_50Hz_RGB,
+          "Video 1920x1080i 50Hz RGB",
+          "Interlaced RGB component video, composite sync on green, 50 Hz, capturing 1920 pixels per line, 1080 lines, RGB color pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_Video_1920x1080i_60Hz, "Video 1920x1080i 60Hz",
+          "Composite interlaced video, 60 Hz, capturing 1920 pixels per line, 1080 lines, monochrome grey level pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_Video_1920x1080i_60Hz_RGB,
+          "Video 1920x1080i 60Hz RGB",
+          "Interlaced RGB component video, composite sync on green, 60 Hz, capturing 1920 pixels per line, 1080 lines, RGB color pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_Video_720x480i_60Hz, "Video 720x480i 60Hz",
+          "Composite interlaced video, 525 total lines per frame, 60 Hz, capturing 720 pixels per line, 480 lines, monochrome grey level pixels. Same as 'RS-170'."},
+    {GST_PIXCI_VIDEO_FORMAT_Video_720x480i_60Hz_Color,
+          "Video 720x480i 60Hz Color",
+          "Composite video, capturing 720 pixels per line, 480 lines, color YCrCb pixels. Same as 'NTSC'."},
+    {GST_PIXCI_VIDEO_FORMAT_Video_720x480i_60Hz_RGB, "Video 720x480i 60Hz RGB",
+          "Interlaced RGB component video, composite sync on green, 525 total lines per frame, 60 Hz, capturing 720 pixels per line, 480 lines, RGB color pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_Video_720x480i_60Hz_Y_Color,
+          "Video 720x480i 60Hz Y/Color",
+          "NTSC S-Video, capturing 720 pixels per line, 480 lines, color YCrCb pixels. Same as 'NTSC/YC'."},
+    {GST_PIXCI_VIDEO_FORMAT_Video_720x576i_50Hz, "Video 720x576i 50Hz",
+          "Composite interlaced video, 625 total lines per frame, 50 Hz, capturing 720 pixels per line, 576 lines, monochrome grey level pixels. Same as 'CCIR'."},
+    {GST_PIXCI_VIDEO_FORMAT_Video_720x576i_50Hz_Color,
+          "Video 720x576i 50Hz Color",
+          "Composite video, capturing 720 pixels per line, 576 lines, color YCrCb pixels. Same as 'PAL'."},
+    {GST_PIXCI_VIDEO_FORMAT_Video_720x576i_50Hz_RGB, "Video 720x576i 50Hz RGB",
+          "Interlaced RGB component video, composite sync on green, 625 total lines per frame, 50 Hz, capturing 720 pixels per line, 576 lines, RGB color pixels."},
+    {GST_PIXCI_VIDEO_FORMAT_Video_720x576i_50Hz_Y_Color,
+          "Video 720x576i 50Hz Y/Color",
+          "PAL (B,D,G,H,I) S-Video, capturing 720 pixels per line, 576 lines, color YCrCb pixels. Same as 'PAL/YC'."},
+    {GST_PIXCI_VIDEO_FORMAT_XGA_1024x768_60Hz_RGB, "XGA 1024x768 60Hz RGB",
+          "Progressive RGB+HSYNC+VSYNC component XGA video, 60 Hz, capturing 1024 pixels per line, 768 lines, RGB color pixels."},
+    {0, NULL, NULL},
+  };
+
+  if (!pixci_video_format_type) {
+    pixci_video_format_type =
+        g_enum_register_static ("GstPixciVideoFormat", pixci_video_format);
+  }
+  return pixci_video_format_type;
+}
+
 
 /* class initialization */
 
@@ -122,17 +234,15 @@ gst_pixcisrc_class_init (GstPixciSrcClass * klass)
 
   /* Install GObject properties */
   g_object_class_install_property (gobject_class, PROP_FORMAT_NAME,
-      g_param_spec_string ("format-name", "Format name",
-          "Name of the video format for the selected camera "
-          "(specify only one of format-name or format-file)",
-          DEFAULT_PROP_FORMAT_NAME,
-          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
-              GST_PARAM_MUTABLE_READY)));
+      g_param_spec_enum ("format-name", "Format name",
+          "Video format of the camera. If set, format-file will override this.",
+          GST_TYPE_PIXCI_VIDEO_FORMAT, DEFAULT_PROP_FORMAT_NAME,
+          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE |
+          GST_PARAM_MUTABLE_READY));
   g_object_class_install_property (gobject_class, PROP_FORMAT_FILE,
       g_param_spec_string ("format-file", "Format file",
           "Filepath of the video file for the selected camera "
-          "(specify only one of format-name or format-file)",
-          DEFAULT_PROP_FORMAT_FILE,
+          "(if set this will override format-name)", DEFAULT_PROP_FORMAT_FILE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               GST_PARAM_MUTABLE_READY)));
   g_object_class_install_property (gobject_class, PROP_DRIVER_PARAMS,
@@ -155,8 +265,9 @@ gst_pixcisrc_class_init (GstPixciSrcClass * klass)
           2, DEFAULT_PROP_CHANNEL,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_TIMEOUT,
-      g_param_spec_uint ("timeout", "Timeout", "Timeout in milliseconds (0 for default)", 0,
-          G_MAXUINT, DEFAULT_PROP_TIMEOUT,
+      g_param_spec_uint ("timeout", "Timeout",
+          "Timeout in milliseconds (0 for default)", 0, G_MAXUINT,
+          DEFAULT_PROP_TIMEOUT,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 }
 
@@ -170,7 +281,7 @@ gst_pixcisrc_init (GstPixciSrc * src)
   gst_base_src_set_format (GST_BASE_SRC (src), GST_FORMAT_TIME);
 
   /* initialize member variables */
-  src->format_name = g_strdup (DEFAULT_PROP_FORMAT_NAME);
+  src->format_name = DEFAULT_PROP_FORMAT_NAME;
   src->format_file = g_strdup (DEFAULT_PROP_FORMAT_FILE);
   src->driver_params = g_strdup (DEFAULT_PROP_DRIVER_PARAMS);
   src->num_capture_buffers = DEFAULT_PROP_NUM_CAPTURE_BUFFERS;
@@ -206,8 +317,7 @@ gst_pixcisrc_set_property (GObject * object, guint property_id,
 
   switch (property_id) {
     case PROP_FORMAT_NAME:
-      g_free (src->format_name);
-      src->format_name = g_strdup (g_value_get_string (value));
+      src->format_name = g_value_get_enum (value);
       break;
     case PROP_FORMAT_FILE:
       g_free (src->format_file);
@@ -258,7 +368,7 @@ gst_pixcisrc_get_property (GObject * object, guint property_id,
 
   switch (property_id) {
     case PROP_FORMAT_NAME:
-      g_value_set_string (value, src->format_name);
+      g_value_set_enum (value, src->format_name);
       break;
     case PROP_FORMAT_FILE:
       g_value_set_string (value, src->format_file);
@@ -306,7 +416,6 @@ gst_pixcisrc_finalize (GObject * object)
   src = GST_PIXCI_SRC (object);
 
   /* clean up object here */
-  g_free (src->format_name);
   g_free (src->format_file);
   g_free (src->driver_params);
 
@@ -395,18 +504,10 @@ gst_pixcisrc_start (GstBaseSrc * bsrc)
 {
   GstPixciSrc *src = GST_PIXCI_SRC (bsrc);
   int pxerr;
+  GEnumClass *video_format_enum_class;
+  GEnumValue *video_format_enum_value;
 
   GST_DEBUG_OBJECT (src, "start");
-
-  if (strlen (src->format_name) && strlen (src->format_file)) {
-    GST_ERROR_OBJECT (src,
-        "Only one of format name and format file can be specified");
-    return FALSE;
-  } else if (!strlen (src->format_name) && !strlen (src->format_file)) {
-    GST_ERROR_OBJECT (src,
-        "One of format name or format file must be specified");
-    return FALSE;
-  }
 
   if (strlen (src->format_file)
       && !g_file_test (src->format_file, G_FILE_TEST_EXISTS)) {
@@ -416,8 +517,13 @@ gst_pixcisrc_start (GstBaseSrc * bsrc)
   }
 
   /* open XCLIB library and driver */
+  video_format_enum_class = g_type_class_ref (GST_TYPE_PIXCI_VIDEO_FORMAT);
+  video_format_enum_value =
+      g_enum_get_value (video_format_enum_class, src->format_name);
   pxerr =
-      pxd_PIXCIopen (src->driver_params, src->format_name, src->format_file);
+      pxd_PIXCIopen (src->driver_params, video_format_enum_value->value_name,
+      src->format_file);
+  g_type_class_unref (video_format_enum_class);
   if (pxerr) {
     char buf[1024];
     pxd_mesgFaultText (src->unitmap, buf, 1024);
