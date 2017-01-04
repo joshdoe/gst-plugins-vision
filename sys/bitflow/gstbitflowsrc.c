@@ -333,7 +333,7 @@ gst_bitflowsrc_start (GstBaseSrc * bsrc)
      which would prevent tearing but would drop frames */
   ret =
       BiCircAqSetup (src->board, &src->buffer_array, CirErIgnore,
-      BiAqEngJ | NoResetOnError);
+      BiAqEngJ | NoResetOnError | UseHighResTimer);
   if (ret != BI_OK) {
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Failed to setup circular acquisition: %s",
