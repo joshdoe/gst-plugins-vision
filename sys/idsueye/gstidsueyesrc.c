@@ -121,7 +121,7 @@ gst_idsueyesrc_class_init (GstIdsueyeSrcClass * klass)
 
   /* Install GObject properties */
   g_object_class_install_property (gobject_class, PROP_CAMERA_ID,
-      g_param_spec_uint ("camera_id", "Camera ID",
+      g_param_spec_int ("camera-id", "Camera ID",
           "Camera ID (0 is first found)", 0, 254, DEFAULT_PROP_CAMERA_ID,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_NUM_CAPTURE_BUFFERS,
