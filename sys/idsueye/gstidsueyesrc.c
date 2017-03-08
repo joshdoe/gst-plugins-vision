@@ -306,6 +306,18 @@ gst_idsueyesrc_set_caps_from_camera (GstIdsueyeSrc * src)
       bpp = 24;
       videoFormat = GST_VIDEO_FORMAT_BGR;
       break;
+    case IS_CM_RGB8_PACKED:
+      bpp = 24;
+      videoFormat = GST_VIDEO_FORMAT_RGB;
+      break;
+    case IS_CM_RGBA8_PACKED:
+      bpp = 32;
+      videoFormat = GST_VIDEO_FORMAT_RGBA;
+      break;
+    case IS_CM_BGRA8_PACKED:
+      bpp = 32;
+      videoFormat = GST_VIDEO_FORMAT_BGRA;
+      break;
   }
 
   if (videoFormat == GST_VIDEO_FORMAT_UNKNOWN) {
