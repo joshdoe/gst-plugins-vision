@@ -269,43 +269,14 @@ gst_idsueyesrc_finalize (GObject * object)
 
 
 static void
-gst_idsueyesrc_get_image_size (GstIdsueyeSrc * src, gint * width, gint * height)
-{
-  /* Check if the camera supports an arbitrary AOI
-     Only the ueye xs does not support an arbitrary AOI */
-  INT nAOISupported = 0;
-  BOOL bAOISupported = TRUE;
-  if (is_ImageFormat (src->hCam, IMGFRMT_CMD_GET_ARBITRARY_AOI_SUPPORTED,
-          (void *) &nAOISupported, sizeof (nAOISupported)) == IS_SUCCESS) {
-    bAOISupported = (nAOISupported != 0);
-  }
-
-  if (bAOISupported) {
-    /* All other sensors get maximum image size */
-    SENSORINFO sInfo;
-    is_GetSensorInfo (src->hCam, &sInfo);
-    *width = sInfo.nMaxWidth;
-    *height = sInfo.nMaxHeight;
-  } else {
-    /* Only ueye xs
-       Get image size of the current format */
-    IS_SIZE_2D imageSize;
-    is_AOI (src->hCam, IS_AOI_IMAGE_GET_SIZE, (void *) &imageSize,
-        sizeof (imageSize));
-
-    *width = imageSize.s32Width;
-    *height = imageSize.s32Height;
-  }
-}
-
-
-static void
 gst_idsueyesrc_set_caps_from_camera (GstIdsueyeSrc * src)
 {
   guint bpp;
   gint idsColorMode;
   GstVideoFormat videoFormat = GST_VIDEO_FORMAT_UNKNOWN;
   GstVideoInfo vinfo;
+  IS_SIZE_2D imageSize;
+  INT ret;
 
   if (src->caps) {
     gst_caps_unref (src->caps);
@@ -342,6 +313,17 @@ gst_idsueyesrc_set_caps_from_camera (GstIdsueyeSrc * src)
         ("Unknown or unsupported color format: %d", idsColorMode), (NULL));
     return;
   }
+
+  ret = is_AOI (src->hCam, IS_AOI_IMAGE_GET_SIZE, (void *) &imageSize,
+      sizeof (imageSize));
+  if (ret != IS_SUCCESS) {
+    GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
+        ("Failed to query AOI size"), (NULL));
+    return;
+  }
+
+  src->width = imageSize.s32Width;
+  src->height = imageSize.s32Height;
 
   gst_video_info_init (&vinfo);
   vinfo.width = src->width;
@@ -405,7 +387,6 @@ gst_idsueyesrc_start (GstBaseSrc * bsrc)
 {
   GstIdsueyeSrc *src = GST_IDSUEYE_SRC (bsrc);
   INT ret;
-  IS_SIZE_2D imageSize;
   INT numCameras;
 
   GST_DEBUG_OBJECT (src, "start");
@@ -469,14 +450,6 @@ gst_idsueyesrc_start (GstBaseSrc * bsrc)
       return FALSE;
     }
   }
-
-  gst_idsueyesrc_get_image_size (src, &src->width, &src->height);
-
-  imageSize.s32Width = src->width;
-  imageSize.s32Height = src->height;
-  ret =
-      is_AOI (src->hCam, IS_AOI_IMAGE_SET_SIZE, (void *) &imageSize,
-      sizeof (imageSize));
 
   gst_idsueyesrc_set_caps_from_camera (src);
   if (!src->caps) {
