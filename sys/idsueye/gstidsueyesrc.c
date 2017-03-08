@@ -67,11 +67,13 @@ enum
 {
   PROP_0,
   PROP_CAMERA_ID,
+  PROP_CONFIG_FILE,
   PROP_NUM_CAPTURE_BUFFERS,
   PROP_TIMEOUT
 };
 
 #define DEFAULT_PROP_CAMERA_ID 0
+#define DEFAULT_PROP_CONFIG_FILE ""
 #define DEFAULT_PROP_NUM_CAPTURE_BUFFERS 3
 #define DEFAULT_PROP_TIMEOUT 1000
 
@@ -124,24 +126,27 @@ gst_idsueyesrc_class_init (GstIdsueyeSrcClass * klass)
       g_param_spec_int ("camera-id", "Camera ID",
           "Camera ID (0 is first found)", 0, 254, DEFAULT_PROP_CAMERA_ID,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+  g_object_class_install_property (gobject_class, PROP_CONFIG_FILE,
+      g_param_spec_string ("config-file", "Config file",
+          "Filepath of the uEye parameter file (*.ini)",
+          DEFAULT_PROP_CONFIG_FILE,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+              GST_PARAM_MUTABLE_READY)));
   g_object_class_install_property (gobject_class, PROP_NUM_CAPTURE_BUFFERS,
-      g_param_spec_uint ("num-capture-buffers", "Number of capture buffers",
+      g_param_spec_int ("num-capture-buffers", "Number of capture buffers",
           "Number of capture buffers", 2, MAX_SEQ_BUFFERS,
           DEFAULT_PROP_NUM_CAPTURE_BUFFERS,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
-  g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_TIMEOUT,
+  g_object_class_install_property (gobject_class, PROP_TIMEOUT,
       g_param_spec_int ("timeout", "Timeout (ms)",
           "Timeout in ms (0 to use default)", 0, G_MAXINT, DEFAULT_PROP_TIMEOUT,
-          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
-
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 }
 
 static void
 gst_idsueyesrc_reset (GstIdsueyeSrc * src)
 {
   src->hCam = 0;
-  //memset (&src->seqImgMem, 0, sizeof (src->seqImgMem));
-  //memset (&src->seqMemId, 0, sizeof (src->seqMemId));
 
   src->last_frame_count = 0;
   src->total_dropped_frames = 0;
@@ -163,6 +168,7 @@ gst_idsueyesrc_init (GstIdsueyeSrc * src)
 
   /* initialize member variables */
   src->camera_id = DEFAULT_PROP_CAMERA_ID;
+  src->config_file = g_strdup (DEFAULT_PROP_CONFIG_FILE);
   src->num_capture_buffers = DEFAULT_PROP_NUM_CAPTURE_BUFFERS;
   src->timeout = DEFAULT_PROP_TIMEOUT;
 
@@ -182,10 +188,14 @@ gst_idsueyesrc_set_property (GObject * object, guint property_id,
 
   switch (property_id) {
     case PROP_CAMERA_ID:
-      src->camera_id = g_value_get_uint (value);
+      src->camera_id = g_value_get_int (value);
+      break;
+    case PROP_CONFIG_FILE:
+      g_free (src->config_file);
+      src->config_file = g_strdup (g_value_get_string (value));
       break;
     case PROP_NUM_CAPTURE_BUFFERS:
-      src->num_capture_buffers = g_value_get_uint (value);
+      src->num_capture_buffers = g_value_get_int (value);
       break;
     case PROP_TIMEOUT:
       src->timeout = g_value_get_int (value);
@@ -207,10 +217,13 @@ gst_idsueyesrc_get_property (GObject * object, guint property_id,
 
   switch (property_id) {
     case PROP_CAMERA_ID:
-      g_value_set_uint (value, src->camera_id);
+      g_value_set_int (value, src->camera_id);
+      break;
+    case PROP_CONFIG_FILE:
+      g_value_set_string (value, src->config_file);
       break;
     case PROP_NUM_CAPTURE_BUFFERS:
-      g_value_set_uint (value, src->num_capture_buffers);
+      g_value_set_int (value, src->num_capture_buffers);
       break;
     case PROP_TIMEOUT:
       g_value_set_int (value, src->timeout);
@@ -244,8 +257,7 @@ gst_idsueyesrc_finalize (GObject * object)
 
   /* clean up object here */
 
-  g_free (src->seqImgMem);
-  g_free (src->seqMemId);
+  g_free (src->config_file);
 
   if (src->caps) {
     gst_caps_unref (src->caps);
@@ -363,13 +375,8 @@ gst_idsueyesrc_alloc_memory (GstIdsueyeSrc * src)
 
   /* alloc seq buffers in a loop */
   for (i = 0; i < src->num_capture_buffers; i++) {
-    char *buf;
-    int id;
-    // allocate buffer memory
     ret = is_AllocImageMem (src->hCam, src->width, src->height,
         src->bitsPerPixel, &src->seqImgMem[i], &src->seqMemId[i]);
-    //ret = is_AllocImageMem (src->hCam, src->width, src->height,
-    //    src->bitsPerPixel, &buf, &id);
     if (ret != IS_SUCCESS) {
       break;
     }
@@ -441,6 +448,26 @@ gst_idsueyesrc_start (GstBaseSrc * bsrc)
     SENSORINFO sInfo;
     ret = is_GetCameraInfo (src->hCam, &cInfo);
     ret = is_GetSensorInfo (src->hCam, &sInfo);
+  }
+
+  if (strlen (src->config_file)) {
+    gunichar2 *filepath;
+    if (!g_file_test (src->config_file, G_FILE_TEST_EXISTS)) {
+      GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
+          ("Camera file does not exist: %s", src->config_file), (NULL));
+      return FALSE;
+    }
+
+    /* function requires unicode (wide character) */
+    filepath = g_utf8_to_utf16 (src->config_file, -1, NULL, NULL, NULL);
+    ret =
+        is_ParameterSet (src->hCam, IS_PARAMETERSET_CMD_LOAD_FILE, filepath, 0);
+    g_free (filepath);
+    if (ret != IS_SUCCESS) {
+      GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
+          ("Failed to load parameter file: %s", src->config_file), (NULL));
+      return FALSE;
+    }
   }
 
   gst_idsueyesrc_get_image_size (src, &src->width, &src->height);

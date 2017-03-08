@@ -49,9 +49,9 @@ struct _GstIdsueyeSrc
   int seqMemId[MAX_SEQ_BUFFERS];
 
   /* properties */
-  guint camera_id;
-  guint num_capture_buffers;
-  guint board_index;
+  gint camera_id;
+  gchar *config_file;
+  gint num_capture_buffers;
   gint timeout;
 
   GstClockTime acq_start_time;
