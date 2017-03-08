@@ -147,6 +147,7 @@ static void
 gst_idsueyesrc_reset (GstIdsueyeSrc * src)
 {
   src->hCam = 0;
+  src->is_started = FALSE;
 
   src->last_frame_count = 0;
   src->total_dropped_frames = 0;
@@ -486,21 +487,6 @@ gst_idsueyesrc_start (GstBaseSrc * bsrc)
         ("Failed to init image queue"), (NULL));
     return FALSE;
   }
-  // TODO: remove this
-  is_ParameterSet (src->hCam, IS_PARAMETERSET_CMD_SAVE_FILE,
-      L"C:/temp/ids/current_params.ini", 0);
-
-  /* TODO: possibly move this to _create */
-  ret = is_CaptureVideo (src->hCam, IS_DONT_WAIT);
-  if (ret != IS_SUCCESS) {
-    GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
-        ("Failed to start video capture"), (NULL));
-    return FALSE;
-  }
-
-  /* TODO: check timestamps on buffers vs start time */
-  src->acq_start_time =
-      gst_clock_get_time (gst_element_get_clock (GST_ELEMENT (src)));
 
   return TRUE;
 }
@@ -639,12 +625,46 @@ gst_idsueyesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
   GST_LOG_OBJECT (src, "create");
 
-  ret = is_WaitForNextImage (src->hCam, src->timeout, &pBuffer, &nMemID);
-  if (ret != IS_SUCCESS) {
-    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-        ("Failed to acquire frame before timeout: %s",
-            gst_idsueyesrc_get_error_string (src, ret)), (NULL));
-    return GST_FLOW_ERROR;
+  if (!src->is_started) {
+    ret = is_CaptureVideo (src->hCam, IS_DONT_WAIT);
+    if (ret != IS_SUCCESS) {
+      GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
+          ("Failed to start video capture"), (NULL));
+      return GST_FLOW_ERROR;
+    }
+
+    /* TODO: check timestamps on buffers vs start time */
+    src->acq_start_time =
+        gst_clock_get_time (gst_element_get_clock (GST_ELEMENT (src)));
+
+    src->is_started = TRUE;
+  }
+
+  while (TRUE) {
+    ret = is_WaitForNextImage (src->hCam, src->timeout, &pBuffer, &nMemID);
+    if (ret == IS_SUCCESS) {
+      break;
+    } else if (ret == IS_CAPTURE_STATUS) {
+      UEYE_CAPTURE_STATUS_INFO captureStatusInfo;
+      ret =
+          is_CaptureStatus (src->hCam, IS_CAPTURE_STATUS_INFO_CMD_GET,
+          (void *) &captureStatusInfo, sizeof (captureStatusInfo));
+      if (ret != IS_SUCCESS) {
+        GST_WARNING_OBJECT (src,
+            "Some sort of error occurred with capture, but failed to query capture status");
+      } else {
+        GST_WARNING_OBJECT (src,
+            "Capture errors occurred, perhaps dropped frames, total of %d errors",
+            captureStatusInfo.dwCapStatusCnt_Total);
+      }
+
+      continue;
+    } else {
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+          ("Failed to acquire frame before timeout: %s",
+              gst_idsueyesrc_get_error_string (src, ret)), (NULL));
+      return GST_FLOW_ERROR;
+    }
   }
 
   clock = gst_element_get_clock (GST_ELEMENT (src));
@@ -665,7 +685,7 @@ gst_idsueyesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
   // TODO: use is_GetImageInfo to get timestamp, dropped frames
   ret = is_GetImageInfo (src->hCam, nMemID, &imageInfo, sizeof (imageInfo));
-  GST_DEBUG_OBJECT (src, "frame number %d", imageInfo.u64FrameNumber);
+  GST_LOG_OBJECT (src, "frame number %d", imageInfo.u64FrameNumber);
 
   /* TODO: use allocator or use from pool */
   *buf =
@@ -676,8 +696,8 @@ gst_idsueyesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   //memcpy (minfo.data, ((guint8 *) circ_handle->pBufData), minfo.size);
   is_CopyImageMem (src->hCam, pBuffer, nMemID, (char *) minfo.data);
   gst_buffer_unmap (*buf, &minfo);
-  ret = is_UnlockSeqBuf (src->hCam, nMemID, pBuffer);
 
+  ret = is_UnlockSeqBuf (src->hCam, nMemID, pBuffer);
   if (ret != IS_SUCCESS) {
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Failed to unlock buffer: %s", gst_idsueyesrc_get_error_string (src,

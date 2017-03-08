@@ -44,6 +44,7 @@ struct _GstIdsueyeSrc
 
   /* camera handle */
   HIDS hCam;
+  gboolean is_started;
 
   char* seqImgMem[MAX_SEQ_BUFFERS];
   int seqMemId[MAX_SEQ_BUFFERS];
