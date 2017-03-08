@@ -474,11 +474,29 @@ gst_idsueyesrc_start (GstBaseSrc * bsrc)
   }
 
   ret = is_SetDisplayMode (src->hCam, IS_SET_DM_DIB);
+  if (ret != IS_SUCCESS) {
+    GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
+        ("Failed to set display mode"), (NULL));
+    return FALSE;
+  }
 
   ret = is_InitImageQueue (src->hCam, 0);
+  if (ret != IS_SUCCESS) {
+    GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
+        ("Failed to init image queue"), (NULL));
+    return FALSE;
+  }
+  // TODO: remove this
+  is_ParameterSet (src->hCam, IS_PARAMETERSET_CMD_SAVE_FILE,
+      L"C:/temp/ids/current_params.ini", 0);
 
   /* TODO: possibly move this to _create */
   ret = is_CaptureVideo (src->hCam, IS_DONT_WAIT);
+  if (ret != IS_SUCCESS) {
+    GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
+        ("Failed to start video capture"), (NULL));
+    return FALSE;
+  }
 
   /* TODO: check timestamps on buffers vs start time */
   src->acq_start_time =
@@ -497,13 +515,29 @@ gst_idsueyesrc_stop (GstBaseSrc * bsrc)
   GST_DEBUG_OBJECT (src, "stop");
 
   ret = is_StopLiveVideo (src->hCam, IS_FORCE_VIDEO_STOP);
+  if (ret != IS_SUCCESS) {
+    GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
+        ("Failed to stop live video"), (NULL));
+  }
 
   ret = is_ExitImageQueue (src->hCam);
+  if (ret != IS_SUCCESS) {
+    GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
+        ("Failed to stop image queue"), (NULL));
+  }
 
   ret = is_ClearSequence (src->hCam);
+  if (ret != IS_SUCCESS) {
+    GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
+        ("Failed to clear sequence"), (NULL));
+  }
 
   for (i = 0; i < src->num_capture_buffers; ++i) {
-    is_FreeImageMem (src->hCam, src->seqImgMem[i], src->seqMemId[i]);
+    ret = is_FreeImageMem (src->hCam, src->seqImgMem[i], src->seqMemId[i]);
+    if (ret != IS_SUCCESS) {
+      GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
+          ("Failed to free image memory"), (NULL));
+    }
   }
 
   ret = is_ExitCamera (src->hCam);
