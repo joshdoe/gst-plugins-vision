@@ -43,6 +43,9 @@ macro_log_feature(EDT_FOUND "EDT" "Required to build EDT PDV source element" "ht
 find_package(Euresys)
 macro_log_feature(EURESYS_FOUND "Euresys" "Required to build Euresys source element" "http://www.euresys.com/" FALSE)
 
+find_package(IDSuEye)
+macro_log_feature(IDSUEYE_FOUND "IDS uEye" "Required to build IDS uEye source element" "http://en.ids-imaging.com/" FALSE)
+
 find_package(Imperx)
 macro_log_feature(IMPERX_FLEX_FOUND "Imperx FrameLink Express" "Required to build Imperx FrameLink Express source element" "http://www.imperx.com/" FALSE)
 
