@@ -64,6 +64,7 @@ struct _GstNiImaqDxSrc {
   gint ringbuffer_count;
   gchar *attributes;
   gboolean bayer_as_gray;
+  gboolean is_controller;
 
   /* image info */
   char pixel_format[IMAQDX_MAX_API_STRING_LENGTH];

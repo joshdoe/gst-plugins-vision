@@ -55,13 +55,15 @@ enum
   PROP_DEVICE,
   PROP_RING_BUFFER_COUNT,
   PROP_ATTRIBUTES,
-  PROP_BAYER_AS_GRAY
+  PROP_BAYER_AS_GRAY,
+  PROP_IS_CONTROLLER
 };
 
 #define DEFAULT_PROP_DEVICE "cam0"
 #define DEFAULT_PROP_RING_BUFFER_COUNT 3
 #define DEFAULT_PROP_ATTRIBUTES ""
 #define DEFAULT_PROP_BAYER_AS_GRAY FALSE
+#define DEFAULT_PROP_IS_CONTROLLER TRUE
 
 static void gst_niimaqdxsrc_init_interfaces (GType type);
 
@@ -431,7 +433,11 @@ gst_niimaqdxsrc_class_init (GstNiImaqDxSrcClass * klass)
       g_param_spec_boolean ("bayer-as-gray", "Bayer as gray",
           "For Bayer sources use GRAY caps", DEFAULT_PROP_BAYER_AS_GRAY,
           G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
-
+  g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_IS_CONTROLLER,
+      g_param_spec_boolean ("is-controller", "Open as controller",
+          "True for controller mode, false for listener mode",
+          DEFAULT_PROP_IS_CONTROLLER,
+          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
   {
     GstCaps *caps = gst_caps_new_empty ();
     int i;
@@ -483,6 +489,8 @@ gst_niimaqdxsrc_init (GstNiImaqDxSrc * src)
   src->ringbuffer_count = DEFAULT_PROP_RING_BUFFER_COUNT;
   src->device_name = g_strdup (DEFAULT_PROP_DEVICE);
   src->attributes = g_strdup (DEFAULT_PROP_ATTRIBUTES);
+  src->bayer_as_gray = DEFAULT_PROP_BAYER_AS_GRAY;
+  src->is_controller = DEFAULT_PROP_IS_CONTROLLER;
 
   /* initialize pointers, then call reset to initialize the rest */
   src->temp_buffer = NULL;
@@ -537,6 +545,9 @@ gst_niimaqdxsrc_set_property (GObject * object, guint prop_id,
     case PROP_BAYER_AS_GRAY:
       src->bayer_as_gray = g_value_get_boolean (value);
       break;
+    case PROP_IS_CONTROLLER:
+      src->is_controller = g_value_get_boolean (value);
+      break;
     default:
       break;
   }
@@ -560,6 +571,9 @@ gst_niimaqdxsrc_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_BAYER_AS_GRAY:
       g_value_set_boolean (value, src->bayer_as_gray);
+      break;
+    case PROP_IS_CONTROLLER:
+      g_value_set_boolean (value, src->is_controller);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -958,22 +972,29 @@ gst_niimaqdxsrc_start (GstBaseSrc * bsrc)
 {
   GstNiImaqDxSrc *src = GST_NIIMAQDXSRC (bsrc);
   IMAQdxError rval;
+  IMAQdxCameraControlMode control_mode;
 
   gst_niimaqdxsrc_reset (src);
 
-  GST_LOG_OBJECT (src, "Opening IMAQ interface: %s", src->device_name);
+  if (src->is_controller) {
+    control_mode = IMAQdxCameraControlModeController;
+    GST_LOG_OBJECT (src, "Opening IMAQdx interface '%s' in controller mode",
+        src->device_name);
+  } else {
+    control_mode = IMAQdxCameraControlModeListener;
+    GST_LOG_OBJECT (src, "Opening IMAQxd interface '%s' in listener mode",
+        src->device_name);
+  }
 
   /* open IMAQ interface */
-  rval = IMAQdxOpenCamera (src->device_name,
-      IMAQdxCameraControlModeController, &src->session);
+  rval = IMAQdxOpenCamera (src->device_name, control_mode, &src->session);
   if (rval != IMAQdxErrorSuccess) {
     gst_niimaqdxsrc_report_imaq_error (rval);
     GST_WARNING_OBJECT (src, "Failed to open camera '%s', will try resetting.",
         src->device_name);
 
     rval = IMAQdxResetCamera (src->device_name, FALSE);
-    rval = IMAQdxOpenCamera (src->device_name,
-        IMAQdxCameraControlModeController, &src->session);
+    rval = IMAQdxOpenCamera (src->device_name, control_mode, &src->session);
     if (rval != IMAQdxErrorSuccess) {
       gst_niimaqdxsrc_report_imaq_error (rval);
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
