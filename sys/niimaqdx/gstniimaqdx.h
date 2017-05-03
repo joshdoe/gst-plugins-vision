@@ -76,6 +76,7 @@ struct _GstNiImaqDxSrc {
   gint gst_framesize;
   guint8 *temp_buffer;
   const ImaqDxCapsInfo *caps_info;
+  gboolean is_jpeg;
 
   uInt32 cumbufnum;
   gint64 n_dropped_frames;

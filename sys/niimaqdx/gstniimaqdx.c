@@ -215,6 +215,8 @@ ImaqDxCapsInfo imaq_dx_caps_infos[] = {
   {"Bayer RG 16", 0, VIDEO_CAPS_MAKE_BAYER16 ("rggb16", "1234"), 16, 16, 1}
   ,
   {"Bayer GB 16", 0, VIDEO_CAPS_MAKE_BAYER16 ("gbrg16", "1234"), 16, 16, 1}
+  ,
+  {"JPEG", 0, "image/jpeg", 8, 8, 1}
 };
 
 static const ImaqDxCapsInfo *
@@ -698,6 +700,11 @@ gst_niimaqdxsrc_fill (GstPushSrc * psrc, GstBuffer * buf)
     goto error;
   }
 
+  if (src->is_jpeg) {
+    /* JPEG sources don't seem to give reliable callbacks, just pull clock */
+    timestamp = gst_clock_get_time (gst_element_get_clock (GST_ELEMENT (src)));
+  }
+
   while (timestamp == GST_CLOCK_TIME_NONE) {
     /* wait 100 ms, shouldn't be needed if callback is working as expected */
     GstNiImaqDxSrcTimeEntry *entry =
@@ -1018,15 +1025,19 @@ gst_niimaqdxsrc_start (GstBaseSrc * bsrc)
     goto error;
   }
 
-  GST_LOG_OBJECT (src, "Registering callback functions");
-  rval =
-      IMAQdxRegisterFrameDoneEvent (src->session, 1,
-      gst_niimaqdxsrc_frame_done_callback, src);
-  if (rval) {
-    gst_niimaqdxsrc_report_imaq_error (rval);
-    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-        ("Failed to register callback(s)"), (NULL));
-    goto error;
+  if (src->is_jpeg) {
+    GST_DEBUG_OBJECT (src, "Source is JPEG, just use clock time");
+  } else {
+    GST_LOG_OBJECT (src, "Registering callback functions");
+    rval =
+        IMAQdxRegisterFrameDoneEvent (src->session, 1,
+        gst_niimaqdxsrc_frame_done_callback, src);
+    if (rval) {
+      gst_niimaqdxsrc_report_imaq_error (rval);
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+          ("Failed to register callback(s)"), (NULL));
+      goto error;
+    }
   }
 
   gst_niimaqdxsrc_set_dx_attributes (src);
@@ -1161,6 +1172,12 @@ gst_niimaqdxsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
   g_assert (pixel_format);
 
   src->caps_info = gst_niimaqdxsrc_get_caps_info (pixel_format, endianness);
+
+  if (g_strcmp0 (pixel_format, "JPEG") == 0) {
+    src->is_jpeg = TRUE;
+  } else {
+    src->is_jpeg = FALSE;
+  }
 
   src->dx_row_stride =
       gst_niimaqdxsrc_pixel_format_get_stride (pixel_format, endianness,
