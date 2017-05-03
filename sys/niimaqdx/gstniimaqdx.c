@@ -310,11 +310,12 @@ gst_niimaqdxsrc_new_caps_from_pixel_format (const char *pixel_format,
   structure = gst_structure_from_string (caps_string, NULL);
   if (structure == NULL)
     return NULL;
+
   gst_structure_set (structure,
       "width", G_TYPE_INT, width,
       "height", G_TYPE_INT, height,
       "framerate", GST_TYPE_FRACTION, framerate_n, framerate_d,
-      "par", GST_TYPE_FRACTION, par_n, par_d, NULL);
+      "pixel-aspect-ratio", GST_TYPE_FRACTION, par_n, par_d, NULL);
 
   caps = gst_caps_new_empty ();
   gst_caps_append_structure (caps, structure);
