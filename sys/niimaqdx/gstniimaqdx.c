@@ -850,7 +850,7 @@ gst_niimaqdxsrc_get_cam_caps (GstNiImaqDxSrc * src)
   uInt32 val;
   char pixel_format[IMAQDX_MAX_API_STRING_LENGTH];
   int endianness;
-  char bus_type[IMAQDX_MAX_API_STRING_LENGTH];
+  IMAQdxBusType bus_type;
   gint width, height;
 
   if (!src->session) {
@@ -864,7 +864,8 @@ gst_niimaqdxsrc_get_cam_caps (GstNiImaqDxSrc * src)
       IMAQdxValueTypeString, &pixel_format);
   gst_niimaqdxsrc_report_imaq_error (rval);
   rval &= IMAQdxGetAttribute (src->session, IMAQdxAttributeBusType,
-      IMAQdxValueTypeString, &bus_type);
+      IMAQdxValueTypeU32, &val);
+  bus_type = (IMAQdxBusType) val;
   gst_niimaqdxsrc_report_imaq_error (rval);
   rval &= IMAQdxGetAttribute (src->session, IMAQdxAttributeWidth,
       IMAQdxValueTypeU32, &val);
@@ -884,10 +885,12 @@ gst_niimaqdxsrc_get_cam_caps (GstNiImaqDxSrc * src)
 
   g_strlcpy (src->pixel_format, pixel_format, IMAQDX_MAX_API_STRING_LENGTH);
 
-  if (g_strcmp0 (bus_type, "Ethernet") == 0)
+  /* confirmed FireWire is big-endian, GigE and USB3 are little-endian */
+  if (bus_type == IMAQdxBusTypeEthernet || bus_type == IMAQdxBusTypeUSB3Vision) {
     endianness = G_LITTLE_ENDIAN;
-  else
+  } else {
     endianness = G_BIG_ENDIAN;
+  }
 
   if (g_str_has_prefix (pixel_format, "Bayer") && src->bayer_as_gray) {
     const ImaqDxCapsInfo *info =
