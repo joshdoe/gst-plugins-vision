@@ -183,9 +183,9 @@ gst_matroxsrc_reset (GstMatroxSrc * src)
     src->MilGrabBufferList = NULL;
   }
 
-  if (src->MilApplication) {
-    MappFree (src->MilApplication);
-    src->MilApplication = M_NULL;
+  if (src->MilDigitizer) {
+    MdigFree (src->MilDigitizer);
+    src->MilDigitizer = M_NULL;
   }
 
   if (src->MilSystem) {
@@ -193,9 +193,9 @@ gst_matroxsrc_reset (GstMatroxSrc * src)
     src->MilSystem = M_NULL;
   }
 
-  if (src->MilDigitizer) {
-    MdigFree (src->MilDigitizer);
-    src->MilDigitizer = M_NULL;
+  if (src->MilApplication) {
+    MappFree (src->MilApplication);
+    src->MilApplication = M_NULL;
   }
 }
 
@@ -377,7 +377,7 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
   }
 
   /* create Digitizer */
-  MdigAlloc (src->MilSystem, M_DEFAULT, src->format, M_DEFAULT,
+  ret = MdigAlloc (src->MilSystem, M_DEFAULT, src->format, M_DEFAULT,
       &src->MilDigitizer);
   if (ret == M_NULL) {
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
