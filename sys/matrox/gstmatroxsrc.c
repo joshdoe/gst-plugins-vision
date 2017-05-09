@@ -459,9 +459,7 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
   src->height = vinfo.height;
   src->gst_stride = GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0);
 
-  if (src->MilGrabBufferList) {
-    g_free (src->MilGrabBufferList);
-  }
+  g_assert (src->MilGrabBufferList == NULL);
   src->MilGrabBufferList = g_new (MIL_ID, src->num_capture_buffers);
   for (i = 0; i < src->num_capture_buffers; i++) {
     if (src->color_mode == M_MONOCHROME) {
@@ -479,7 +477,9 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
     if (src->MilGrabBufferList[i]) {
       MbufClear (src->MilGrabBufferList[i], 0xFF);
     } else {
-      break;
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+          ("Failed to allocate a MIL buffer"), (NULL));
+      return FALSE;
     }
   }
 
