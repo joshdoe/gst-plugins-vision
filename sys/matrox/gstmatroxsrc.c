@@ -393,8 +393,6 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
   src->color_mode = MdigInquire (src->MilDigitizer, M_COLOR_MODE, M_NULL);
 
   gst_video_info_init (&vinfo);
-  vinfo.width = width;
-  vinfo.height = height;
 
   if (src->caps) {
     gst_caps_unref (src->caps);
@@ -414,7 +412,8 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
       } else if (G_BYTE_ORDER == G_BIG_ENDIAN) {
         src->video_format = GST_VIDEO_FORMAT_GRAY16_BE;
       }
-      vinfo.finfo = gst_video_format_get_info (src->video_format);
+
+      gst_video_info_set_format (&vinfo, src->video_format, width, height);
       src->caps = gst_video_info_to_caps (&vinfo);
 
       /* set bpp, extra info for GRAY16 so elements can scale properly */
@@ -452,6 +451,8 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
   }
 
   if (!src->caps) {
+    gst_video_info_set_format (&vinfo, src->video_format, width, height);
+
     vinfo.finfo = gst_video_format_get_info (src->video_format);
     src->caps = gst_video_info_to_caps (&vinfo);
   }
@@ -463,11 +464,17 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
   }
   src->MilGrabBufferList = g_new (MIL_ID, src->num_capture_buffers);
   for (i = 0; i < src->num_capture_buffers; i++) {
-    MbufAllocColor (src->MilSystem,
-        n_bands,
-        width,
-        height,
-        bpp, M_IMAGE + M_GRAB + M_PROC + M_PACKED, &src->MilGrabBufferList[i]);
+    if (src->color_mode == M_MONOCHROME) {
+      MbufAlloc2d (src->MilSystem, width, height, bpp,
+          M_IMAGE + M_GRAB + M_PROC, &src->MilGrabBufferList[i]);
+    } else {
+      MbufAllocColor (src->MilSystem,
+          n_bands,
+          width,
+          height,
+          bpp, M_IMAGE + M_GRAB + M_PROC + M_PACKED,
+          &src->MilGrabBufferList[i]);
+    }
 
     if (src->MilGrabBufferList[i]) {
       MbufClear (src->MilGrabBufferList[i], 0xFF);
