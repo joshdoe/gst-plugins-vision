@@ -174,9 +174,10 @@ gst_matroxsrc_reset (GstMatroxSrc * src)
   }
 
   if (src->MilGrabBufferList) {
-    for (i = 0; src->num_capture_buffers; ++i) {
+    for (i = 0; i < src->num_capture_buffers; ++i) {
       if (src->MilGrabBufferList[i]) {
         MbufFree (src->MilGrabBufferList[i]);
+        src->MilGrabBufferList[i] = NULL;
       }
     }
     g_free (src->MilGrabBufferList);
