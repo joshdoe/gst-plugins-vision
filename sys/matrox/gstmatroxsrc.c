@@ -64,6 +64,22 @@ static GstCaps *gst_matroxsrc_create_caps (GstMatroxSrc * src);
 static MIL_INT MFTYPE
 gst_matroxsrc_callback (MIL_INT HookType, MIL_ID EventId, void *UserDataPtr);
 
+#define VIDEO_CAPS_MAKE_BAYER8(format)                     \
+  "video/x-bayer, "                                        \
+  "format = (string) " format ", "                         \
+  "width = " GST_VIDEO_SIZE_RANGE ", "                     \
+  "height = " GST_VIDEO_SIZE_RANGE ", "                    \
+  "framerate = " GST_VIDEO_FPS_RANGE
+
+#define VIDEO_CAPS_MAKE_BAYER16(format)                    \
+  "video/x-bayer, "                                        \
+  "format = (string) " format ", "                         \
+  "endianness = (int) 1234, "                              \
+  "bpp = (int) {16, 14, 12, 10}, "                         \
+  "width = " GST_VIDEO_SIZE_RANGE ", "                     \
+  "height = " GST_VIDEO_SIZE_RANGE ", "                    \
+  "framerate = " GST_VIDEO_FPS_RANGE
+
 enum
 {
   PROP_0,
@@ -72,7 +88,8 @@ enum
   PROP_CHANNEL,
   PROP_FORMAT,
   PROP_NUM_CAPTURE_BUFFERS,
-  PROP_TIMEOUT
+  PROP_TIMEOUT,
+  PROP_BAYER_MODE
 };
 
 #define DEFAULT_PROP_DEVICE "M_SYSTEM_DEFAULT"
@@ -81,15 +98,40 @@ enum
 #define DEFAULT_PROP_FORMAT "M_DEFAULT"
 #define DEFAULT_PROP_NUM_CAPTURE_BUFFERS 2
 #define DEFAULT_PROP_TIMEOUT 1000
+#define DEFAULT_PROP_BAYER_MODE GST_MATROX_BAYER_MODE_BAYER
+
+
+#define GST_TYPE_MATROX_BAYER_MODE (gst_matrox_bayer_mode_get_type())
+static GType
+gst_matrox_bayer_mode_get_type (void)
+{
+  static GType matrox_bayer_mode_type = 0;
+  static const GEnumValue matrox_bayer_mode[] = {
+    {GST_MATROX_BAYER_MODE_BAYER, "bayer", "Get raw bayer"},
+    {GST_MATROX_BAYER_MODE_GRAY, "gray", "Get raw bayer as grayscale"},
+    {GST_MATROX_BAYER_MODE_RGB, "rgb", "Get demosaiced RGB"},
+    {0, NULL, NULL},
+  };
+
+  if (!matrox_bayer_mode_type) {
+    matrox_bayer_mode_type =
+        g_enum_register_static ("GstMatroxBayerMode", matrox_bayer_mode);
+  }
+  return matrox_bayer_mode_type;
+}
+
 
 /* pad templates */
 
 static GstStaticPadTemplate gst_matroxsrc_src_template =
-GST_STATIC_PAD_TEMPLATE ("src",
+    GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE
-        ("{ GRAY8, GRAY16_LE, GRAY16_BE, BGRA }"))
+        ("{ GRAY8, GRAY16_LE, GRAY16_BE, BGRA }") ";"
+        VIDEO_CAPS_MAKE_BAYER8 ("{ bggr, grbg, rggb, gbrg }") ";"
+        VIDEO_CAPS_MAKE_BAYER16 ("{ bggr, grbg, rggb, gbrg }")
+    )
     );
 
 /* class initialization */
@@ -156,6 +198,12 @@ gst_matroxsrc_class_init (GstMatroxSrcClass * klass)
       g_param_spec_int ("timeout", "Timeout (ms)",
           "Timeout in ms (0 to use default)", 0, G_MAXINT, DEFAULT_PROP_TIMEOUT,
           G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
+  g_object_class_install_property (gobject_class, PROP_BAYER_MODE,
+      g_param_spec_enum ("bayer-mode", "Bayer mode",
+          "Pull Bayer frames as raw bayer, grayscale, or demosaiced RGB",
+          GST_TYPE_MATROX_BAYER_MODE, DEFAULT_PROP_BAYER_MODE,
+          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE |
+          GST_PARAM_MUTABLE_READY));
 }
 
 static void
@@ -163,6 +211,9 @@ gst_matroxsrc_reset (GstMatroxSrc * src)
 {
   gint i;
   src->acq_started = FALSE;
+
+  src->height = 0;
+  src->gst_stride = 0;
 
   if (src->caps) {
     gst_caps_unref (src->caps);
@@ -216,6 +267,7 @@ gst_matroxsrc_init (GstMatroxSrc * src)
   src->format = g_strdup (DEFAULT_PROP_FORMAT);
   src->num_capture_buffers = DEFAULT_PROP_NUM_CAPTURE_BUFFERS;
   src->timeout = DEFAULT_PROP_TIMEOUT;
+  src->bayer_mode = DEFAULT_PROP_BAYER_MODE;
 
   g_mutex_init (&src->mutex);
   g_cond_init (&src->cond);
@@ -266,6 +318,9 @@ gst_matroxsrc_set_property (GObject * object, guint property_id,
     case PROP_TIMEOUT:
       src->timeout = g_value_get_int (value);
       break;
+    case PROP_BAYER_MODE:
+      src->bayer_mode = g_value_get_enum (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -299,6 +354,9 @@ gst_matroxsrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_TIMEOUT:
       g_value_set_int (value, src->timeout);
+      break;
+    case PROP_BAYER_MODE:
+      g_value_set_enum (value, src->bayer_mode);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -349,6 +407,10 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
   gint height;
   gint bpp;
   gint n_bands;
+  gint source_format;
+  gint bayer_pattern;
+  gchar bayer_pattern_format[5];
+  gint is_bayer_conversion;
   GstVideoInfo vinfo;
 
   GST_DEBUG_OBJECT (src, "start");
@@ -387,11 +449,43 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
   }
 
   /* get format info and create caps */
+  bayer_pattern = MdigInquire (src->MilDigitizer, M_BAYER_PATTERN, M_NULL);
+  is_bayer_conversion =
+      MdigInquire (src->MilDigitizer, M_BAYER_CONVERSION, M_NULL);
+  if (bayer_pattern != M_NULL) {
+    if (src->bayer_mode == GST_MATROX_BAYER_MODE_RGB) {
+      MdigControl (src->MilDigitizer, M_BAYER_CONVERSION, M_ENABLE);
+    } else {
+      MdigControl (src->MilDigitizer, M_BAYER_CONVERSION, M_DISABLE);
+    }
+
+    switch (bayer_pattern) {
+      case M_BAYER_BG:
+        g_strlcpy (bayer_pattern_format, "bggr", 5);
+        break;
+      case M_BAYER_GB:
+        g_strlcpy (bayer_pattern_format, "gbrg", 5);
+        break;
+      case M_BAYER_GR:
+        g_strlcpy (bayer_pattern_format, "grbg", 5);
+        break;
+      case M_BAYER_RG:
+        g_strlcpy (bayer_pattern_format, "rggb", 5);
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+  }
+
   width = MdigInquire (src->MilDigitizer, M_SIZE_X, M_NULL);
   height = MdigInquire (src->MilDigitizer, M_SIZE_Y, M_NULL);
   bpp = MdigInquire (src->MilDigitizer, M_SIZE_BIT, M_NULL);
   n_bands = MdigInquire (src->MilDigitizer, M_SIZE_BAND, M_NULL);
-  src->color_mode = MdigInquire (src->MilDigitizer, M_COLOR_MODE, M_NULL);
+  src->mil_type = MdigInquire (src->MilDigitizer, M_TYPE, M_NULL);
+
+  /* only valid for GigE Vision and USB3 Vision */
+  source_format =
+      MdigInquire (src->MilDigitizer, M_SOURCE_DATA_FORMAT, M_PACKED);
 
   gst_video_info_init (&vinfo);
 
@@ -400,78 +494,77 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
     src->caps = NULL;
   }
 
-  if (src->color_mode == M_MONOCHROME) {
-    g_assert (n_bands == 1);
+  /* bayer is described as 3 bands even before demosaic */
+  if (n_bands == 1) {
     if (bpp == 8) {
       src->video_format = GST_VIDEO_FORMAT_GRAY8;
-    } else if (bpp > 8 && bpp <= 16) {
-      GValue val = G_VALUE_INIT;
-      GstStructure *s;
 
-      if (G_BYTE_ORDER == G_LITTLE_ENDIAN) {
-        src->video_format = GST_VIDEO_FORMAT_GRAY16_LE;
-      } else if (G_BYTE_ORDER == G_BIG_ENDIAN) {
-        src->video_format = GST_VIDEO_FORMAT_GRAY16_BE;
+      if (bayer_pattern != M_NULL
+          && src->bayer_mode == GST_MATROX_BAYER_MODE_BAYER) {
+        src->caps =
+            gst_caps_new_simple ("video/x-bayer", "format", G_TYPE_STRING,
+            bayer_pattern_format, "width", G_TYPE_INT, width, "height",
+            G_TYPE_INT, height, "framerate", GST_TYPE_FRACTION_RANGE, 0, 1,
+            G_MAXINT, 1, NULL);
       }
+    } else if (bpp > 8 && bpp <= 16) {
+      src->video_format = GST_VIDEO_FORMAT_GRAY16_LE;
 
-      gst_video_info_set_format (&vinfo, src->video_format, width, height);
-      src->caps = gst_video_info_to_caps (&vinfo);
+      if (bayer_pattern != M_NULL
+          && src->bayer_mode == GST_MATROX_BAYER_MODE_BAYER) {
+        src->caps =
+            gst_caps_new_simple ("video/x-bayer", "format", G_TYPE_STRING,
+            bayer_pattern_format, "bpp", G_TYPE_INT, bpp, "endianness",
+            G_TYPE_INT, G_LITTLE_ENDIAN, "width", G_TYPE_INT, width, "height",
+            G_TYPE_INT, height, "framerate", GST_TYPE_FRACTION_RANGE, 0, 1,
+            G_MAXINT, 1, NULL);
+      } else {
+        GValue val = G_VALUE_INIT;
+        GstStructure *s;
+        src->video_format = GST_VIDEO_FORMAT_GRAY16_LE;
+        gst_video_info_set_format (&vinfo, src->video_format, width, height);
+        src->caps = gst_video_info_to_caps (&vinfo);
 
-      /* set bpp, extra info for GRAY16 so elements can scale properly */
-      s = gst_caps_get_structure (src->caps, 0);
-      g_value_init (&val, G_TYPE_INT);
-      g_value_set_int (&val, bpp);
-      gst_structure_set_value (s, "bpp", &val);
-      g_value_unset (&val);
+        /* set bpp, extra info for GRAY16 so elements can scale properly */
+        s = gst_caps_get_structure (src->caps, 0);
+        g_value_init (&val, G_TYPE_INT);
+        g_value_set_int (&val, bpp);
+        gst_structure_set_value (s, "bpp", &val);
+        g_value_unset (&val);
+      }
     } else {
       GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
           ("Unknown or unsupported bit depth (%d).", bpp), (NULL));
       return FALSE;
     }
-  } else if (src->color_mode == M_BGR24) {
-    g_assert (n_bands == 3);
-    src->video_format = GST_VIDEO_FORMAT_BGR;
-  } else if (src->color_mode == M_BGR32) {
-    g_assert (n_bands == 3);
+  } else if (n_bands == 3) {
+    /* TODO: handle non-Solios color formats */
     src->video_format = GST_VIDEO_FORMAT_BGRx;
-  } else if (src->color_mode == M_RGB) {
-    g_assert (n_bands == 3);
-    src->video_format = GST_VIDEO_FORMAT_RGB;
-  }                             /*else if (color_mode == M_YUV) {
-                                   g_assert (n_bands == 3);
-                                   src = GST_VIDEO_FORMAT_YUY2;
-                                   } */
-  else {
-    GST_WARNING_OBJECT (src,
-        "Color mode %d not directly supported, will try converting to BGRx",
-        src->color_mode);
-    src->video_format = GST_VIDEO_FORMAT_BGRx;
-    src->color_mode = M_BGR32;
-    n_bands = 3;
-    bpp = 8;
   }
+
+  /* note that we abuse formats with Bayer */
+  gst_video_info_set_format (&vinfo, src->video_format, width, height);
+  vinfo.finfo = gst_video_format_get_info (src->video_format);
 
   if (!src->caps) {
-    gst_video_info_set_format (&vinfo, src->video_format, width, height);
-
-    vinfo.finfo = gst_video_format_get_info (src->video_format);
     src->caps = gst_video_info_to_caps (&vinfo);
   }
-  src->height = vinfo.height;
+
+  src->height = height;
   src->gst_stride = GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0);
 
   g_assert (src->MilGrabBufferList == NULL);
   src->MilGrabBufferList = g_new (MIL_ID, src->num_capture_buffers);
   for (i = 0; i < src->num_capture_buffers; i++) {
-    if (src->color_mode == M_MONOCHROME) {
-      MbufAlloc2d (src->MilSystem, width, height, bpp,
+    if (n_bands == 1) {
+      MbufAlloc2d (src->MilSystem, width, height, src->mil_type,
           M_IMAGE + M_GRAB + M_PROC, &src->MilGrabBufferList[i]);
     } else {
       MbufAllocColor (src->MilSystem,
           n_bands,
           width,
           height,
-          bpp, M_IMAGE + M_GRAB + M_PROC + M_PACKED,
+          src->mil_type, M_IMAGE + M_GRAB + M_PROC + M_PACKED + M_BGR32,
           &src->MilGrabBufferList[i]);
     }
 
@@ -536,24 +629,10 @@ static gboolean
 gst_matroxsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 {
   GstMatroxSrc *src = GST_MATROX_SRC (bsrc);
-  GstVideoInfo vinfo;
-  GstStructure *s = gst_caps_get_structure (caps, 0);
 
   GST_DEBUG_OBJECT (src, "The caps being set are %" GST_PTR_FORMAT, caps);
 
-  gst_video_info_from_caps (&vinfo, caps);
-
-  if (GST_VIDEO_INFO_FORMAT (&vinfo) != GST_VIDEO_FORMAT_UNKNOWN) {
-    src->gst_stride = GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0);
-  } else {
-    goto unsupported_caps;
-  }
-
   return TRUE;
-
-unsupported_caps:
-  GST_ERROR_OBJECT (src, "Unsupported caps: %" GST_PTR_FORMAT, caps);
-  return FALSE;
 }
 
 static gboolean
@@ -604,8 +683,7 @@ gst_matroxsrc_create_buffer_from_id (GstMatroxSrc * src, MIL_ID buffer_id)
     MbufGet (buffer_id, minfo.data);
   } else {
     /* TODO: add support for planar color and YUV */
-    MbufGetColor (buffer_id, M_PACKED | src->color_mode, M_ALL_BANDS,
-        minfo.data);
+    MbufGetColor (buffer_id, M_PACKED | M_BGR32, M_ALL_BANDS, minfo.data);
   }
 
   gst_buffer_unmap (buf, &minfo);

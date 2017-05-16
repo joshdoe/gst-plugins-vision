@@ -35,6 +35,12 @@ G_BEGIN_DECLS
 typedef struct _GstMatroxSrc GstMatroxSrc;
 typedef struct _GstMatroxSrcClass GstMatroxSrcClass;
 
+typedef enum {
+    GST_MATROX_BAYER_MODE_BAYER,
+    GST_MATROX_BAYER_MODE_GRAY,
+    GST_MATROX_BAYER_MODE_RGB
+} GstMatroxBayerModeEnum;
+
 struct _GstMatroxSrc
 {
   GstPushSrc base_matroxsrc;
@@ -54,16 +60,15 @@ struct _GstMatroxSrc
   gchar *format;
   guint num_capture_buffers;
   gint timeout;
+  GstMatroxBayerModeEnum bayer_mode;
 
   GstBuffer *buffer;
   GstClockTime acq_start_time;
 
   GstCaps *caps;
-  gint width;
   gint height;
-  gint bpp;
   gint gst_stride;
-  MIL_INT color_mode;
+  MIL_INT mil_type;
   GstVideoFormat video_format;
 
   GMutex mutex;
