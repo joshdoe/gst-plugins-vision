@@ -86,7 +86,7 @@ enum
   PROP_DEVICE,
   PROP_BOARD,
   PROP_CHANNEL,
-  PROP_FORMAT,
+  PROP_CONFIG_FILE,
   PROP_NUM_CAPTURE_BUFFERS,
   PROP_TIMEOUT,
   PROP_BAYER_MODE
@@ -95,7 +95,7 @@ enum
 #define DEFAULT_PROP_DEVICE "M_SYSTEM_DEFAULT"
 #define DEFAULT_PROP_BOARD -1
 #define DEFAULT_PROP_CHANNEL -1
-#define DEFAULT_PROP_FORMAT "M_DEFAULT"
+#define DEFAULT_PROP_CONFIG_FILE "M_DEFAULT"
 #define DEFAULT_PROP_NUM_CAPTURE_BUFFERS 2
 #define DEFAULT_PROP_TIMEOUT 1000
 #define DEFAULT_PROP_BAYER_MODE GST_MATROX_BAYER_MODE_BAYER
@@ -184,10 +184,10 @@ gst_matroxsrc_class_init (GstMatroxSrcClass * klass)
           "Channel number, -1 uses default specified in MilConfig", -1, 15,
           DEFAULT_PROP_CHANNEL,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
-  g_object_class_install_property (gobject_class, PROP_FORMAT,
-      g_param_spec_string ("format", "Format or format file",
+  g_object_class_install_property (gobject_class, PROP_CONFIG_FILE,
+      g_param_spec_string ("config-file", "Format or format file",
           "Format, as predefined string or DCF file path, default is specified in MilConfig",
-          DEFAULT_PROP_FORMAT,
+          DEFAULT_PROP_CONFIG_FILE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_NUM_CAPTURE_BUFFERS,
       g_param_spec_uint ("num-capture-buffers", "Number of capture buffers",
@@ -264,7 +264,7 @@ gst_matroxsrc_init (GstMatroxSrc * src)
   src->device = g_strdup (DEFAULT_PROP_DEVICE);
   src->board = DEFAULT_PROP_BOARD;
   src->channel = DEFAULT_PROP_CHANNEL;
-  src->format = g_strdup (DEFAULT_PROP_FORMAT);
+  src->config_file = g_strdup (DEFAULT_PROP_CONFIG_FILE);
   src->num_capture_buffers = DEFAULT_PROP_NUM_CAPTURE_BUFFERS;
   src->timeout = DEFAULT_PROP_TIMEOUT;
   src->bayer_mode = DEFAULT_PROP_BAYER_MODE;
@@ -311,9 +311,9 @@ gst_matroxsrc_set_property (GObject * object, guint property_id,
     case PROP_CHANNEL:
       src->channel = g_value_get_int (value);
       break;
-    case PROP_FORMAT:
-      g_free (src->format);
-      src->format = g_strdup (g_value_get_string (value));
+    case PROP_CONFIG_FILE:
+      g_free (src->config_file);
+      src->config_file = g_strdup (g_value_get_string (value));
       break;
     case PROP_TIMEOUT:
       src->timeout = g_value_get_int (value);
@@ -349,8 +349,8 @@ gst_matroxsrc_get_property (GObject * object, guint property_id,
     case PROP_CHANNEL:
       g_value_set_int (value, src->channel);
       break;
-    case PROP_FORMAT:
-      g_value_set_string (value, src->format);
+    case PROP_CONFIG_FILE:
+      g_value_set_string (value, src->config_file);
       break;
     case PROP_TIMEOUT:
       g_value_set_int (value, src->timeout);
@@ -390,7 +390,7 @@ gst_matroxsrc_finalize (GObject * object)
 
   /* clean up object here */
   g_free (src->device);
-  g_free (src->format);
+  g_free (src->config_file);
 
   gst_matroxsrc_reset (src);
 
@@ -440,7 +440,7 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
   }
 
   /* create Digitizer */
-  ret = MdigAlloc (src->MilSystem, M_DEFAULT, src->format, M_DEFAULT,
+  ret = MdigAlloc (src->MilSystem, M_DEFAULT, src->config_file, M_DEFAULT,
       &src->MilDigitizer);
   if (ret == M_NULL) {
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,

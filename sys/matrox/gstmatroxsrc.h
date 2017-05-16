@@ -57,7 +57,7 @@ struct _GstMatroxSrc
   gchar *device;
   gint board;
   gint channel;
-  gchar *format;
+  gchar *config_file;
   guint num_capture_buffers;
   gint timeout;
   GstMatroxBayerModeEnum bayer_mode;
