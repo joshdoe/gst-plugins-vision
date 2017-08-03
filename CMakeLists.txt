@@ -1,8 +1,29 @@
 cmake_minimum_required(VERSION "2.8.0")
 
+project(gst-plugins-vision)
+
+# add local cmake modules
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
 
-project(gst-plugins-vision)
+# get git version info
+include(GetGitRevisionDescription)
+git_describe(GIT_DESCRIBE --dirty)
+add_definitions(-DPACKAGE_VERSION="${GIT_DESCRIBE}")
+
+# configure CPack
+set(CPACK_GENERATOR "ZIP")
+set(CPACK_ARCHIVE_COMPONENT_INSTALL ON)
+set(CPACK_COMPONENTS_GROUPING IGNORE)
+set(CPACK_COMPONENTS_ALL pdb Unspecified)
+set(CPACK_PACKAGE_VERSION ${GIT_DESCRIBE})
+if (CMAKE_SIZEOF_VOID_P EQUAL 8)
+  set(CPACK_PACKAGE_FILE_NAME "${CMAKE_PROJECT_NAME}-${CPACK_PACKAGE_VERSION}-x86_64")
+else ()
+  set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-x86")
+endif ()
+set(CPACK_ARCHIVE_PDB_FILE_NAME "${CPACK_PACKAGE_FILE_NAME}-pdbs")
+set(CPACK_ARCHIVE_UNSPECIFIED_FILE_NAME "${CPACK_PACKAGE_FILE_NAME}")
+include(CPack)
 
 include(MacroLogFeature)
 

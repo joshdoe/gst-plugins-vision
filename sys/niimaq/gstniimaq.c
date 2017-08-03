@@ -946,5 +946,5 @@ plugin_init (GstPlugin * plugin)
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR, GST_VERSION_MINOR, niimaq,
-    "NI-IMAQ source element", plugin_init, VERSION, GST_LICENSE, PACKAGE_NAME,
+    "NI-IMAQ source element", plugin_init, PACKAGE_VERSION, GST_LICENSE, PACKAGE_NAME,
     GST_PACKAGE_ORIGIN)

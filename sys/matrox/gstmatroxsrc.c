@@ -816,4 +816,4 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     matrox,
     "Matrox Imaging Library video source",
-    plugin_init, VERSION, "LGPL", PACKAGE_NAME, GST_PACKAGE_ORIGIN)
+    plugin_init, PACKAGE_VERSION, "LGPL", PACKAGE_NAME, GST_PACKAGE_ORIGIN)
