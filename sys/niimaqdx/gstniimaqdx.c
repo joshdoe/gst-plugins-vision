@@ -767,10 +767,19 @@ gst_niimaqdxsrc_fill (GstPushSrc * psrc, GstBuffer * buf)
 
   dropped = copied_number - src->cumbufnum;
   if (dropped > 0) {
+    GstStructure *infoStruct;
+
     src->n_dropped_frames += dropped;
     GST_WARNING_OBJECT (src,
         "Asked to copy buffer #%d but was given #%d; just dropped %d frames (%d total)",
         src->cumbufnum, copied_number, dropped, src->n_dropped_frames);
+
+    infoStruct = gst_structure_new ("dropped-frame-info",
+        "num-dropped-frames", G_TYPE_INT, dropped,
+        "total-dropped-frames", G_TYPE_INT, src->n_dropped_frames,
+        "timestamp", GST_TYPE_CLOCK_TIME, GST_BUFFER_TIMESTAMP (buf), NULL);
+    gst_element_post_message (GST_ELEMENT (src),
+        gst_message_new_element (GST_OBJECT (src), infoStruct));
   }
 
   /* set cumulative buffer number to get next frame */
