@@ -91,6 +91,8 @@ struct _GstVideoLevels
   gint * histogram;
 
   guint64 last_auto_timestamp;
+
+  gboolean passthrough;
 };
 
 struct _GstVideoLevelsClass
