@@ -939,11 +939,11 @@ gst_niimaqdxsrc_set_dx_attributes (GstNiImaqDxSrc * src)
   int i;
   IMAQdxError rval;
 
-  if (!src->attributes) {
+  if (!src->attributes || src->attributes == 0) {
     return;
   }
 
-  GST_DEBUG_OBJECT (src, "Trying to set following attributes: %s",
+  GST_DEBUG_OBJECT (src, "Trying to set following attributes: '%s'",
       src->attributes);
 
   pairs = g_strsplit (src->attributes, ";", 0);
@@ -1203,6 +1203,7 @@ gst_niimaqdxsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 
   src->gst_framesize = src->gst_row_stride * src->height;
 
+  /* TODO: don't use default_alloc, app can change blocksize */
   gst_base_src_set_blocksize (bsrc, src->gst_framesize);
 
   if (src->temp_buffer)
