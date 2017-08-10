@@ -214,6 +214,8 @@ ImaqDxCapsInfo imaq_dx_caps_infos[] = {
   ,
   {"Bayer RG 16", 0, VIDEO_CAPS_MAKE_BAYER16 ("rggb16", "1234"), 16, 16, 1}
   ,
+  {"BayerRG 16", 0, VIDEO_CAPS_MAKE_BAYER16 ("rggb16", "1234"), 16, 16, 1}
+  ,
   {"Bayer GB 16", 0, VIDEO_CAPS_MAKE_BAYER16 ("gbrg16", "1234"), 16, 16, 1}
   ,
   {"JPEG", 0, "image/jpeg", 8, 8, 1}
