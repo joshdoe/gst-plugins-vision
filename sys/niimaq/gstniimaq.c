@@ -142,7 +142,6 @@ gst_niimaqsrc_frame_start_callback (SESSION_ID sid, IMG_ERR err,
     IMG_SIGNAL_TYPE signal_type, uInt32 signal_identifier, void *userdata)
 {
   GstNiImaqSrc *src = GST_NIIMAQSRC (userdata);
-  static guint32 index = 0;
   GstNiImaqSrcTimeEntry *time_entry;
 
   time_entry = g_new (GstNiImaqSrcTimeEntry, 1);
@@ -150,11 +149,11 @@ gst_niimaqsrc_frame_start_callback (SESSION_ID sid, IMG_ERR err,
   /* get clock time */
   time_entry->clock_time =
       gst_clock_get_time (gst_element_get_clock (GST_ELEMENT (src)));
-  time_entry->frame_index = index;
+  time_entry->frame_index = src->imaqFrameStartNum;
 
   g_async_queue_push (src->time_queue, time_entry);
 
-  index++;
+  src->imaqFrameStartNum++;
 
   /* return 1 to rearm the callback */
   return 1;
@@ -443,6 +442,7 @@ gst_niimaqsrc_reset (GstNiImaqSrc * src)
 
   /* initialize member variables */
   src->cumbufnum = 0;
+  src->imaqFrameStartNum = 0;
   src->n_dropped_frames = 0;
   src->sid = 0;
   src->iid = 0;

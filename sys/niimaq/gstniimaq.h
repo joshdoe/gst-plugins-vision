@@ -62,6 +62,7 @@ struct _GstNiImaqSrc {
   gint framesize;
   int rowpixels;
 
+  guint64 imaqFrameStartNum;
   uInt32 cumbufnum;
   gint64 n_dropped_frames;
   
