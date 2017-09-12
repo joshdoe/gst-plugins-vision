@@ -462,6 +462,15 @@ gst_idsueyesrc_start (GstBaseSrc * bsrc)
           ("Failed to load parameter file: %s", src->config_file), (NULL));
       return FALSE;
     }
+  } else {
+    ret =
+        is_ParameterSet (src->hCam, IS_PARAMETERSET_CMD_LOAD_EEPROM, NULL,
+        NULL);
+    if (ret != IS_SUCCESS) {
+      GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
+          ("Failed to load parameters from EEPROM"), (NULL));
+      return FALSE;
+    }
   }
 
   gst_idsueyesrc_set_caps_from_camera (src);
