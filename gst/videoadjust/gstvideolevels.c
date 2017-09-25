@@ -602,27 +602,29 @@ gst_videolevels_calculate_lut_uint16_to_uint8 (GstVideoLevels * videolevels,
 
   gst_videolevels_check_passthrough (videolevels);
 
-  low_in = videolevels->lower_input;
-  high_in = videolevels->upper_input;
+  if (!videolevels->passthrough) {
+    low_in = videolevels->lower_input;
+    high_in = videolevels->upper_input;
 
-  GST_LOG_OBJECT (videolevels, "Make linear LUT mapping (%d, %d) -> (%d, %d)",
-      low_in, high_in, low_out, high_out);
+    GST_LOG_OBJECT (videolevels, "Make linear LUT mapping (%d, %d) -> (%d, %d)",
+        low_in, high_in, low_out, high_out);
 
-  if (low_in == high_in)
-    m = 0.0;
-  else
-    m = (high_out - low_out) / (gdouble) (high_in - low_in);
+    if (low_in == high_in)
+      m = 0.0;
+    else
+      m = (high_out - low_out) / (gdouble) (high_in - low_in);
 
-  b = low_out - m * low_in;
+    b = low_out - m * low_in;
 
-  if (endianness == G_LITTLE_ENDIAN)
-    for (i = 0; i < G_MAXUINT16; i++)
-      lut[i] = GUINT8_CLAMP (m * GUINT16_FROM_LE (i) + b, low_out, high_out);
-  else if (endianness == G_BIG_ENDIAN)
-    for (i = 0; i < G_MAXUINT16; i++)
-      lut[i] = GUINT8_CLAMP (m * GUINT16_FROM_BE (i) + b, low_out, high_out);
-  else
-    g_assert_not_reached ();
+    if (endianness == G_LITTLE_ENDIAN)
+      for (i = 0; i < G_MAXUINT16; i++)
+        lut[i] = GUINT8_CLAMP (m * GUINT16_FROM_LE (i) + b, low_out, high_out);
+    else if (endianness == G_BIG_ENDIAN)
+      for (i = 0; i < G_MAXUINT16; i++)
+        lut[i] = GUINT8_CLAMP (m * GUINT16_FROM_BE (i) + b, low_out, high_out);
+    else
+      g_assert_not_reached ();
+  }
 }
 
 /**
@@ -802,6 +804,8 @@ gst_videolevels_check_passthrough (GstVideoLevels * levels)
     passthrough = FALSE;
   }
   if (passthrough != levels->passthrough) {
+    GST_DEBUG_OBJECT (levels, "Passthrough mode: %s",
+        passthrough ? "ENABLED" : "DISABLED");
     levels->passthrough = passthrough;
     gst_base_transform_set_passthrough (GST_BASE_TRANSFORM (levels),
         levels->passthrough);
