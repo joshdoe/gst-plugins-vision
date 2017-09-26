@@ -22,7 +22,7 @@ if (CMAKE_SIZEOF_VOID_P MATCHES "8")
 		PATHS
 		"${PHOENIX_DIR}/Lib/win64"
 		DOC "PHOENIX library to link with")
-elseif ()
+else ()
 	find_library(PHOENIX_LIBRARIES NAMES phxlw32
 		PATHS
 		"${PHOENIX_DIR}/Lib/win32"
