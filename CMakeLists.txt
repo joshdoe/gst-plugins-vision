@@ -8,7 +8,13 @@ list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
 # get git version info
 include(GetGitRevisionDescription)
 git_describe(GIT_DESCRIBE --dirty)
-add_definitions(-DPACKAGE_VERSION="${GIT_DESCRIBE}")
+
+# values used when registering plugins
+add_definitions(-DGST_PACKAGE_VERSION="${GIT_DESCRIBE}")
+add_definitions(-DGST_PACKAGE_LICENSE="LGPL")
+add_definitions(-DGST_PACKAGE_ORIGIN="Unknown package origin")
+add_definitions(-DGST_PACKAGE_NAME="${CMAKE_PROJECT_NAME}")
+add_definitions(-DPACKAGE="${CMAKE_PROJECT_NAME} package")
 
 # configure CPack
 set(CPACK_GENERATOR "ZIP")

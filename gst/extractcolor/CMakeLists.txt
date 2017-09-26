@@ -1,5 +1,3 @@
-add_definitions (-DHAVE_CONFIG_H)
-
 set (SOURCES
   gstextractcolor.c
   gstextractcolororc-dist.c)
