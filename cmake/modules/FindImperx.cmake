@@ -29,7 +29,7 @@ if (NOT IMPERX_FLEX_DIR)
 	if (CMAKE_SIZEOF_VOID_P MATCHES "8")
         set(_LIB_PATH "${IMPERX_FLEX_DIR}/SDK/lib/x64")
     else ()
-        set(_LIB_PATH "${IMPERX_FLEX_DIR}/SDK/lib/win3264")
+        set(_LIB_PATH "${IMPERX_FLEX_DIR}/SDK/lib/win32")
     endif ()
 endif ()
 
