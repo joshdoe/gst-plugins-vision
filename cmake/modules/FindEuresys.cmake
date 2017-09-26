@@ -13,11 +13,19 @@
 
 if (NOT EURESYS_DIR)
     # Euresys seems to be installed in the 32-bit dir on 32- or 64-bit Windows
+    # 32-bit dir on win32
     file(TO_CMAKE_PATH "$ENV{ProgramFiles}" _PROG_FILES)
-	
-	set (EURESYS_DIR "${_PROG_FILES}/Euresys/MultiCam" CACHE PATH "Directory containing Euresys Multicam includes and libraries")
-	
-	if (CMAKE_SIZEOF_VOID_P MATCHES "8")
+    # 32-bit dir on win64
+    file(TO_CMAKE_PATH "$ENV{ProgramFiles(x86)}" _PROG_FILES_X86)
+
+    # use (x86) dir if exists
+    if (_PROG_FILES_X86)
+        set(_PROG_FILES "${_PROG_FILES_X86}")
+    endif ()
+
+    set (EURESYS_DIR "${_PROG_FILES}/Euresys/MultiCam" CACHE PATH "Directory containing Euresys Multicam includes and libraries")
+
+    if (CMAKE_SIZEOF_VOID_P MATCHES "8")
         set(_LIB_PATH "${EURESYS_DIR}/lib/amd64")
     else ()
         set(_LIB_PATH "${EURESYS_DIR}/lib")
