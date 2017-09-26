@@ -154,7 +154,7 @@ gst_framelinksrc_class_init (GstFramelinkSrcClass * klass)
 static void
 gst_framelinksrc_reset (GstFramelinkSrc * src)
 {
-  g_assert_null (src->grabber);
+  g_assert (src->grabber == NULL);
 
   src->acq_started = FALSE;
 
