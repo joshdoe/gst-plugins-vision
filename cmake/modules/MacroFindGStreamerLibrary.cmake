@@ -20,10 +20,12 @@ macro(find_gstreamer_library _name _header _abi_version)
         pkg_check_modules(PKG_GSTREAMER_${_upper_name} gstreamer-${_lower_name}-${_abi_version})
     endif()
 
-    if (CMAKE_SIZEOF_VOID_P MATCHES "8")
-        set(GSTREAMER_ROOT $ENV{GSTREAMER_1_0_ROOT_X86_64})
-    else ()
-        set(GSTREAMER_ROOT $ENV{GSTREAMER_1_0_ROOT_X86})
+    if (NOT GSTREAMER_ROOT)
+        if (CMAKE_SIZEOF_VOID_P MATCHES "8")
+            set(GSTREAMER_ROOT $ENV{GSTREAMER_1_0_ROOT_X86_64})
+        else ()
+            set(GSTREAMER_ROOT $ENV{GSTREAMER_1_0_ROOT_X86})
+        endif ()
     endif ()
     
     find_library(GSTREAMER_${_upper_name}_LIBRARY

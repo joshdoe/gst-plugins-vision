@@ -21,10 +21,12 @@ if (NOT WIN32)
    pkg_check_modules(PKG_GLIB REQUIRED glib-2.0)
 endif(NOT WIN32)
 
-if (CMAKE_SIZEOF_VOID_P MATCHES "8")
-    set(GSTREAMER_ROOT $ENV{GSTREAMER_1_0_ROOT_X86_64})
-else ()
-    set(GSTREAMER_ROOT $ENV{GSTREAMER_1_0_ROOT_X86})
+if (NOT GSTREAMER_ROOT)
+    if (CMAKE_SIZEOF_VOID_P MATCHES "8")
+        set(GSTREAMER_ROOT $ENV{GSTREAMER_1_0_ROOT_X86_64})
+    else ()
+        set(GSTREAMER_ROOT $ENV{GSTREAMER_1_0_ROOT_X86})
+    endif ()
 endif ()
 
 find_path(GLIB2_MAIN_INCLUDE_DIR glib.h
