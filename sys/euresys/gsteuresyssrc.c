@@ -215,7 +215,7 @@ gst_euresys_pixel_timing_get_type (void)
   static const GEnumValue euresys_pixel_timing[] = {
     {GST_EURESYS_PIXEL_TIMING_SQUARE, "square", "Produce square pixels"},
     {GST_EURESYS_PIXEL_TIMING_BROADCAST, "broadcast",
-          "Produce broadcast pixels"},
+        "Produce broadcast pixels"},
     {0, NULL, NULL},
   };
 

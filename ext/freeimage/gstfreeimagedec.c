@@ -204,8 +204,7 @@ gst_freeimagedec_class_init (GstFreeImageDecClass * klass,
   description = g_strdup_printf ("Decode %s (%s) images",
       format_description, extensions);
   gst_element_class_set_details_simple (gstelement_class, longname,
-      "Codec/Decoder/Image",
-      description, "Joshua M. Doe <oss@nvl.army.mil>");
+      "Codec/Decoder/Image", description, "Joshua M. Doe <oss@nvl.army.mil>");
   g_free (longname);
   g_free (description);
 
