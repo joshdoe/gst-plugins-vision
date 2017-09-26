@@ -113,7 +113,7 @@ struct _GstNiImaqDxSrcTimeEntry
 };
 
 /* This will be called "when a frame done event occurs", so not start of frame */
-uInt32
+uInt32 NI_FUNC
 gst_niimaqdxsrc_frame_done_callback (IMAQdxSession session, uInt32 bufferNumber,
     void *userdata)
 {
