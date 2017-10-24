@@ -64,6 +64,9 @@ macro_log_feature(FREEIMAGE_FOUND "FreeImage" "Required to build FreeImage plugi
 find_package(OpenCV)
 macro_log_feature(OPENCV_FOUND "OpenCV" "Required to build sensorfx plugin" "http://opencv.willowgarage.com/" FALSE)
 
+find_package(Aptina)
+macro_log_feature(APTINA_FOUND "Aptina" "Required to build aptinasrc source element" "http://www.onsemi.com/" FALSE)
+
 find_package(EDT)
 macro_log_feature(EDT_FOUND "EDT" "Required to build EDT PDV source element" "http://www.edt.com/" FALSE)
 
