@@ -52,7 +52,8 @@ struct _GstAptinaSrc
   guint32 total_dropped_frames;
 
   GstCaps *caps;
-  gint framesize;
+  gint raw_framesize;
+  gint rgb_framesize;
   guint8 *buffer;
 
   gboolean stop_requested;

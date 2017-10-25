@@ -64,7 +64,7 @@ static gboolean gst_aptinasrc_set_caps (GstBaseSrc * src, GstCaps * caps);
 static gboolean gst_aptinasrc_unlock (GstBaseSrc * src);
 static gboolean gst_aptinasrc_unlock_stop (GstBaseSrc * src);
 
-static GstFlowReturn gst_aptinasrc_create (GstPushSrc * src, GstBuffer ** buf);
+static GstFlowReturn gst_aptinasrc_fill (GstPushSrc * src, GstBuffer * buf);
 
 enum
 {
@@ -118,7 +118,7 @@ gst_aptinasrc_class_init (GstAptinaSrcClass * klass)
   gstbasesrc_class->unlock = GST_DEBUG_FUNCPTR (gst_aptinasrc_unlock);
   gstbasesrc_class->unlock_stop = GST_DEBUG_FUNCPTR (gst_aptinasrc_unlock_stop);
 
-  gstpushsrc_class->create = GST_DEBUG_FUNCPTR (gst_aptinasrc_create);
+  gstpushsrc_class->fill = GST_DEBUG_FUNCPTR (gst_aptinasrc_fill);
 
   /* Install GObject properties */
   g_object_class_install_property (gobject_class, PROP_DEVICE_INDEX,
@@ -142,7 +142,8 @@ gst_aptinasrc_class_init (GstAptinaSrcClass * klass)
 static void
 gst_aptinasrc_reset (GstAptinaSrc * src)
 {
-  src->framesize = 0;
+  src->raw_framesize = 0;
+  src->rgb_framesize = 0;
 
   src->is_started = FALSE;
 
@@ -287,15 +288,15 @@ gst_aptinasrc_calculate_caps (GstAptinaSrc * src)
   gint framesize;
 
   framesize = ap_GrabFrame (src->apbase, NULL, 0);
-  if (framesize != src->framesize) {
-    src->framesize = framesize;
+  if (framesize != src->raw_framesize) {
+    src->raw_framesize = framesize;
     if (src->buffer) {
       g_free (src->buffer);
     }
-    src->buffer = (guint8 *) g_malloc (src->framesize);
+    src->buffer = (guint8 *) g_malloc (src->raw_framesize);
   }
 
-  ret = ap_GrabFrame (src->apbase, src->buffer, src->framesize);
+  ret = ap_GrabFrame (src->apbase, src->buffer, src->raw_framesize);
   if (ret == 0) {
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Grabbing failed with error %d", ap_GetLastError ()), (NULL));
@@ -307,7 +308,7 @@ gst_aptinasrc_calculate_caps (GstAptinaSrc * src)
       image_type);
 
   unpacked =
-      ap_ColorPipe (src->apbase, src->buffer, src->framesize, &rgb_width,
+      ap_ColorPipe (src->apbase, src->buffer, src->raw_framesize, &rgb_width,
       &rgb_height, &rgb_depth);
   if (rgb_depth != 32) {
     GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
@@ -315,6 +316,9 @@ gst_aptinasrc_calculate_caps (GstAptinaSrc * src)
         (NULL));
     return FALSE;
   }
+
+  src->rgb_framesize = rgb_width * rgb_height * rgb_depth / 8;
+  gst_base_src_set_blocksize (GST_BASE_SRC (src), src->rgb_framesize);
 
   gst_video_info_init (&vinfo);
   gst_video_info_set_format (&vinfo, GST_VIDEO_FORMAT_BGRx, rgb_width,
@@ -476,7 +480,7 @@ gst_aptinasrc_unlock_stop (GstBaseSrc * bsrc)
 }
 
 static GstFlowReturn
-gst_aptinasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
+gst_aptinasrc_fill (GstPushSrc * psrc, GstBuffer * buf)
 {
   GstAptinaSrc *src = GST_APTINA_SRC (psrc);
   ap_s32 ret;
@@ -498,7 +502,7 @@ gst_aptinasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
     src->is_started = TRUE;
   }
 
-  ret = ap_GrabFrame (src->apbase, src->buffer, src->framesize);
+  ret = ap_GrabFrame (src->apbase, src->buffer, src->raw_framesize);
   if (ret == 0) {
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Grabbing failed with error %d", ap_GetLastError ()), (NULL));
@@ -506,29 +510,23 @@ gst_aptinasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   }
 
   unpacked =
-      ap_ColorPipe (src->apbase, src->buffer, src->framesize, &rgb_width,
+      ap_ColorPipe (src->apbase, src->buffer, src->raw_framesize, &rgb_width,
       &rgb_height, &rgb_depth);
 
   clock = gst_element_get_clock (GST_ELEMENT (src));
   clock_time = gst_clock_get_time (clock);
   gst_object_unref (clock);
 
-  /* TODO: use allocator or use from pool */
-  *buf = gst_buffer_new_and_alloc (rgb_width * rgb_height * rgb_depth / 8);
-  gst_buffer_map (*buf, &minfo, GST_MAP_WRITE);
+  gst_buffer_map (buf, &minfo, GST_MAP_WRITE);
   orc_memcpy (minfo.data, unpacked, minfo.size);
-  gst_buffer_unmap (*buf, &minfo);
+  gst_buffer_unmap (buf, &minfo);
 
-  GST_BUFFER_TIMESTAMP (*buf) =
+  GST_BUFFER_TIMESTAMP (buf) =
       GST_CLOCK_DIFF (gst_element_get_base_time (GST_ELEMENT (src)),
       clock_time);
-  GST_BUFFER_OFFSET (*buf) = temp_ugly_buf_index++;
+  GST_BUFFER_OFFSET (buf) = temp_ugly_buf_index++;
 
   if (src->stop_requested) {
-    if (*buf != NULL) {
-      gst_buffer_unref (*buf);
-      *buf = NULL;
-    }
     return GST_FLOW_FLUSHING;
   }
 
