@@ -623,8 +623,9 @@ gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * src)
   GstCaps *gcaps = NULL;
   Int32 rval;
   uInt32 val;
-  gint depth, bpp;
+  gint width, height, depth, bpp;
   GstVideoInfo vinfo;
+  GstVideoFormat format = GST_VIDEO_FORMAT_UNKNOWN;
 
   if (!src->iid) {
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
@@ -643,10 +644,10 @@ gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * src)
   depth = val * 8;
   rval &= imgGetAttribute (src->iid, IMG_ATTR_ROI_WIDTH, &val);
   gst_niimaqsrc_report_imaq_error (rval);
-  vinfo.width = val;
+  width = val;
   rval &= imgGetAttribute (src->iid, IMG_ATTR_ROI_HEIGHT, &val);
   gst_niimaqsrc_report_imaq_error (rval);
-  vinfo.height = val;
+  height = val;
 
   if (rval) {
     GST_ELEMENT_ERROR (src, STREAM, FAILED,
@@ -656,15 +657,17 @@ gst_niimaqsrc_get_cam_caps (GstNiImaqSrc * src)
   }
 
   if (depth == 8)
-    vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_GRAY8);
+    format = GST_VIDEO_FORMAT_GRAY8;
   else if (depth == 16)
-    vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_GRAY16_LE);
+    format = GST_VIDEO_FORMAT_GRAY16_LE;
   else if (depth == 32)
-    vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_BGRA);
+    format = GST_VIDEO_FORMAT_BGRA;
   else {
     GST_ERROR_OBJECT (src, "Depth %d (%d-bit) not supported yet", depth, bpp);
     goto error;
   }
+
+  gst_video_info_set_format (&vinfo, format, width, height);
 
   vinfo.fps_n = 30;
   vinfo.fps_d = 1;

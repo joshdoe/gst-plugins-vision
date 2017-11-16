@@ -345,26 +345,26 @@ gst_edt_pdv_src_get_caps (GstBaseSrc * bsrc, GstCaps * filter)
   if (src->dev == NULL) {
     caps = gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD (src));
   } else {
-    gint depth;
+    gint width, height, depth;
     GstVideoInfo vinfo;
 
     /* Create video info */
     gst_video_info_init (&vinfo);
 
-    vinfo.width = pdv_get_width (src->dev);
-    vinfo.height = pdv_get_height (src->dev);
-
+    width = pdv_get_width (src->dev);
+    height = pdv_get_height (src->dev);
     depth = pdv_get_depth (src->dev);
 
     if (depth <= 8) {
-      vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_GRAY8);
+      gst_video_info_set_format (&vinfo, GST_VIDEO_FORMAT_GRAY8, width, height);
       caps = gst_video_info_to_caps (&vinfo);
     } else if (depth <= 16) {
       GValue val = G_VALUE_INIT;
       GstStructure *s;
 
       /* TODO: check endianness */
-      vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_GRAY16_LE);
+      gst_video_info_set_format (&vinfo, GST_VIDEO_FORMAT_GRAY16_LE, width,
+          height);
       caps = gst_video_info_to_caps (&vinfo);
 
       /* set bpp, extra info for GRAY16 so elements can scale properly */
@@ -374,7 +374,7 @@ gst_edt_pdv_src_get_caps (GstBaseSrc * bsrc, GstCaps * filter)
       gst_structure_set_value (s, "bpp", &val);
       g_value_unset (&val);
     } else if (depth == 24) {
-      vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_RGB);
+      gst_video_info_set_format (&vinfo, GST_VIDEO_FORMAT_RGB, width, height);
       caps = gst_video_info_to_caps (&vinfo);
     } else {
       GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,

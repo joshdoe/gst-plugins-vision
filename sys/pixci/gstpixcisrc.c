@@ -567,6 +567,7 @@ gst_pixcisrc_get_caps (GstBaseSrc * bsrc, GstCaps * filter)
 {
   GstPixciSrc *src = GST_PIXCI_SRC (bsrc);
   GstCaps *caps;
+  gint width, height;
 
   if (!src->pixci_open) {
     caps = gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD (src));
@@ -578,8 +579,8 @@ gst_pixcisrc_get_caps (GstBaseSrc * bsrc, GstCaps * filter)
     /* Create video info */
     gst_video_info_init (&vinfo);
 
-    vinfo.width = pxd_imageXdim ();
-    vinfo.height = pxd_imageYdim ();
+    width = pxd_imageXdim ();
+    height = pxd_imageYdim ();
 
     par = pxd_imageAspectRatio ();
     if (par != 0) {
@@ -591,17 +592,20 @@ gst_pixcisrc_get_caps (GstBaseSrc * bsrc, GstCaps * filter)
     components = pxd_imageCdim ();
 
     if (components == 1 && bits_per_component <= 8) {
-      vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_GRAY8);
+      gst_video_info_set_format (&vinfo, GST_VIDEO_FORMAT_GRAY8, width, height);
       caps = gst_video_info_to_caps (&vinfo);
     } else if (components == 1 &&
         bits_per_component > 8 && bits_per_component <= 16) {
       GValue val = G_VALUE_INIT;
       GstStructure *s;
 
-      if (G_BYTE_ORDER == G_LITTLE_ENDIAN)
-        vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_GRAY16_LE);
-      else if (G_BYTE_ORDER == G_BIG_ENDIAN)
-        vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_GRAY16_BE);
+      if (G_BYTE_ORDER == G_LITTLE_ENDIAN) {
+        gst_video_info_set_format (&vinfo, GST_VIDEO_FORMAT_GRAY16_LE, width,
+            height);
+      } else if (G_BYTE_ORDER == G_BIG_ENDIAN) {
+        gst_video_info_set_format (&vinfo, GST_VIDEO_FORMAT_GRAY16_BE, width,
+            height);
+      }
       caps = gst_video_info_to_caps (&vinfo);
 
       /* set bpp, extra info for GRAY16 so elements can scale properly */

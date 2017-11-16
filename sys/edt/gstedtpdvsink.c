@@ -219,7 +219,7 @@ GstCaps *
 gst_edt_pdv_sink_get_caps (GstBaseSink * basesink, GstCaps * filter_caps)
 {
   GstEdtPdvSink *pdvsink = GST_EDT_PDV_SINK (basesink);
-  gint depth;
+  gint width, height, depth;
   GstVideoFormat format;
   GstVideoInfo vinfo;
 
@@ -229,8 +229,8 @@ gst_edt_pdv_sink_get_caps (GstBaseSink * basesink, GstCaps * filter_caps)
   }
 
   gst_video_info_init (&vinfo);
-  vinfo.width = pdv_get_width (pdvsink->dev);
-  vinfo.height = pdv_get_height (pdvsink->dev);
+  width = pdv_get_width (pdvsink->dev);
+  height = pdv_get_height (pdvsink->dev);
   depth = pdv_get_depth (pdvsink->dev);
 
   switch (depth) {
@@ -244,7 +244,7 @@ gst_edt_pdv_sink_get_caps (GstBaseSink * basesink, GstCaps * filter_caps)
     default:
       format = GST_VIDEO_FORMAT_UNKNOWN;
   }
-  vinfo.finfo = gst_video_format_get_info (format);
+  gst_video_info_set_format (&vinfo, format, width, height);
 
   /* TODO: handle filter_caps */
   return gst_video_info_to_caps (&vinfo);

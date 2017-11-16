@@ -683,10 +683,7 @@ gst_phoenixsrc_get_caps (GstBaseSrc * bsrc, GstCaps * filter)
           "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1, NULL);
     }
   } else if (videoFormat != GST_VIDEO_FORMAT_UNKNOWN) {
-    vinfo.finfo = gst_video_format_get_info (videoFormat);
-    vinfo.width = width;
-    vinfo.height = height;
-
+    gst_video_info_set_format (&vinfo, videoFormat, width, height);
     caps = gst_video_info_to_caps (&vinfo);
 
     if (is_gray16) {

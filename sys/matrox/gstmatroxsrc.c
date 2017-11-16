@@ -544,7 +544,6 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
 
   /* note that we abuse formats with Bayer */
   gst_video_info_set_format (&vinfo, src->video_format, width, height);
-  vinfo.finfo = gst_video_format_get_info (src->video_format);
 
   if (!src->caps) {
     src->caps = gst_video_info_to_caps (&vinfo);

@@ -359,20 +359,21 @@ gst_bitflowsrc_start (GstBaseSrc * bsrc)
   }
 
   gst_video_info_init (&vinfo);
-  vinfo.width = width;
-  vinfo.height = height;
 
   if (bpp <= 8) {
-    vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_GRAY8);
+    gst_video_info_set_format (&vinfo, GST_VIDEO_FORMAT_GRAY8, width, height);
     src->caps = gst_video_info_to_caps (&vinfo);
   } else if (bpp > 8 && bpp <= 16) {
     GValue val = G_VALUE_INIT;
     GstStructure *s;
 
-    if (G_BYTE_ORDER == G_LITTLE_ENDIAN)
-      vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_GRAY16_LE);
-    else if (G_BYTE_ORDER == G_BIG_ENDIAN)
-      vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_GRAY16_BE);
+    if (G_BYTE_ORDER == G_LITTLE_ENDIAN) {
+      gst_video_info_set_format (&vinfo, GST_VIDEO_FORMAT_GRAY16_LE, width,
+          height);
+    } else if (G_BYTE_ORDER == G_BIG_ENDIAN) {
+      gst_video_info_set_format (&vinfo, GST_VIDEO_FORMAT_GRAY16_BE, width,
+          height);
+    }
     src->caps = gst_video_info_to_caps (&vinfo);
 
     /* set bpp, extra info for GRAY16 so elements can scale properly */

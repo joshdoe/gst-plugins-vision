@@ -403,19 +403,20 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
   }
 
   gst_video_info_init (&vinfo);
-  vinfo.width = ci->Width;
-  vinfo.height = ci->Height;
 
   ci->BitDepth = ci->BitDepth;
   if (ci->BitDepth <= 8) {
+    GstVideoFormat format;
     if (src->pixInfo.BayerPattern == 0) {
-      vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_GRAY8);
+      format = GST_VIDEO_FORMAT_GRAY8;
     } else if (src->pixInfo.BayerPattern == 1 || src->pixInfo.BayerPattern == 2) {
       /* Bayer and TRUESENSE will be demosaiced by Imperx into BGRA */
-      vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_BGRA);
+      format = GST_VIDEO_FORMAT_BGRA;
     }
+    gst_video_info_set_format (&vinfo, format, ci->Width, ci->Height);
     src->caps = gst_video_info_to_caps (&vinfo);
   } else if (ci->BitDepth > 8 && ci->BitDepth <= 16) {
+    GstVideoFormat format;
     GValue val = G_VALUE_INIT;
     GstStructure *s;
 
@@ -425,10 +426,12 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
       return FALSE;
     }
 
-    if (G_BYTE_ORDER == G_LITTLE_ENDIAN)
-      vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_GRAY16_LE);
-    else if (G_BYTE_ORDER == G_BIG_ENDIAN)
-      vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_GRAY16_BE);
+    if (G_BYTE_ORDER == G_LITTLE_ENDIAN) {
+      format = GST_VIDEO_FORMAT_GRAY16_LE;
+    } else if (G_BYTE_ORDER == G_BIG_ENDIAN) {
+      format = GST_VIDEO_FORMAT_GRAY16_BE;
+    }
+    gst_video_info_set_format (&vinfo, format, ci->Width, ci->Height);
     src->caps = gst_video_info_to_caps (&vinfo);
 
     /* set bpp, extra info for GRAY16 so elements can scale properly */
@@ -438,7 +441,8 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
     gst_structure_set_value (s, "bpp", &val);
     g_value_unset (&val);
   } else if (ci->BitDepth == 24) {
-    vinfo.finfo = gst_video_format_get_info (GST_VIDEO_FORMAT_BGRA);
+    gst_video_info_set_format (&vinfo, GST_VIDEO_FORMAT_BGRA, ci->Width,
+        ci->Height);
     src->caps = gst_video_info_to_caps (&vinfo);
   } else {
     GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,

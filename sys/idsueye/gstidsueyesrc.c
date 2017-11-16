@@ -339,10 +339,8 @@ gst_idsueyesrc_set_caps_from_camera (GstIdsueyeSrc * src)
   src->height = imageSize.s32Height;
 
   gst_video_info_init (&vinfo);
-  vinfo.width = src->width;
-  vinfo.height = src->height;
 
-  vinfo.finfo = gst_video_format_get_info (videoFormat);
+  gst_video_info_set_format (&vinfo, videoFormat, src->width, src->height);
   src->caps = gst_video_info_to_caps (&vinfo);
 
   if (videoFormat == GST_VIDEO_FORMAT_GRAY16_BE) {

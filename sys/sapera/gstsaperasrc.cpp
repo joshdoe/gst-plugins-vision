@@ -645,9 +645,7 @@ gst_saperasrc_start (GstBaseSrc * bsrc)
   }
 
   gst_video_info_init (&vinfo);
-  vinfo.width = src->sap_buffers->GetWidth ();
-  vinfo.height = src->sap_buffers->GetHeight ();
-  vinfo.finfo = gst_video_format_get_info (gst_format);
+  gst_video_info_set_format (&vinfo, gst_format, src->sap_buffers->GetWidth (), src->sap_buffers->GetHeight ());
   src->caps = gst_video_info_to_caps (&vinfo);
 
   src->width = vinfo.width;
