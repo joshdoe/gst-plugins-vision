@@ -184,11 +184,13 @@ gboolean
 gst_saperasrc_init_objects (GstSaperaSrc * src)
 {
   char name[128];
+  int server_count, resource_count;
 
-  GST_DEBUG_OBJECT (src, "There are %d servers available",
-      SapManager::GetServerCount ());
+  server_count = SapManager::GetServerCount ();
+  GST_DEBUG_OBJECT (src, "There are %d servers available", server_count);
 
-  if (!SapManager::GetServerName (src->server_index, name)) {
+  if (src->server_index > server_count ||
+      !SapManager::GetServerName (src->server_index, name)) {
     GST_ERROR_OBJECT (src, "Invalid server index %d", src->server_index);
     return FALSE;
   }
@@ -196,16 +198,20 @@ gst_saperasrc_init_objects (GstSaperaSrc * src)
   GST_DEBUG_OBJECT (src, "Trying to open server index %d ('%s')",
       src->server_index, name);
 
-  GST_DEBUG_OBJECT (src, "Resource count: %d",
-      SapManager::GetResourceCount (src->server_index,
-          SapManager::ResourceAcq));
+  resource_count = SapManager::GetResourceCount (src->server_index,
+      SapManager::ResourceAcq);
+  GST_DEBUG_OBJECT (src, "Resource count: %d", resource_count);
 
-  if (!SapManager::GetResourceName (src->server_index, SapManager::ResourceAcq,
+  if (src->resource_index > resource_count ||
+      !SapManager::GetResourceName (src->server_index, SapManager::ResourceAcq,
           src->resource_index, name, 128)) {
     GST_ERROR_OBJECT (src, "Invalid resource index %d", src->resource_index);
     return FALSE;
   }
-  GST_DEBUG_OBJECT (src, "Trying to open resource '%s'", name);
+  GST_DEBUG_OBJECT (src, "Trying to open resource index %d ('%s')",
+      src->resource_index, name);
+
+  GST_DEBUG_OBJECT (src, "Using config file '%s'", src->format_file);
 
   SapLocation loc (src->server_index, src->resource_index);
   src->sap_acq = new SapAcquisition (loc, src->format_file);
@@ -225,20 +231,21 @@ gst_saperasrc_init_objects (GstSaperaSrc * src)
 gboolean
 gst_saperasrc_create_objects (GstSaperaSrc * src)
 {
-  UINT32 video_type = 0;
+  //UINT32 video_type = 0;
 
   /* Create acquisition object */
   if (src->sap_acq && !*src->sap_acq) {
     if (!src->sap_acq->Create ()) {
+      GST_ERROR_OBJECT (src, "Failed to create SapAcquisition");
       gst_saperasrc_destroy_objects (src);
       return FALSE;
     }
   }
 
-  if (!src->sap_acq->GetParameter (CORACQ_PRM_VIDEO, &video_type)) {
-    gst_saperasrc_destroy_objects (src);
-    return FALSE;
-  }
+  //if (!src->sap_acq->GetParameter (CORACQ_PRM_VIDEO, &video_type)) {
+  //  gst_saperasrc_destroy_objects (src);
+  //  return FALSE;
+  //}
 
   /* TODO: handle Bayer
      //if (videoType != CORACQ_VAL_VIDEO_BAYER)
@@ -255,6 +262,7 @@ gst_saperasrc_create_objects (GstSaperaSrc * src)
   // Create buffer objects
   if (src->sap_buffers && !*src->sap_buffers) {
     if (!src->sap_buffers->Create ()) {
+      GST_ERROR_OBJECT (src, "Failed to create SapBuffer");
       gst_saperasrc_destroy_objects (src);
       return FALSE;
     }
@@ -273,6 +281,7 @@ gst_saperasrc_create_objects (GstSaperaSrc * src)
   /* Create transfer object */
   if (src->sap_xfer && !*src->sap_xfer) {
     if (!src->sap_xfer->Create ()) {
+        GST_ERROR_OBJECT (src, "Failed to create SapTransfer");
       gst_saperasrc_destroy_objects (src);
       return FALSE;
     }
@@ -283,6 +292,7 @@ gst_saperasrc_create_objects (GstSaperaSrc * src)
   /* Create processing object */
   if (src->sap_pro && !*src->sap_pro) {
     if (!src->sap_pro->Create ()) {
+        GST_ERROR_OBJECT (src, "Failed to create SapProcessing");
       gst_saperasrc_destroy_objects (src);
       return FALSE;
     }
