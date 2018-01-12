@@ -196,7 +196,7 @@ gst_misb_ir_unpack_set_property (GObject * object, guint prop_id,
 
   switch (prop_id) {
     case PROP_OFFSET:
-      filt->offset_value = g_value_get_enum (value);
+      filt->offset_value = g_value_get_int (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -214,7 +214,7 @@ gst_misb_ir_unpack_get_property (GObject * object, guint prop_id,
 
   switch (prop_id) {
     case PROP_OFFSET:
-      g_value_set_enum (value, filt->offset_value);
+      g_value_set_int (value, filt->offset_value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
