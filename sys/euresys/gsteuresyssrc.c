@@ -72,7 +72,8 @@ enum
   PROP_CAMERA_TYPE,
   PROP_CONNECTOR,
   PROP_COLOR_FORMAT,
-  PROP_PIXEL_TIMING
+  PROP_PIXEL_TIMING,
+  PROP_NUM_CAPTURE_BUFFERS
 };
 
 #define DEFAULT_PROP_BOARD_INDEX  0
@@ -80,6 +81,7 @@ enum
 #define DEFAULT_PROP_CONNECTOR    GST_EURESYS_CONNECTOR_VID1
 #define DEFAULT_PROP_COLOR_FORMAT GST_EURESYS_COLOR_FORMAT_Y8
 #define DEFAULT_PROP_PIXEL_TIMING GST_EURESYS_PIXEL_TIMING_SQUARE
+#define DEFAULT_PROP_NUM_CAPTURE_BUFFERS 3
 
 /* pad templates */
 
@@ -334,6 +336,11 @@ gst_euresys_class_init (GstEuresysClass * klass)
           GST_TYPE_EURESYS_PIXEL_TIMING, DEFAULT_PROP_PIXEL_TIMING,
           G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE |
           GST_PARAM_MUTABLE_READY));
+  g_object_class_install_property (gobject_class, PROP_NUM_CAPTURE_BUFFERS,
+      g_param_spec_int ("num-capture-buffers", "Number of capture buffers",
+          "Number of capture buffers", 2, 4095,
+          DEFAULT_PROP_NUM_CAPTURE_BUFFERS,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&gst_euresys_src_template));
@@ -366,6 +373,7 @@ gst_euresys_init (GstEuresys * euresys)
   euresys->connector = DEFAULT_PROP_CONNECTOR;
   euresys->colorFormat = DEFAULT_PROP_COLOR_FORMAT;
   euresys->pixelTiming = DEFAULT_PROP_PIXEL_TIMING;
+  euresys->num_capture_buffers = DEFAULT_PROP_NUM_CAPTURE_BUFFERS;
 
   euresys->hChannel = 0;
 
@@ -406,6 +414,9 @@ gst_euresys_set_property (GObject * object, guint property_id,
     case PROP_PIXEL_TIMING:
       euresys->pixelTiming = g_value_get_enum (value);
       break;
+    case PROP_NUM_CAPTURE_BUFFERS:
+      euresys->num_capture_buffers = g_value_get_int (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -436,6 +447,9 @@ gst_euresys_get_property (GObject * object, guint property_id,
       break;
     case PROP_PIXEL_TIMING:
       g_value_set_enum (value, euresys->pixelTiming);
+      break;
+    case PROP_NUM_CAPTURE_BUFFERS:
+      g_value_set_int (value, euresys->num_capture_buffers);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -543,6 +557,16 @@ gst_euresys_start (GstBaseSrc * bsrc)
   if (status != MC_OK) {
     GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
         (("Failed to set sequence length to indeterminate value.")), (NULL));
+    goto error;
+  }
+
+  /* Set number of buffers in ring */
+  status =
+      McSetParamInt (euresys->hChannel, MC_SurfaceCount,
+      euresys->num_capture_buffers);
+  if (status != MC_OK) {
+    GST_ELEMENT_ERROR (euresys, RESOURCE, SETTINGS,
+        (("Failed to set surface count.")), (NULL));
     goto error;
   }
 

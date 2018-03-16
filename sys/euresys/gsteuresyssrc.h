@@ -85,6 +85,7 @@ struct _GstEuresys
   GstEuresysConnectorEnum connector;
   GstEuresysColorFormatEnum colorFormat;
   GstEuresysPixelTimingEnum pixelTiming;
+  gint num_capture_buffers;
 };
 
 struct _GstEuresysClass
