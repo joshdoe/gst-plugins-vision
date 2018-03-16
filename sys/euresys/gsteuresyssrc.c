@@ -88,7 +88,7 @@ GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE
-        ("{ GRAY8, RGB, ARGB, RGB_16, RGB_16 }"))
+        ("{ GRAY8, BGR, BGRx, RGB_16, RGB_16 }"))
     );
 
 int gst_euresys_connector_map[] = {
@@ -281,10 +281,10 @@ gst_euresys_color_format_to_video_format (INT32 color_format)
     case MC_ColorFormat_RGB16:
       return GST_VIDEO_FORMAT_RGB16;
     case MC_ColorFormat_RGB24:
-      return GST_VIDEO_FORMAT_RGB;
+      return GST_VIDEO_FORMAT_BGR;
     case MC_ColorFormat_RGB32:
     case MC_ColorFormat_ARGB32:
-      return GST_VIDEO_FORMAT_ARGB;
+      return GST_VIDEO_FORMAT_BGRx;
     default:
       return GST_VIDEO_FORMAT_UNKNOWN;
   }
