@@ -649,7 +649,6 @@ static GstFlowReturn
 gst_niimaqdxsrc_fill (GstPushSrc * psrc, GstBuffer * buf)
 {
   GstNiImaqDxSrc *src = GST_NIIMAQDXSRC (psrc);
-  GstFlowReturn ret = GST_FLOW_OK;
   GstClockTime timestamp = GST_CLOCK_TIME_NONE;
   GstClockTime duration;
   uInt32 copied_number;
@@ -700,7 +699,7 @@ gst_niimaqdxsrc_fill (GstPushSrc * psrc, GstBuffer * buf)
     gst_niimaqdxsrc_report_imaq_error (rval);
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("failed to copy buffer %d", src->cumbufnum), (NULL));
-    goto error;
+    return GST_FLOW_ERROR;
   }
 
   if (src->is_jpeg) {
@@ -787,12 +786,7 @@ gst_niimaqdxsrc_fill (GstPushSrc * psrc, GstBuffer * buf)
   /* set cumulative buffer number to get next frame */
   src->cumbufnum = copied_number + 1;
 
-  return ret;
-
-error:
-  {
-    return ret;
-  }
+  return GST_FLOW_OK;
 }
 
 void
