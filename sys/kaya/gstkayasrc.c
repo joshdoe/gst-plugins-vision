@@ -101,7 +101,10 @@ static GstStaticPadTemplate gst_kayasrc_src_template =
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE
         ("{ GRAY8, GRAY16_LE, GRAY16_BE, BGRA, UYVY }") ";"
-        GST_GENICAM_PIXEL_FORMAT_MAKE_BAYER8 ("{ bggr, grbg, rggb, gbrg }"))
+        GST_GENICAM_PIXEL_FORMAT_MAKE_BAYER8 ("{ bggr, grbg, rggb, gbrg }") ";"
+        GST_GENICAM_PIXEL_FORMAT_MAKE_BAYER16
+        ("{ bggr16, grbg16, rggb16, gbrg16 }", "1234")
+    )
     );
 
 
