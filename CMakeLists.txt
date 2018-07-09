@@ -82,6 +82,9 @@ macro_log_feature(IMPERX_FLEX_FOUND "Imperx FrameLink Express" "Required to buil
 find_package(IOtechDaqX)
 macro_log_feature(IOTECHDAQX_FOUND "IOtech DaqX" "Required to build IOtech DaqX source element" "http://www.mccdaq.com/" FALSE)
 
+find_package(KAYA)
+macro_log_feature(KAYA_FOUND "KAYA Vision Point" "Required to build KAYA source element" "http://www.kayainstruments.com/" FALSE)
+
 find_package(Matrox)
 macro_log_feature(MATROX_FOUND "Matrox MIL" "Required to build Matrox MIL source element" "http://www.matrox.com/imaging/" FALSE)
 

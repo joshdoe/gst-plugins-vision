@@ -22,6 +22,10 @@ if (IDSUEYE_FOUND)
 	add_subdirectory (idsueye)
 endif (IDSUEYE_FOUND)
 
+if (KAYA_FOUND)
+	add_subdirectory (kaya)
+endif (KAYA_FOUND)
+
 if (MATROX_FOUND)
 	add_subdirectory (matrox)
 endif (MATROX_FOUND)
