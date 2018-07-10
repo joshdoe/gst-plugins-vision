@@ -169,7 +169,7 @@ gst_pleorasrc_class_init (GstPleoraSrcClass * klass)
       g_param_spec_int ("timeout", "Timeout (ms)",
           "Timeout in ms (0 to use default)", 0, G_MAXINT, DEFAULT_PROP_TIMEOUT,
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
-  g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_TIMEOUT,
+  g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_DETECTION_TIMEOUT,
       g_param_spec_int ("detection-timeout", "Detection Timeout (ms)",
           "Timeout in ms to detect GigE cameras", 100,
           60000, DEFAULT_PROP_DETECTION_TIMEOUT,
