@@ -5,6 +5,10 @@ set (SOURCES
 set (HEADERS
   gstvideolevels.h)
 
+include_directories (AFTER
+  ${PROJECT_SOURCE_DIR}/common
+  )
+
 set (libname libgstvideoadjust)
 
 add_library (${libname} MODULE

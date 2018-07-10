@@ -25,7 +25,7 @@
 #ifndef __GST_VIDEO_LEVELS_H__
 #define __GST_VIDEO_LEVELS_H__
 
-#include <gst/video/gstvideofilter.h>
+#include <gst/base/gstbasetransform.h>
 #include <gst/video/video.h>
 
 G_BEGIN_DECLS
@@ -67,12 +67,16 @@ typedef enum {
 */
 struct _GstVideoLevels
 {
-  GstVideoFilter element;
+  GstBaseTransform element;
 
   /* format */
+  gint width;
+  gint height;
   gint bpp_in;
-  GstVideoInfo info_in;
-  GstVideoInfo info_out;
+  gint bpp_out;
+  gint endianness_in;
+  gint stride_in;
+  gint stride_out;
 
   /* properties */
   gint lower_input;
@@ -97,7 +101,7 @@ struct _GstVideoLevels
 
 struct _GstVideoLevelsClass
 {
-  GstVideoFilterClass parent_class;
+  GstBaseTransformClass parent_class;
 };
 
 GType gst_videolevels_get_type(void);
