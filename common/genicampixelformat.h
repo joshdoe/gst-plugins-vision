@@ -19,15 +19,15 @@
 
 #define GST_GENICAM_PIXEL_FORMAT_MAKE_BAYER8(format)                     \
    "video/x-bayer, "                                       \
-  "format = (string) { " format " }, "                     \
+  "format = (string) " format ", "                     \
   "width = " GST_VIDEO_SIZE_RANGE ", "                     \
   "height = " GST_VIDEO_SIZE_RANGE ", "                    \
   "framerate = " GST_VIDEO_FPS_RANGE
 
 #define GST_GENICAM_PIXEL_FORMAT_MAKE_BAYER16(format,endianness)         \
   "video/x-bayer, "                                        \
-  "format = (string) { " format " }, "                     \
-  "endianness = (int) { " endianness " }, "                \
+  "format = (string) " format ", "                     \
+  "endianness = (int) " endianness ", "                \
   "bpp = (int) {16, 14, 12, 10}, "                         \
   "width = " GST_VIDEO_SIZE_RANGE ", "                     \
   "height = " GST_VIDEO_SIZE_RANGE ", "                    \
@@ -233,8 +233,16 @@ gst_genicam_pixel_format_caps_from_pixel_format (const char *pixel_format,
       "framerate", GST_TYPE_FRACTION, framerate_n, framerate_d,
       "pixel-aspect-ratio", GST_TYPE_FRACTION, par_n, par_d, NULL);
 
+  if (g_str_has_prefix (pixel_format, "Bayer")) {
+      const GstGenicamPixelFormatInfo *info = gst_genicam_pixel_format_get_info(pixel_format, endianness);
+      g_assert (info);
+      gst_structure_set(structure, "bpp", G_TYPE_INT, (gint)info->bpp, NULL);
+  }
+
   caps = gst_caps_new_empty ();
   gst_caps_append_structure (caps, structure);
+
+  caps = gst_caps_fixate (caps);
 
   return caps;
 }
