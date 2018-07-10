@@ -600,12 +600,14 @@ typedef struct
 {
   GstKayaSrc *src;
   STREAM_BUFFER_HANDLE buf_handle;
+  guint32 buf_id;
 } VideoFrame;
 
 static void
 buffer_release (void *data)
 {
   VideoFrame *frame = (VideoFrame *) data;
+  GST_TRACE_OBJECT (frame->src, "Releasing buffer id=%d", frame->buf_id);
   KYFG_BufferToQueue (frame->buf_handle, KY_ACQ_QUEUE_INPUT);
   g_free (frame);
 }
@@ -617,6 +619,7 @@ gst_kayasrc_stream_buffer_callback (STREAM_BUFFER_HANDLE buffer_handle,
   GstKayaSrc *src = GST_KAYA_SRC (context);
   GstBuffer *buf;
   unsigned char *data;
+  guint32 buf_id;
   static guint64 buffers_processed = 0;
   VideoFrame *vf;
   GstClock *clock;
@@ -624,9 +627,16 @@ gst_kayasrc_stream_buffer_callback (STREAM_BUFFER_HANDLE buffer_handle,
   KYFG_BufferGetInfo (buffer_handle, KY_STREAM_BUFFER_INFO_BASE, &data, NULL,
       NULL);
 
+  KYFG_BufferGetInfo (buffer_handle, KY_STREAM_BUFFER_INFO_ID, &buf_id, NULL,
+      NULL);
+
+  GST_TRACE_OBJECT (src, "Got buffer id=%d, total_num=%d", buf_id,
+      buffers_processed);
+
   vf = g_new0 (VideoFrame, 1);
   vf->src = src;
   vf->buf_handle = buffer_handle;
+  vf->buf_id = buf_id;
   buf =
       gst_buffer_new_wrapped_full ((GstMemoryFlags) 0,
       (gpointer) data, src->frame_size, 0, src->frame_size, vf,
@@ -672,7 +682,9 @@ gst_kayasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   *buf =
       GST_BUFFER (g_async_queue_timeout_pop (src->queue, src->timeout * 1000));
   if (!*buf) {
-    return GST_FLOW_ERROR;
+    GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
+        ("Failed to get buffer in %d ms", src->timeout), (NULL));
+    goto error;
   }
 
   if (src->stop_requested) {
