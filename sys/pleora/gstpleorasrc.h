@@ -52,6 +52,9 @@ struct _GstPleoraSrc
   guint num_capture_buffers;
   gint timeout;
   gint detection_timeout;
+  gchar *multicast_group;
+  gint port;
+  gboolean receiver_only;
 
   guint32 last_frame_count;
   guint32 total_dropped_frames;
