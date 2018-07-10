@@ -192,13 +192,15 @@ gst_kayasrc_cleanup (GstKayaSrc * src)
   if (src->stream_handle != INVALID_STREAMHANDLE) {
     KYFG_StreamBufferCallbackUnregister (src->stream_handle,
         gst_kayasrc_stream_buffer_callback);
-    KYFG_StreamDelete (src->stream_handle);
+    // FIXME: we seem to get exceptions later on if we call this
+    //KYFG_StreamDelete (src->stream_handle);
     src->stream_handle = INVALID_STREAMHANDLE;
   }
 
   if (src->cam_handle != INVALID_CAMHANDLE) {
     KYFG_CameraCallbackUnregister (src->cam_handle,
         gst_kayasrc_stream_callback);
+    KYFG_CameraStop (src->cam_handle);
     KYFG_CameraClose (src->cam_handle);
     src->cam_handle = INVALID_CAMHANDLE;
   }
