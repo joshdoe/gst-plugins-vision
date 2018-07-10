@@ -638,7 +638,7 @@ gst_kayasrc_stream_buffer_callback (STREAM_BUFFER_HANDLE buffer_handle,
   vf->buf_handle = buffer_handle;
   vf->buf_id = buf_id;
   buf =
-      gst_buffer_new_wrapped_full ((GstMemoryFlags) 0,
+      gst_buffer_new_wrapped_full ((GstMemoryFlags) GST_MEMORY_FLAG_NO_SHARE,
       (gpointer) data, src->frame_size, 0, src->frame_size, vf,
       (GDestroyNotify) buffer_release);
 
