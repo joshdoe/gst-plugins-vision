@@ -734,6 +734,11 @@ GstPleoraCapsInfos gst_caps_infos[] = {
         "video/x-raw, format=(string)RGB",
         "video/x-raw", "RGB",
       24, 24, 0},
+  {
+        PvPixelRGBa8,
+        "video/x-raw, format=(string)RGBx",
+        "video/x-raw", "RGBx",
+      32, 32, 0},
 };
 
 /**
