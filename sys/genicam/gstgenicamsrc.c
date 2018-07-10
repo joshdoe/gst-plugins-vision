@@ -289,7 +289,7 @@ gst_genicamsrc_class_init (GstGenicamSrcClass * klass)
           DEFAULT_PROP_INTERFACE_ID,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               GST_PARAM_MUTABLE_READY)));
-  g_object_class_install_property (gobject_class, PROP_INTERFACE_INDEX,
+  g_object_class_install_property (gobject_class, PROP_DEVICE_INDEX,
       g_param_spec_uint ("device-index", "Device index",
           "Device index number, zero-based, overridden by device-id",
           0, G_MAXUINT, DEFAULT_PROP_DEVICE_INDEX,
