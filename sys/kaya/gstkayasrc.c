@@ -83,7 +83,8 @@ enum
   PROP_NUM_CAPTURE_BUFFERS,
   PROP_TIMEOUT,
   PROP_PROJECT_FILE,
-  PROP_XML_FILE
+  PROP_XML_FILE,
+  PROP_EXPOSURE_TIME
 };
 
 #define DEFAULT_PROP_INTERFACE_INDEX 0
@@ -92,6 +93,7 @@ enum
 #define DEFAULT_PROP_TIMEOUT 1000
 #define DEFAULT_PROP_PROJECT_FILE NULL
 #define DEFAULT_PROP_XML_FILE NULL
+#define DEFAULT_PROP_EXPOSURE_TIME 0
 
 /* pad templates */
 
@@ -176,6 +178,12 @@ gst_kayasrc_class_init (GstKayaSrcClass * klass)
           DEFAULT_PROP_XML_FILE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               GST_PARAM_MUTABLE_READY)));
+  g_object_class_install_property (G_OBJECT_CLASS (klass),
+      PROP_EXPOSURE_TIME, g_param_spec_float ("exposure-time",
+          "Exposure time (us)",
+          "Sets the exposure time in microseconds",
+          0, G_MAXFLOAT, DEFAULT_PROP_EXPOSURE_TIME,
+          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
 }
 
 static void
@@ -226,6 +234,7 @@ gst_kayasrc_init (GstKayaSrc * src)
   src->timeout = DEFAULT_PROP_TIMEOUT;
   src->project_file = DEFAULT_PROP_PROJECT_FILE;
   src->xml_file = DEFAULT_PROP_PROJECT_FILE;
+  src->exposure_time = DEFAULT_PROP_EXPOSURE_TIME;
 
   src->queue = g_async_queue_new ();
   src->caps = NULL;
@@ -234,6 +243,24 @@ gst_kayasrc_init (GstKayaSrc * src)
   src->cam_handle = INVALID_CAMHANDLE;
 
   gst_kayasrc_cleanup (src);
+}
+
+static void
+gst_kayasrc_get_exposure_time (GstKayaSrc * src)
+{
+  if (src->cam_handle != INVALID_CAMHANDLE) {
+    src->exposure_time =
+        KYFG_GetCameraValueFloat (src->cam_handle, "ExposureTime");
+  }
+}
+
+static void
+gst_kayasrc_set_exposure_time (GstKayaSrc * src)
+{
+  if (src->cam_handle != INVALID_CAMHANDLE) {
+    KYFG_SetCameraValueFloat (src->cam_handle, "ExposureTime",
+        src->exposure_time);
+  }
 }
 
 void
@@ -264,6 +291,10 @@ gst_kayasrc_set_property (GObject * object, guint property_id,
     case PROP_XML_FILE:
       g_free (src->xml_file);
       src->xml_file = g_value_dup_string (value);
+      break;
+    case PROP_EXPOSURE_TIME:
+      src->exposure_time = g_value_get_float (value);
+      gst_kayasrc_set_exposure_time (src);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -298,6 +329,10 @@ gst_kayasrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_XML_FILE:
       g_value_set_string (value, src->xml_file);
+      break;
+    case PROP_EXPOSURE_TIME:
+      gst_kayasrc_get_exposure_time (src);
+      g_value_set_float (value, src->exposure_time);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -434,6 +469,8 @@ gst_kayasrc_start (GstBaseSrc * bsrc)
     goto error;
   }
   src->cam_handle = cam_handles[src->device_index];
+
+  gst_kayasrc_set_exposure_time (src);
 
   ret =
       KYFG_CameraCallbackRegister (src->cam_handle, gst_kayasrc_stream_callback,

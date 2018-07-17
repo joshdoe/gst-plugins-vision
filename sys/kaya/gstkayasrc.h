@@ -32,6 +32,7 @@ G_BEGIN_DECLS
 #define GST_IS_KAYA_SRC(obj)   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_KAYA_SRC))
 #define GST_IS_KAYA_SRC_CLASS(obj)   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_KAYA_SRC))
 
+
 typedef struct _GstKayaSrc GstKayaSrc;
 typedef struct _GstKayaSrcClass GstKayaSrcClass;
 
@@ -53,6 +54,7 @@ struct _GstKayaSrc
   gint timeout;
   gchar *project_file;
   gchar *xml_file;
+  gfloat exposure_time;
 
   gboolean acquisition_started;
   gboolean stop_requested;
