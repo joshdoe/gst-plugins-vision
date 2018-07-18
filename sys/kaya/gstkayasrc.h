@@ -58,6 +58,7 @@ struct _GstKayaSrc
 
   gboolean acquisition_started;
   gboolean stop_requested;
+  gint64 dropped_frames;
 
   GstCaps *caps;
   GAsyncQueue *queue;

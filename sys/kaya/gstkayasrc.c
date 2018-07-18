@@ -189,6 +189,8 @@ gst_kayasrc_class_init (GstKayaSrcClass * klass)
 static void
 gst_kayasrc_cleanup (GstKayaSrc * src)
 {
+  src->frame_size = 0;
+  src->dropped_frames = 0;
   src->stop_requested = FALSE;
   src->acquisition_started = FALSE;
 
@@ -241,8 +243,8 @@ gst_kayasrc_init (GstKayaSrc * src)
 
   src->fg_handle = INVALID_FGHANDLE;
   src->cam_handle = INVALID_CAMHANDLE;
-
-  gst_kayasrc_cleanup (src);
+  src->stream_handle = INVALID_STREAMHANDLE;
+  src->buffer_handles = NULL;
 }
 
 static void
@@ -385,6 +387,8 @@ gst_kayasrc_start (GstBaseSrc * bsrc)
   size_t frame_alignment;
 
   GST_DEBUG_OBJECT (src, "start");
+
+  gst_kayasrc_cleanup (src);
 
   /* find and list all KAYA interfaces */
   num_ifaces = KYFG_Scan (NULL, 0);
@@ -540,6 +544,9 @@ gst_kayasrc_start (GstBaseSrc * bsrc)
         ("Unknown or unsupported pixel format '%s'.", pixel_format), (NULL));
     return FALSE;
   }
+
+  src->stop_requested = FALSE;
+  src->dropped_frames = 0;
 
   return TRUE;
 
@@ -700,7 +707,7 @@ static GstFlowReturn
 gst_kayasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 {
   GstKayaSrc *src = GST_KAYA_SRC (psrc);
-  guint32 dropped_frames = 0;
+  gint64 dropped_frames = 0;
 
   GST_LOG_OBJECT (src, "create");
 
@@ -722,6 +729,25 @@ gst_kayasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
     GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
         ("Failed to get buffer in %d ms", src->timeout), (NULL));
     goto error;
+  }
+
+  dropped_frames =
+      KYFG_GetGrabberValueInt (src->cam_handle, "DropFrameCounter");
+  if (dropped_frames > src->dropped_frames) {
+    GstStructure *info_msg;
+    gint64 just_dropped = dropped_frames - src->dropped_frames;
+    src->dropped_frames = dropped_frames;
+
+    GST_WARNING_OBJECT (src, "Just dropped %d frames (%d total)", just_dropped,
+        src->dropped_frames);
+
+    info_msg = gst_structure_new ("dropped-frame-info",
+        "num-dropped-frames", G_TYPE_INT, just_dropped,
+        "total-dropped-frames", G_TYPE_INT, src->dropped_frames,
+        "timestamp", GST_TYPE_CLOCK_TIME, GST_BUFFER_TIMESTAMP (buf), NULL);
+    gst_element_post_message (GST_ELEMENT (src),
+        gst_message_new_element (GST_OBJECT (src), info_msg));
+    src->dropped_frames = dropped_frames;
   }
 
   if (src->stop_requested) {
