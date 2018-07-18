@@ -62,6 +62,14 @@ GstGenicamPixelFormatInfo gst_genicam_pixel_format_infos[] = {
   ,
   {"Mono 16", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_BE"), 16, 16, 4}
   ,
+  {"RGB 8", 0, GST_VIDEO_CAPS_MAKE ("RGB"), 24, 24, 4}
+  ,
+  {"BGR 8", 0, GST_VIDEO_CAPS_MAKE ("BGR"), 24, 24, 4}
+  ,
+  {"RGBa 8", 0, GST_VIDEO_CAPS_MAKE ("RGBA"), 32, 32, 4}
+  ,
+  {"BGRa 8", 0, GST_VIDEO_CAPS_MAKE ("BGRA"), 32, 32, 4}
+  ,
   {"BGRA 8 Packed", 0, GST_VIDEO_CAPS_MAKE ("BGRA"), 32, 32, 4}
   ,
   {"YUV 422 Packed", 0, GST_VIDEO_CAPS_MAKE ("UYVY"), 16, 16, 4}
