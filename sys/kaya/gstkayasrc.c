@@ -461,7 +461,7 @@ gst_kayasrc_start (GstBaseSrc * bsrc)
   }
   GST_DEBUG_OBJECT (src, "About to open camera at index %d", src->device_index);
   if (src->xml_file && strlen (src->xml_file) > 0) {
-    if (!g_file_test (src->project_file, G_FILE_TEST_EXISTS)) {
+    if (!g_file_test (src->xml_file, G_FILE_TEST_EXISTS)) {
       GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
           ("XML file specified does not exist: %s", src->xml_file), (NULL));
       goto error;
