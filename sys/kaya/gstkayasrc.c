@@ -380,7 +380,8 @@ gst_kayasrc_start (GstBaseSrc * bsrc)
   FGSTATUS ret;
   uint32_t i, num_ifaces, num_cameras = 0;
   guint32 width, height;
-  gchar *pixel_format;
+  gchar camera_pixel_format[256], grabber_pixel_format[256];
+  guint32 str_size;
   KY_DEVICE_INFO devinfo;
   KYFGCAMERA_INFO caminfo;
   CAMHANDLE cam_handles[4] = { 0 };
@@ -521,13 +522,24 @@ gst_kayasrc_start (GstBaseSrc * bsrc)
       KYFG_BufferQueueAll (src->stream_handle, KY_ACQ_QUEUE_UNQUEUED,
       KY_ACQ_QUEUE_INPUT);
 
-
   width = (guint32) KYFG_GetCameraValueInt (src->cam_handle, "Width");
   height = (guint32) KYFG_GetCameraValueInt (src->cam_handle, "Height");
-  ret =
-      KYFG_GetCameraValueString (src->cam_handle, "PixelFormat", &pixel_format);
+  GST_DEBUG_OBJECT (src, "Camera resolution is %dx%d", width, height);
 
-  GST_DEBUG_OBJECT (src, "Camera is %dx%d, %s", width, height, pixel_format);
+  str_size = sizeof (grabber_pixel_format);
+  ret = KYFG_GetGrabberValueStringCopy (src->cam_handle, "PixelFormat",
+      grabber_pixel_format, &str_size);
+  str_size = sizeof (camera_pixel_format);
+  ret = KYFG_GetCameraValueStringCopy (src->cam_handle, "PixelFormat",
+      camera_pixel_format, &str_size);
+  GST_DEBUG_OBJECT (src, "PixelFormat of camera is %s, grabber is %s",
+      camera_pixel_format, grabber_pixel_format);
+
+  /* check if PixelFormat is Normal, in which case we use camera value */
+  if (g_strcmp0 (grabber_pixel_format, "Normal") == 0) {
+    g_strlcpy (grabber_pixel_format, camera_pixel_format,
+        sizeof (grabber_pixel_format));
+  }
 
   /* create caps */
   if (src->caps) {
@@ -536,12 +548,13 @@ gst_kayasrc_start (GstBaseSrc * bsrc)
   }
 
   src->caps =
-      gst_genicam_pixel_format_caps_from_pixel_format (pixel_format,
+      gst_genicam_pixel_format_caps_from_pixel_format (grabber_pixel_format,
       G_BYTE_ORDER, width, height, 30, 1, 1, 1);
 
   if (src->caps == NULL) {
     GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
-        ("Unknown or unsupported pixel format '%s'.", pixel_format), (NULL));
+        ("Unknown or unsupported pixel format '%s'.", grabber_pixel_format),
+        (NULL));
     return FALSE;
   }
 
