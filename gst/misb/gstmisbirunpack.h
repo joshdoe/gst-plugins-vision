@@ -60,7 +60,9 @@ struct _GstMisbIrUnpack
   GstVideoInfo info_out;
 
   /* properties */
-  guint offset_value;
+  gint offset_value;
+  guint shift_value;
+  gboolean swap;
 };
 
 struct _GstMisbIrUnpackClass

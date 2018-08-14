@@ -55,10 +55,14 @@ enum
 {
   PROP_0,
   PROP_OFFSET,
+  PROP_SHIFT,
+  PROP_SWAP,
   PROP_LAST
 };
 
-#define DEFAULT_PROP_OFFSET 64
+#define DEFAULT_PROP_OFFSET -64
+#define DEFAULT_PROP_SHIFT 8
+#define DEFAULT_PROP_SWAP FALSE
 
 /* the capabilities of the inputs and outputs */
 static GstStaticPadTemplate gst_misb_ir_unpack_sink_template =
@@ -152,8 +156,17 @@ gst_misb_ir_unpack_class_init (GstMisbIrUnpackClass * klass)
   g_object_class_install_property (G_OBJECT_CLASS (klass),
       PROP_OFFSET, g_param_spec_int ("offset",
           "Offset value",
-          "Offset value to apply during unpacking", 0, 1023,
+          "Offset value to apply during unpacking", -1023, 1023,
           DEFAULT_PROP_OFFSET, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
+  g_object_class_install_property (G_OBJECT_CLASS (klass),
+      PROP_SHIFT, g_param_spec_uint ("shift",
+          "Shift value",
+          "Bits to left shift luminance component during unpacking", 0, 15,
+          DEFAULT_PROP_SHIFT, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
+  g_object_class_install_property (G_OBJECT_CLASS (klass),
+      PROP_SWAP, g_param_spec_boolean ("swap", "Swap luma and chroma",
+          "Whether to swap luminance and chrominance components",
+          DEFAULT_PROP_SWAP, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&gst_misb_ir_unpack_sink_template));
@@ -181,6 +194,9 @@ gst_misb_ir_unpack_init (GstMisbIrUnpack * filt)
   GST_DEBUG_OBJECT (filt, "init class instance");
 
   filt->offset_value = DEFAULT_PROP_OFFSET;
+  filt->shift_value = DEFAULT_PROP_SHIFT;
+  filt->swap = DEFAULT_PROP_SWAP;
+
   gst_base_transform_set_in_place (GST_BASE_TRANSFORM (filt), FALSE);
 
   gst_misb_ir_unpack_reset (filt);
@@ -197,6 +213,12 @@ gst_misb_ir_unpack_set_property (GObject * object, guint prop_id,
   switch (prop_id) {
     case PROP_OFFSET:
       filt->offset_value = g_value_get_int (value);
+      break;
+    case PROP_SHIFT:
+      filt->shift_value = g_value_get_uint (value);
+      break;
+    case PROP_SWAP:
+      filt->swap = g_value_get_boolean (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -215,6 +237,12 @@ gst_misb_ir_unpack_get_property (GObject * object, guint prop_id,
   switch (prop_id) {
     case PROP_OFFSET:
       g_value_set_int (value, filt->offset_value);
+      break;
+    case PROP_SHIFT:
+      g_value_set_uint (value, filt->shift_value);
+      break;
+    case PROP_SWAP:
+      g_value_set_boolean (value, filt->swap);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -289,7 +317,8 @@ gst_misb_ir_unpack_transform_frame (GstVideoFilter * filter,
 {
   GstMisbIrUnpack *filt = GST_MISB_IR_UNPACK (filter);
   GTimer *timer = NULL;
-  guint offset = filt->offset_value;
+  gint16 offset = filt->offset_value;
+  guint shift = filt->shift_value;
   gint x, y;
   guint32 *src;
   guint16 *dst;
@@ -308,19 +337,35 @@ gst_misb_ir_unpack_transform_frame (GstVideoFilter * filter,
     for (x = 0; x < GST_VIDEO_FRAME_COMP_WIDTH (in_frame, 0);) {
       guint32 word0 = *src++;
       guint32 word1 = *src++;
-      guint16 luma, chroma;
+      guint16 luma, chroma, temp;
 
       chroma = word0 & 0x3ff;
       luma = (word0 & 0xffc00) >> 10;
-      dst[x++] = ((chroma - offset) & 0xff) | (((luma - offset) & 0xff) << 8);
+      if (filt->swap) {
+        temp = chroma;
+        chroma = luma;
+        luma = temp;
+      }
+      dst[x++] =
+          ((chroma + offset) & 0xff) | (((luma + offset) & 0xff) << shift);
 
       chroma = (word0 & 0x3ff00000) >> 20;
       luma = word1 & 0x3ff;
-      dst[x++] = (chroma - offset) & 0xff | ((luma - offset) & 0xff) << 8;
+      if (filt->swap) {
+        temp = chroma;
+        chroma = luma;
+        luma = temp;
+      }
+      dst[x++] = (chroma + offset) & 0xff | ((luma + offset) & 0xff) << shift;
 
       chroma = (word1 & 0xffc00) >> 10;
       luma = (word1 & 0x3ff00000) >> 20;
-      dst[x++] = (chroma - offset) & 0xff | ((luma - offset) & 0xff) << 8;
+      if (filt->swap) {
+        temp = chroma;
+        chroma = luma;
+        luma = temp;
+      }
+      dst[x++] = (chroma + offset) & 0xff | ((luma + offset) & 0xff) << shift;
     }
   }
 
