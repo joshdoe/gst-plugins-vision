@@ -504,26 +504,30 @@ gst_pixcisrc_start (GstBaseSrc * bsrc)
 {
   GstPixciSrc *src = GST_PIXCI_SRC (bsrc);
   int pxerr;
-  GEnumClass *video_format_enum_class;
-  GEnumValue *video_format_enum_value;
 
   GST_DEBUG_OBJECT (src, "start");
 
-  if (strlen (src->format_file)
-      && !g_file_test (src->format_file, G_FILE_TEST_EXISTS)) {
-    GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
-        ("Format file does not exist: %s", src->format_file), (NULL));
-    return FALSE;
+  /* open with either a format name or config file */
+  if (strlen (src->format_file)) {
+    if (!g_file_test (src->format_file, G_FILE_TEST_EXISTS)) {
+      GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
+          ("Format file does not exist: %s", src->format_file), (NULL));
+      return FALSE;
+    }
+
+    pxerr = pxd_PIXCIopen (src->driver_params, NULL, src->format_file);
+  } else {
+    GEnumClass *video_format_enum_class;
+    GEnumValue *video_format_enum_value;
+    video_format_enum_class = g_type_class_ref (GST_TYPE_PIXCI_VIDEO_FORMAT);
+    video_format_enum_value =
+        g_enum_get_value (video_format_enum_class, src->format_name);
+    pxerr =
+        pxd_PIXCIopen (src->driver_params, video_format_enum_value->value_name,
+        NULL);
+    g_type_class_unref (video_format_enum_class);
   }
 
-  /* open XCLIB library and driver */
-  video_format_enum_class = g_type_class_ref (GST_TYPE_PIXCI_VIDEO_FORMAT);
-  video_format_enum_value =
-      g_enum_get_value (video_format_enum_class, src->format_name);
-  pxerr =
-      pxd_PIXCIopen (src->driver_params, video_format_enum_value->value_name,
-      src->format_file);
-  g_type_class_unref (video_format_enum_class);
   if (pxerr) {
     char buf[1024];
     pxd_mesgFaultText (src->unitmap, buf, 1024);
