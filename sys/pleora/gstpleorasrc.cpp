@@ -109,7 +109,8 @@ static GstStaticPadTemplate gst_pleorasrc_src_template =
     GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (VIDEO_CAPS_MAKE_BAYER16 ("{ bggr16, grbg16, rggb16, gbrg16 }") ";"
+    GST_STATIC_CAPS (VIDEO_CAPS_MAKE_BAYER16
+        ("{ bggr16, grbg16, rggb16, gbrg16 }") ";"
         VIDEO_CAPS_MAKE_BAYER8 ("{ bggr, grbg, rggb, gbrg }") ";"
         GST_VIDEO_CAPS_MAKE ("{ GRAY16_LE, GRAY16_BE, GRAY8, UYVY, YUY2, RGB }")
     )
@@ -169,9 +170,9 @@ gst_pleorasrc_class_init (GstPleoraSrcClass * klass)
       g_param_spec_int ("timeout", "Timeout (ms)",
           "Timeout in ms (0 to use default)", 0, G_MAXINT, DEFAULT_PROP_TIMEOUT,
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
-  g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_DETECTION_TIMEOUT,
-      g_param_spec_int ("detection-timeout", "Detection Timeout (ms)",
-          "Timeout in ms to detect GigE cameras", 100,
+  g_object_class_install_property (G_OBJECT_CLASS (klass),
+      PROP_DETECTION_TIMEOUT, g_param_spec_int ("detection-timeout",
+          "Detection Timeout (ms)", "Timeout in ms to detect GigE cameras", 100,
           60000, DEFAULT_PROP_DETECTION_TIMEOUT,
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
   g_object_class_install_property (gobject_class, PROP_MULTICAST_GROUP,
@@ -182,8 +183,7 @@ gst_pleorasrc_class_init (GstPleoraSrcClass * klass)
               GST_PARAM_MUTABLE_READY)));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_PORT,
       g_param_spec_int ("port", "Multicast port",
-          "The port of the multicast group.", 0,
-          65535, DEFAULT_PROP_PORT,
+          "The port of the multicast group.", 0, 65535, DEFAULT_PROP_PORT,
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_RECEIVER_ONLY,
       g_param_spec_boolean ("receiver-only", "Receiver only",
@@ -223,7 +223,7 @@ gst_pleorasrc_init (GstPleoraSrc * src)
   src->num_capture_buffers = DEFAULT_PROP_NUM_CAPTURE_BUFFERS;
   src->timeout = DEFAULT_PROP_TIMEOUT;
   src->detection_timeout = DEFAULT_PROP_DETECTION_TIMEOUT;
-  src->multicast_group= g_strdup (DEFAULT_PROP_MULTICAST_GROUP);
+  src->multicast_group = g_strdup (DEFAULT_PROP_MULTICAST_GROUP);
   src->port = DEFAULT_PROP_PORT;
   src->receiver_only = DEFAULT_PROP_RECEIVER_ONLY;
 
@@ -533,34 +533,35 @@ gst_pleorasrc_setup_device (GstPleoraSrc * src)
 
   /* open as controller by connecting to device */
   if (!src->receiver_only) {
-      GST_DEBUG_OBJECT (src, "Trying to connect to device '%s'",
-          device_info->GetDisplayID ().GetAscii ());
+    GST_DEBUG_OBJECT (src, "Trying to connect to device '%s'",
+        device_info->GetDisplayID ().GetAscii ());
 
-      src->device = PvDevice::CreateAndConnect (device_info, &pvRes);
-      if (src->device == NULL) {
-          GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
-              ("Unable to create and connect to device"), (NULL));
-          return FALSE;
-      }
-      GST_DEBUG_OBJECT (src, "Connected to device");
-  }
-
-  if (device_info->GetType() == PvDeviceInfoTypeGEV ||
-      device_info->GetType() == PvDeviceInfoTypePleoraProtocol) {
-      GST_DEBUG_OBJECT (src, "Opening multicast stream");
-      PvStreamGEV *stream = new PvStreamGEV;
-      // FIXME: need to add prop for enabling multicast
-      stream->Open(device_info->GetConnectionID(), src->multicast_group, src->port);
-      src->stream = stream;
-  } else {
-      src->stream =
-          PvStream::CreateAndOpen (device_info->GetConnectionID (), &pvRes);
-  }
-
-  if (src->stream == NULL) {
+    src->device = PvDevice::CreateAndConnect (device_info, &pvRes);
+    if (src->device == NULL) {
       GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
           ("Unable to create and connect to device"), (NULL));
       return FALSE;
+    }
+    GST_DEBUG_OBJECT (src, "Connected to device");
+  }
+
+  if (device_info->GetType () == PvDeviceInfoTypeGEV ||
+      device_info->GetType () == PvDeviceInfoTypePleoraProtocol) {
+    GST_DEBUG_OBJECT (src, "Opening multicast stream");
+    PvStreamGEV *stream = new PvStreamGEV;
+    // FIXME: need to add prop for enabling multicast
+    stream->Open (device_info->GetConnectionID (), src->multicast_group,
+        src->port);
+    src->stream = stream;
+  } else {
+    src->stream =
+        PvStream::CreateAndOpen (device_info->GetConnectionID (), &pvRes);
+  }
+
+  if (src->stream == NULL) {
+    GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
+        ("Unable to create and connect to device"), (NULL));
+    return FALSE;
   }
   GST_DEBUG_OBJECT (src, "Stream created for device");
 
@@ -820,28 +821,29 @@ gst_pleorasrc_start (GstBaseSrc * bsrc)
 
   /* command stream to start */
   if (!src->receiver_only) {
-      PvGenParameterArray *lDeviceParams = src->device->GetParameters ();
-      PvGenCommand *start_cmd =
-          dynamic_cast < PvGenCommand * >(lDeviceParams->Get ("AcquisitionStart"));
+    PvGenParameterArray *lDeviceParams = src->device->GetParameters ();
+    PvGenCommand *start_cmd =
+        dynamic_cast <
+        PvGenCommand * >(lDeviceParams->Get ("AcquisitionStart"));
 
-      if (start_cmd == NULL) {
-          GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-              ("Failed to get device AcquisitionStart parameter"), (NULL));
-          goto error;
-      }
-      pvRes = src->device->StreamEnable ();
-      if (!pvRes.IsOK ()) {
-          GST_ELEMENT_ERROR (src, RESOURCE, FAILED, ("Failed to enable stream"),
-              (NULL));
-          goto error;
-      }
+    if (start_cmd == NULL) {
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+          ("Failed to get device AcquisitionStart parameter"), (NULL));
+      goto error;
+    }
+    pvRes = src->device->StreamEnable ();
+    if (!pvRes.IsOK ()) {
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED, ("Failed to enable stream"),
+          (NULL));
+      goto error;
+    }
 
-      pvRes = start_cmd->Execute ();
-      if (!pvRes.IsOK ()) {
-          GST_ELEMENT_ERROR (src, RESOURCE, FAILED, ("Failed to start acquisition"),
-              (NULL));
-          goto error;
-      }
+    pvRes = start_cmd->Execute ();
+    if (!pvRes.IsOK ()) {
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED, ("Failed to start acquisition"),
+          (NULL));
+      goto error;
+    }
   }
 
   return TRUE;
@@ -874,11 +876,11 @@ gst_pleorasrc_stop (GstBaseSrc * bsrc)
   GST_DEBUG_OBJECT (src, "stop");
 
   if (!src->receiver_only) {
-      PvGenParameterArray *lDeviceParams = src->device->GetParameters ();
-      PvGenCommand *lStop =
-          dynamic_cast < PvGenCommand * >(lDeviceParams->Get ("AcquisitionStop"));
-      lStop->Execute ();
-      src->device->StreamDisable ();
+    PvGenParameterArray *lDeviceParams = src->device->GetParameters ();
+    PvGenCommand *lStop =
+        dynamic_cast < PvGenCommand * >(lDeviceParams->Get ("AcquisitionStop"));
+    lStop->Execute ();
+    src->device->StreamDisable ();
   }
   src->pipeline->Stop ();
 
@@ -1026,8 +1028,8 @@ pvbuffer_release (void *data)
 {
   VideoFrame *frame = (VideoFrame *) data;
   if (frame->src->pipeline) {
-      // TODO: should use a mutex in case _stop is being called at the same time
-      frame->src->pipeline->ReleaseBuffer (frame->buffer);
+    // TODO: should use a mutex in case _stop is being called at the same time
+    frame->src->pipeline->ReleaseBuffer (frame->buffer);
   }
 }
 
@@ -1045,34 +1047,37 @@ gst_pleorasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   GST_LOG_OBJECT (src, "create");
 
   while (TRUE) {
-      pvRes = src->pipeline->RetrieveNextBuffer (&pvbuffer, src->timeout, &opRes);
-      if (!pvRes.IsOK()) {
-          GST_ELEMENT_ERROR (src, RESOURCE, FAILED, ("Failed to retrieve buffer in timeout (%d ms): 0x%04x, '%s'", src->timeout, pvRes.GetCode(), pvRes.GetDescription().GetAscii()), (NULL));
-          return GST_FLOW_ERROR;
-      }
+    pvRes = src->pipeline->RetrieveNextBuffer (&pvbuffer, src->timeout, &opRes);
+    if (!pvRes.IsOK ()) {
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+          ("Failed to retrieve buffer in timeout (%d ms): 0x%04x, '%s'",
+              src->timeout, pvRes.GetCode (),
+              pvRes.GetDescription ().GetAscii ()), (NULL));
+      return GST_FLOW_ERROR;
+    }
+    // continue if we get a bad frame
+    if (!opRes.IsOK ()) {
+      GST_WARNING_OBJECT (src, "Failed to get buffer: 0x%04x, '%s'",
+          opRes.GetCode (), opRes.GetCodeString ().GetAscii ());
+      src->pipeline->ReleaseBuffer (pvbuffer);
+      continue;
+    }
 
-      // continue if we get a bad frame
-      if (!opRes.IsOK()) {
-          GST_WARNING_OBJECT(src, "Failed to get buffer: 0x%04x, '%s'", opRes.GetCode(), opRes.GetCodeString().GetAscii());
-          src->pipeline->ReleaseBuffer(pvbuffer);
-          continue;
-      }
+    if (pvbuffer->GetPayloadType () != PvPayloadTypeImage) {
+      /* TODO: are non-image buffers normal? */
+      GST_ERROR_OBJECT (src, "Got buffer with non-image data");
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+          ("Got buffer with non-image data"), (NULL));
+      return GST_FLOW_ERROR;
+    }
 
-      if (pvbuffer->GetPayloadType () != PvPayloadTypeImage) {
-        /* TODO: are non-image buffers normal? */
-        GST_ERROR_OBJECT (src, "Got buffer with non-image data");
-        GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-            ("Got buffer with non-image data"), (NULL));
-        return GST_FLOW_ERROR;
-      }
+    pvimage = pvbuffer->GetImage ();
 
-      pvimage = pvbuffer->GetImage ();
-
-      break;
+    break;
   }
 
-    const char *caps_string =
-          gst_pleorasrc_pixel_type_to_gst_caps_string (pvimage->GetPixelType ());
+  const char *caps_string =
+      gst_pleorasrc_pixel_type_to_gst_caps_string (pvimage->GetPixelType ());
 
   /* TODO: cache previous caps_string */
   if (caps_string != NULL) {
