@@ -63,6 +63,8 @@ struct _GstMisbIrUnpack
   gint offset_value;
   guint shift_value;
   gboolean swap;
+  guint luma_mask;
+  guint chroma_mask;
 };
 
 struct _GstMisbIrUnpackClass

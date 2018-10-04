@@ -57,19 +57,23 @@ enum
   PROP_OFFSET,
   PROP_SHIFT,
   PROP_SWAP,
+  PROP_LUMA_MASK,
+  PROP_CHROMA_MASK,
   PROP_LAST
 };
 
 #define DEFAULT_PROP_OFFSET -64
 #define DEFAULT_PROP_SHIFT 8
 #define DEFAULT_PROP_SWAP FALSE
+#define DEFAULT_PROP_LUMA_MASK 0xff
+#define DEFAULT_PROP_CHROMA_MASK 0xff
 
 /* the capabilities of the inputs and outputs */
 static GstStaticPadTemplate gst_misb_ir_unpack_sink_template =
 GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("v210"))
+    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("{ v210, UYVY }"))
     );
 
 static GstStaticPadTemplate gst_misb_ir_unpack_src_template =
@@ -156,7 +160,7 @@ gst_misb_ir_unpack_class_init (GstMisbIrUnpackClass * klass)
   g_object_class_install_property (G_OBJECT_CLASS (klass),
       PROP_OFFSET, g_param_spec_int ("offset",
           "Offset value",
-          "Offset value to apply during unpacking", -1023, 1023,
+          "Offset value to apply during unpacking", -0xffff, 0xffff,
           DEFAULT_PROP_OFFSET, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
   g_object_class_install_property (G_OBJECT_CLASS (klass),
       PROP_SHIFT, g_param_spec_uint ("shift",
@@ -167,6 +171,16 @@ gst_misb_ir_unpack_class_init (GstMisbIrUnpackClass * klass)
       PROP_SWAP, g_param_spec_boolean ("swap", "Swap luma and chroma",
           "Whether to swap luminance and chrominance components",
           DEFAULT_PROP_SWAP, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
+  g_object_class_install_property (G_OBJECT_CLASS (klass),
+      PROP_LUMA_MASK, g_param_spec_uint ("luma-mask",
+          "Luma mask",
+          "Mask to bitwise AND with luma after applying offset", 0, 0xffff,
+          DEFAULT_PROP_LUMA_MASK, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
+  g_object_class_install_property (G_OBJECT_CLASS (klass),
+      PROP_CHROMA_MASK, g_param_spec_uint ("chroma-mask",
+          "Chroma mask",
+          "Mask to bitwise AND with chroma after applying offset", 0, 0xffff,
+          DEFAULT_PROP_LUMA_MASK, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&gst_misb_ir_unpack_sink_template));
@@ -196,6 +210,8 @@ gst_misb_ir_unpack_init (GstMisbIrUnpack * filt)
   filt->offset_value = DEFAULT_PROP_OFFSET;
   filt->shift_value = DEFAULT_PROP_SHIFT;
   filt->swap = DEFAULT_PROP_SWAP;
+  filt->luma_mask = DEFAULT_PROP_LUMA_MASK;
+  filt->chroma_mask = DEFAULT_PROP_CHROMA_MASK;
 
   gst_base_transform_set_in_place (GST_BASE_TRANSFORM (filt), FALSE);
 
@@ -220,6 +236,12 @@ gst_misb_ir_unpack_set_property (GObject * object, guint prop_id,
     case PROP_SWAP:
       filt->swap = g_value_get_boolean (value);
       break;
+    case PROP_LUMA_MASK:
+      filt->luma_mask = g_value_get_uint (value);
+      break;
+    case PROP_CHROMA_MASK:
+      filt->chroma_mask = g_value_get_uint (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -243,6 +265,12 @@ gst_misb_ir_unpack_get_property (GObject * object, guint prop_id,
       break;
     case PROP_SWAP:
       g_value_set_boolean (value, filt->swap);
+      break;
+    case PROP_LUMA_MASK:
+      g_value_set_uint (value, filt->luma_mask);
+      break;
+    case PROP_CHROMA_MASK:
+      g_value_set_uint (value, filt->chroma_mask);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -269,7 +297,8 @@ gst_misb_ir_unpack_transform_caps (GstBaseTransform * trans,
       newstruct =
           gst_structure_new_from_string ("video/x-raw,format=GRAY16_LE");
     } else {
-      newstruct = gst_structure_new_from_string ("video/x-raw,format=v210");
+      newstruct =
+          gst_structure_new_from_string ("video/x-raw,format={v210,UYVY}");
     }
 
     gst_structure_set_value (newstruct, "width",
@@ -320,7 +349,6 @@ gst_misb_ir_unpack_transform_frame (GstVideoFilter * filter,
   gint16 offset = filt->offset_value;
   guint shift = filt->shift_value;
   gint x, y;
-  guint32 *src;
   guint16 *dst;
 
   GST_LOG_OBJECT (filt, "Performing non-inplace transform");
@@ -329,46 +357,73 @@ gst_misb_ir_unpack_transform_frame (GstVideoFilter * filter,
   timer = g_timer_new ();
 #endif
 
-  for (y = 0; y < GST_VIDEO_FRAME_COMP_HEIGHT (in_frame, 0); y++) {
-    src = (guint32 *) (GST_VIDEO_FRAME_COMP_DATA (in_frame, 0) +
-        y * GST_VIDEO_FRAME_COMP_STRIDE (in_frame, 0));
-    dst = (guint16 *) (GST_VIDEO_FRAME_COMP_DATA (out_frame, 0) +
-        y * GST_VIDEO_FRAME_COMP_STRIDE (out_frame, 0));
-    for (x = 0; x < GST_VIDEO_FRAME_COMP_WIDTH (in_frame, 0);) {
-      guint32 word0 = *src++;
-      guint32 word1 = *src++;
-      guint16 luma, chroma, temp;
+  if (filt->info_in.finfo->format == GST_VIDEO_FORMAT_v210) {
+    for (y = 0; y < GST_VIDEO_FRAME_COMP_HEIGHT (in_frame, 0); y++) {
+      guint32 *src = (guint32 *) (GST_VIDEO_FRAME_COMP_DATA (in_frame, 0) +
+          y * GST_VIDEO_FRAME_COMP_STRIDE (in_frame, 0));
+      dst = (guint16 *) (GST_VIDEO_FRAME_COMP_DATA (out_frame, 0) +
+          y * GST_VIDEO_FRAME_COMP_STRIDE (out_frame, 0));
+      for (x = 0; x < GST_VIDEO_FRAME_COMP_WIDTH (in_frame, 0);) {
+        guint32 word0 = *src++;
+        guint32 word1 = *src++;
+        guint16 luma, chroma, temp;
 
-      chroma = word0 & 0x3ff;
-      luma = (word0 & 0xffc00) >> 10;
-      if (filt->swap) {
-        temp = chroma;
-        chroma = luma;
-        luma = temp;
-      }
-      dst[x++] =
-          ((chroma + offset) & 0xff) | (((luma + offset) & 0xff) << shift);
+        chroma = word0 & 0x3ff;
+        luma = (word0 & 0xffc00) >> 10;
+        if (filt->swap) {
+          temp = chroma;
+          chroma = luma;
+          luma = temp;
+        }
+        dst[x++] =
+            ((chroma + offset) & filt->chroma_mask) | (((luma +
+                    offset) & filt->luma_mask) << shift);
 
-      chroma = (word0 & 0x3ff00000) >> 20;
-      luma = word1 & 0x3ff;
-      if (filt->swap) {
-        temp = chroma;
-        chroma = luma;
-        luma = temp;
-      }
-      dst[x++] = (chroma + offset) & 0xff | ((luma + offset) & 0xff) << shift;
+        chroma = (word0 & 0x3ff00000) >> 20;
+        luma = word1 & 0x3ff;
+        if (filt->swap) {
+          temp = chroma;
+          chroma = luma;
+          luma = temp;
+        }
+        dst[x++] =
+            (chroma + offset) & filt->chroma_mask | ((luma +
+                offset) & filt->luma_mask) << shift;
 
-      chroma = (word1 & 0xffc00) >> 10;
-      luma = (word1 & 0x3ff00000) >> 20;
-      if (filt->swap) {
-        temp = chroma;
-        chroma = luma;
-        luma = temp;
+        chroma = (word1 & 0xffc00) >> 10;
+        luma = (word1 & 0x3ff00000) >> 20;
+        if (filt->swap) {
+          temp = chroma;
+          chroma = luma;
+          luma = temp;
+        }
+        dst[x++] =
+            (chroma + offset) & filt->chroma_mask | ((luma +
+                offset) & filt->luma_mask) << shift;
       }
-      dst[x++] = (chroma + offset) & 0xff | ((luma + offset) & 0xff) << shift;
+    }
+  } else if (filt->info_in.finfo->format == GST_VIDEO_FORMAT_UYVY) {
+    for (y = 0; y < GST_VIDEO_FRAME_COMP_HEIGHT (in_frame, 0); y++) {
+      guint8 *src = (guint8 *) (GST_VIDEO_FRAME_COMP_DATA (in_frame, 0) +
+          y * GST_VIDEO_FRAME_COMP_STRIDE (in_frame, 0));
+      dst = (guint16 *) (GST_VIDEO_FRAME_COMP_DATA (out_frame, 0) +
+          y * GST_VIDEO_FRAME_COMP_STRIDE (out_frame, 0));
+      for (x = 0; x < GST_VIDEO_FRAME_COMP_WIDTH (in_frame, 0);) {
+        guint8 chroma = *src++;
+        guint8 luma = *src++;
+        guint8 temp;
+
+        if (filt->swap) {
+          temp = chroma;
+          chroma = luma;
+          luma = temp;
+        }
+        dst[x++] =
+            ((chroma + offset) & filt->chroma_mask) | (((luma +
+                    offset) & filt->luma_mask) << shift);
+      }
     }
   }
-
 #if 0
   GST_LOG_OBJECT (filt, "Processing took %.3f ms", g_timer_elapsed (timer,
           NULL) * 1000);
