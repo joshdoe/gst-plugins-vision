@@ -1017,7 +1017,7 @@ gst_pleorasrc_unlock_stop (GstBaseSrc * bsrc)
 
 typedef struct
 {
-  PvPipeline *pipeline;
+  GstPleoraSrc *src;
   PvBuffer *buffer;
 } VideoFrame;
 
@@ -1025,7 +1025,10 @@ static void
 pvbuffer_release (void *data)
 {
   VideoFrame *frame = (VideoFrame *) data;
-  frame->pipeline->ReleaseBuffer (frame->buffer);
+  if (frame->src->pipeline) {
+      // TODO: should use a mutex in case _stop is being called at the same time
+      frame->src->pipeline->ReleaseBuffer (frame->buffer);
+  }
 }
 
 static GstFlowReturn
@@ -1096,7 +1099,7 @@ gst_pleorasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   }
 
   VideoFrame *vf = g_new0 (VideoFrame, 1);
-  vf->pipeline = src->pipeline;
+  vf->src = src;
   vf->buffer = pvbuffer;
   gpointer data = pvimage->GetDataPointer ();
   gsize data_size = pvimage->GetImageSize ();
