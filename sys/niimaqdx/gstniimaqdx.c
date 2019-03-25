@@ -151,72 +151,78 @@ gst_niimaqdxsrc_frame_done_callback (IMAQdxSession session, uInt32 bufferNumber,
 
 /* TODO: handle the format mappings more intelligently */
 ImaqDxCapsInfo imaq_dx_caps_infos[] = {
-  {"Mono 8", 0, GST_VIDEO_CAPS_MAKE ("GRAY8"), 8, 8, 4}
-  ,
   {"Mono8", 0, GST_VIDEO_CAPS_MAKE ("GRAY8"), 8, 8, 4}
-  ,
-  {"Mono 10", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 10, 16, 4}
-  ,
-  {"Mono 10", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_BE"), 10, 16, 4}
   ,
   {"Mono10", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 10, 16, 4}
   ,
   {"Mono10", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_BE"), 10, 16, 4}
   ,
-  {"Mono 12", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 12, 16, 4}
-  ,
-  {"Mono 12", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_BE"), 12, 16, 4}
-  ,
   {"Mono12", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 12, 16, 4}
   ,
   {"Mono12", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_BE"), 12, 16, 4}
-  ,
-  {"Mono 14", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 14, 16, 4}
-  ,
-  {"Mono 14", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_BE"), 14, 16, 4}
   ,
   {"Mono14", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 14, 16, 4}
   ,
   {"Mono14", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 14, 16, 4}
   ,
-  {"Mono 16", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 16, 16, 4}
-  ,
-  {"Mono 16", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_BE"), 16, 16, 4}
-  ,
   {"Mono16", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 16, 16, 4}
   ,
   {"Mono16", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_BE"), 16, 16, 4}
   ,
-  {"BGRA 8 Packed", 0, GST_VIDEO_CAPS_MAKE ("BGRA"), 32, 32, 4}
+  {"RGB8", 0, GST_VIDEO_CAPS_MAKE ("RGB"), 24, 24, 4}
   ,
-  {"YUV 422 Packed", 0, GST_VIDEO_CAPS_MAKE ("UYVY"), 16, 16, 4}
+  {"BGR8", 0, GST_VIDEO_CAPS_MAKE ("BGR"), 24, 24, 4}
   ,
-  {"Bayer BG 8", 0, VIDEO_CAPS_MAKE_BAYER8 ("bggr"), 8, 8, 1}
+  {"RGBa8", 0, GST_VIDEO_CAPS_MAKE ("RGBA"), 32, 32, 4}
   ,
-  {"Bayer GR 8", 0, VIDEO_CAPS_MAKE_BAYER8 ("grbg"), 8, 8, 1}
+  {"BGRa8", 0, GST_VIDEO_CAPS_MAKE ("BGRA"), 32, 32, 4}
   ,
-  {"Bayer RG 8", 0, VIDEO_CAPS_MAKE_BAYER8 ("rggb"), 8, 8, 1}
+  {"BGRA8Packed", 0, GST_VIDEO_CAPS_MAKE ("BGRA"), 32, 32, 4}
   ,
-  {"Bayer GB 8", 0, VIDEO_CAPS_MAKE_BAYER8 ("gbrg"), 8, 8, 1}
+  {"YUV411_8_UYYVYY", 0, GST_VIDEO_CAPS_MAKE ("IYU1"), 16, 16, 4}
+  ,                             /* deprecated by YUV411_8_UYYVYY */
+  {"YUV411Packed", 0, GST_VIDEO_CAPS_MAKE ("IYU1"), 16, 16, 4}
   ,
-  {"Bayer BG 12", 0, VIDEO_CAPS_MAKE_BAYER16 ("bggr16", "1234"), 12, 16, 1}
+  {"YUV422_8_UYVY", 0, GST_VIDEO_CAPS_MAKE ("UYVY"), 16, 16, 4}
+  ,                             /* deprecated by YUV422_8_UYVY */
+  {"YUV422Packed", 0, GST_VIDEO_CAPS_MAKE ("UYVY"), 16, 16, 4}
   ,
-  {"Bayer GR 12", 0, VIDEO_CAPS_MAKE_BAYER16 ("grbg16", "1234"), 12, 16, 1}
+  {"YUV8_UYV", 0, GST_VIDEO_CAPS_MAKE ("v308"), 16, 16, 4}
+  ,                             /* deprecated by YUV8_UYV */
+  {"YUV444Packed", 0, GST_VIDEO_CAPS_MAKE ("v308"), 16, 16, 4}
   ,
-  {"Bayer RG 12", 0, VIDEO_CAPS_MAKE_BAYER16 ("rggb16", "1234"), 12, 16, 1}
+  {"BayerBG8", 0, VIDEO_CAPS_MAKE_BAYER8 ("bggr"), 8, 8, 1}
   ,
-  {"Bayer GB 12", 0, VIDEO_CAPS_MAKE_BAYER16 ("gbrg16", "1234"), 12, 16, 1}
+  {"BayerGR8", 0, VIDEO_CAPS_MAKE_BAYER8 ("grbg"), 8, 8, 1}
+  ,
+  {"BayerRG8", 0, VIDEO_CAPS_MAKE_BAYER8 ("rggb"), 8, 8, 1}
+  ,
+  {"BayerGB8", 0, VIDEO_CAPS_MAKE_BAYER8 ("gbrg"), 8, 8, 1}
+  ,
+  {"BayerBG10", 0, VIDEO_CAPS_MAKE_BAYER16 ("bggr16", "1234"), 10, 16, 1}
+  ,
+  {"BayerGR10", 0, VIDEO_CAPS_MAKE_BAYER16 ("grbg16", "1234"), 10, 16, 1}
+  ,
+  {"BayerRG10", 0, VIDEO_CAPS_MAKE_BAYER16 ("rggb16", "1234"), 10, 16, 1}
+  ,
+  {"BayerGB10", 0, VIDEO_CAPS_MAKE_BAYER16 ("gbrg16", "1234"), 10, 16, 1}
+  ,
+  {"BayerBG12", 0, VIDEO_CAPS_MAKE_BAYER16 ("bggr16", "1234"), 12, 16, 1}
+  ,
+  {"BayerGR12", 0, VIDEO_CAPS_MAKE_BAYER16 ("grbg16", "1234"), 12, 16, 1}
+  ,
+  {"BayerRG12", 0, VIDEO_CAPS_MAKE_BAYER16 ("rggb16", "1234"), 12, 16, 1}
+  ,
+  {"BayerGB12", 0, VIDEO_CAPS_MAKE_BAYER16 ("gbrg16", "1234"), 12, 16, 1}
   ,
   //TODO: use a caps string that agrees with Aravis
-  {"Bayer BG 16", 0, VIDEO_CAPS_MAKE_BAYER16 ("bggr16", "1234"), 16, 16, 1}
+  {"BayerBG16", 0, VIDEO_CAPS_MAKE_BAYER16 ("bggr16", "1234"), 16, 16, 1}
   ,
-  {"Bayer GR 16", 0, VIDEO_CAPS_MAKE_BAYER16 ("grbg16", "1234"), 16, 16, 1}
+  {"BayerGR16", 0, VIDEO_CAPS_MAKE_BAYER16 ("grbg16", "1234"), 16, 16, 1}
   ,
-  {"Bayer RG 16", 0, VIDEO_CAPS_MAKE_BAYER16 ("rggb16", "1234"), 16, 16, 1}
+  {"BayerRG16", 0, VIDEO_CAPS_MAKE_BAYER16 ("rggb16", "1234"), 16, 16, 1}
   ,
-  {"BayerRG 16", 0, VIDEO_CAPS_MAKE_BAYER16 ("rggb16", "1234"), 16, 16, 1}
-  ,
-  {"Bayer GB 16", 0, VIDEO_CAPS_MAKE_BAYER16 ("gbrg16", "1234"), 16, 16, 1}
+  {"BayerGB16", 0, VIDEO_CAPS_MAKE_BAYER16 ("gbrg16", "1234"), 16, 16, 1}
   ,
   {"JPEG", 0, "image/jpeg", 8, 8, 1}
 };
@@ -225,15 +231,24 @@ static const ImaqDxCapsInfo *
 gst_niimaqdxsrc_get_caps_info (const char *pixel_format, int endianness)
 {
   int i;
+  /* some cameras include spaces in pixel format names, so remove them */
+  char **split = g_strsplit (pixel_format, " ", -1);
+  char *pix_fmt = g_strjoinv (NULL, split);
+  g_strfreev (split);
 
   for (i = 0; i < G_N_ELEMENTS (imaq_dx_caps_infos); i++) {
     ImaqDxCapsInfo *info = &imaq_dx_caps_infos[i];
-    if (g_strcmp0 (pixel_format, info->pixel_format) == 0 &&
-        (info->endianness == endianness || info->endianness == 0))
+    if (g_strcmp0 (pix_fmt, info->pixel_format) == 0 &&
+        (info->endianness == endianness || info->endianness == 0)) {
+      g_free (pix_fmt);
       return info;
+    }
   }
 
+  g_free (pix_fmt);
+
   GST_WARNING ("PixelFormat '%s' is not supported", pixel_format);
+
   return NULL;
 }
 
@@ -831,7 +846,7 @@ gst_niimaqdxsrc_list_attributes (GstNiImaqDxSrc * src)
     } else
       attributeString[0] = 0;
 
-    GST_DEBUG_OBJECT (src, "%s, %s/%s, %s, %s\n",
+    GST_LOG_OBJECT (src, "%s, %s/%s, %s, %s\n",
         info->Name, info->Readable ? "R" : "-",
         info->Writable ? "W" : "-",
         attributeTypeStrings[info->Type], attributeString);
@@ -896,6 +911,8 @@ gst_niimaqdxsrc_get_cam_caps (GstNiImaqDxSrc * src)
   } else {
     endianness = G_BIG_ENDIAN;
   }
+
+  GST_DEBUG_OBJECT (src, "Camera has pixel format '%s'", pixel_format);
 
   if (g_str_has_prefix (pixel_format, "Bayer") && src->bayer_as_gray) {
     const ImaqDxCapsInfo *info =
