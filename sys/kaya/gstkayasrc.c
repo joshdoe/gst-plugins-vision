@@ -269,8 +269,12 @@ static void
 gst_kayasrc_set_exposure_time (GstKayaSrc * src)
 {
   if (src->cam_handle != INVALID_CAMHANDLE) {
-    KYFG_SetCameraValueFloat (src->cam_handle, "ExposureTime",
+    FGSTATUS ret = KYFG_SetCameraValueFloat (src->cam_handle, "ExposureTime",
         src->exposure_time);
+    if (ret != FGSTATUS_OK) {
+      GST_WARNING_OBJECT (src, "Exposure time %.3f invalid",
+          src->exposure_time);
+    }
   }
 }
 
