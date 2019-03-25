@@ -84,7 +84,8 @@ enum
   PROP_TIMEOUT,
   PROP_PROJECT_FILE,
   PROP_XML_FILE,
-  PROP_EXPOSURE_TIME
+  PROP_EXPOSURE_TIME,
+  PROP_EXECUTE_COMMAND
 };
 
 #define DEFAULT_PROP_INTERFACE_INDEX 0
@@ -94,6 +95,7 @@ enum
 #define DEFAULT_PROP_PROJECT_FILE NULL
 #define DEFAULT_PROP_XML_FILE NULL
 #define DEFAULT_PROP_EXPOSURE_TIME 0
+#define DEFAULT_PROP_EXECUTE_COMMAND NULL
 
 /* pad templates */
 
@@ -184,6 +186,12 @@ gst_kayasrc_class_init (GstKayaSrcClass * klass)
           "Sets the exposure time in microseconds",
           0, G_MAXFLOAT, DEFAULT_PROP_EXPOSURE_TIME,
           G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
+  g_object_class_install_property (gobject_class, PROP_EXECUTE_COMMAND,
+      g_param_spec_string ("execute-command", "Command to execute",
+          "Name of a command to execute after opening the camera (e.g., UserSetLoadReg)",
+          DEFAULT_PROP_EXECUTE_COMMAND,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+              GST_PARAM_MUTABLE_READY)));
 }
 
 static void
@@ -237,6 +245,7 @@ gst_kayasrc_init (GstKayaSrc * src)
   src->project_file = DEFAULT_PROP_PROJECT_FILE;
   src->xml_file = DEFAULT_PROP_PROJECT_FILE;
   src->exposure_time = DEFAULT_PROP_EXPOSURE_TIME;
+  src->execute_command = DEFAULT_PROP_EXECUTE_COMMAND;
 
   src->queue = g_async_queue_new ();
   src->caps = NULL;
@@ -298,6 +307,10 @@ gst_kayasrc_set_property (GObject * object, guint property_id,
       src->exposure_time = g_value_get_float (value);
       gst_kayasrc_set_exposure_time (src);
       break;
+    case PROP_EXECUTE_COMMAND:
+      g_free (src->execute_command);
+      src->execute_command = g_value_dup_string (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -335,6 +348,9 @@ gst_kayasrc_get_property (GObject * object, guint property_id,
     case PROP_EXPOSURE_TIME:
       gst_kayasrc_get_exposure_time (src);
       g_value_set_float (value, src->exposure_time);
+      break;
+    case PROP_EXECUTE_COMMAND:
+      g_value_set_string (value, src->execute_command);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -474,6 +490,10 @@ gst_kayasrc_start (GstBaseSrc * bsrc)
     goto error;
   }
   src->cam_handle = cam_handles[src->device_index];
+
+  if (src->execute_command && src->execute_command[0] != 0) {
+    KYFG_CameraExecuteCommand (src->cam_handle, src->execute_command);
+  }
 
   gst_kayasrc_set_exposure_time (src);
 

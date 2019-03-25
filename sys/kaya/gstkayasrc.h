@@ -55,6 +55,7 @@ struct _GstKayaSrc
   gchar *project_file;
   gchar *xml_file;
   gfloat exposure_time;
+  gchar *execute_command;
 
   gboolean acquisition_started;
   gboolean stop_requested;
