@@ -39,7 +39,7 @@ if (NIIMAQDX_FOUND)
 endif (NIIMAQDX_FOUND)
 
 if (IMPERX_FLEX_FOUND)
-    add_subdirectory (imperx)
+    add_subdirectory (imperxflex)
 endif ()
 
 if (IOTECHDAQX_FOUND)
