@@ -42,6 +42,10 @@ if (IMPERX_FLEX_FOUND)
     add_subdirectory (imperxflex)
 endif ()
 
+if (IMPERX_SDI_FOUND)
+    add_subdirectory (imperxsdi)
+endif ()
+
 if (IOTECHDAQX_FOUND)
 	add_subdirectory (iotechdaqx)
 endif (IOTECHDAQX_FOUND)

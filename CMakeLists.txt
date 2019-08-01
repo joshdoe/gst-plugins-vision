@@ -79,6 +79,9 @@ macro_log_feature(IDSUEYE_FOUND "IDS uEye" "Required to build IDS uEye source el
 find_package(Imperx)
 macro_log_feature(IMPERX_FLEX_FOUND "Imperx FrameLink Express" "Required to build Imperx FrameLink Express source element" "http://www.imperx.com/" FALSE)
 
+find_package(ImperxSDI)
+macro_log_feature(IMPERX_SDI_FOUND "Imperx HD-SDI Express" "Required to build Imperx HD-SDI Express source element" "http://www.imperx.com/" FALSE)
+
 find_package(IOtechDaqX)
 macro_log_feature(IOTECHDAQX_FOUND "IOtech DaqX" "Required to build IOtech DaqX source element" "http://www.mccdaq.com/" FALSE)
 
