@@ -62,7 +62,7 @@ struct _GstPleoraSrc
   GstCaps *caps;
   gint height;
   gint gst_stride;
-  gint bf_stride;
+  gint pleora_stride;
 
   gboolean stop_requested;
 };
