@@ -83,7 +83,7 @@ enum
 #define DEFAULT_PROP_NUM_CAPTURE_BUFFERS 3
 #define DEFAULT_PROP_TIMEOUT 1000
 #define DEFAULT_PROP_DETECTION_TIMEOUT 1000
-#define DEFAULT_PROP_MULTICAST_GROUP "239.192.1.1"
+#define DEFAULT_PROP_MULTICAST_GROUP "0.0.0.0"
 #define DEFAULT_PROP_PORT 1042
 #define DEFAULT_PROP_RECEIVER_ONLY FALSE
 
@@ -177,7 +177,7 @@ gst_pleorasrc_class_init (GstPleoraSrcClass * klass)
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
   g_object_class_install_property (gobject_class, PROP_MULTICAST_GROUP,
       g_param_spec_string ("multicast-group", "Multicast group IP address",
-          "The address of the multicast group to join.",
+          "The address of the multicast group to join (default is unicast)",
           DEFAULT_PROP_MULTICAST_GROUP,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               GST_PARAM_MUTABLE_READY)));
@@ -388,8 +388,8 @@ gst_pleorasrc_print_device_info (GstPleoraSrc * src,
         "Device found on network interface '%s', MAC: %s, IP: %s, Subnet: %s",
         iface_nic->GetDescription ().GetAscii (),
         iface_nic->GetMACAddress ().GetAscii (),
-        iface_nic->GetIPAddress ().GetAscii (),
-        iface_nic->GetSubnetMask ().GetAscii ());
+        iface_nic->GetIPAddress (0).GetAscii (),
+        iface_nic->GetSubnetMask (0).GetAscii ());
   } else if (iface_usb != NULL) {
     GST_DEBUG_OBJECT (src,
         "Device found on USB interface, VEN_%04X&DEV_%04X&SUBSYS_%08X&REV_%02X, '%s', %s Speed",
@@ -549,9 +549,15 @@ gst_pleorasrc_setup_device (GstPleoraSrc * src)
       device_info->GetType () == PvDeviceInfoTypePleoraProtocol) {
     GST_DEBUG_OBJECT (src, "Opening multicast stream");
     PvStreamGEV *stream = new PvStreamGEV;
-    // FIXME: need to add prop for enabling multicast
-    stream->Open (device_info->GetConnectionID (), src->multicast_group,
-        src->port);
+    if (g_strcmp0 (src->multicast_group, DEFAULT_PROP_MULTICAST_GROUP) != 0) {
+      GST_DEBUG_OBJECT (src, "Opening device in multicast mode, %s:%d",
+          src->multicast_group, src->port);
+      stream->Open (device_info->GetConnectionID (), src->multicast_group,
+          src->port);
+    } else {
+      GST_DEBUG_OBJECT (src, "Opening device in unicast mode");
+      stream->Open (device_info->GetConnectionID ());
+    }
     src->stream = stream;
   } else {
     src->stream =
@@ -825,6 +831,9 @@ gst_pleorasrc_start (GstBaseSrc * bsrc)
     PvGenCommand *start_cmd =
         dynamic_cast <
         PvGenCommand * >(lDeviceParams->Get ("AcquisitionStart"));
+
+    GST_DEBUG_OBJECT (src,
+        "Opened as controller, so send AcquisitionStart command");
 
     if (start_cmd == NULL) {
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
