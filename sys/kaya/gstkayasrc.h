@@ -24,6 +24,8 @@
 
 #include <KYFGLib.h>
 
+#define KAYA_SRC_MAX_FG_HANDLES 16
+
 G_BEGIN_DECLS
 
 #define GST_TYPE_KAYA_SRC   (gst_kayasrc_get_type())
@@ -31,17 +33,20 @@ G_BEGIN_DECLS
 #define GST_KAYA_SRC_CLASS(klass)   (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_KAYA_SRC,GstKayaSrcClass))
 #define GST_IS_KAYA_SRC(obj)   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_KAYA_SRC))
 #define GST_IS_KAYA_SRC_CLASS(obj)   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_KAYA_SRC))
-
+#define GST_KAYA_SRC_GET_CLASS(klass) \
+    (G_TYPE_INSTANCE_GET_CLASS ((klass), GST_TYPE_KAYA_SRC, GstKayaSrcClass))
 
 typedef struct _GstKayaSrc GstKayaSrc;
 typedef struct _GstKayaSrcClass GstKayaSrcClass;
+
+typedef struct _GstKayaSrcFramegrabber GstKayaSrcFramegrabber;
 
 struct _GstKayaSrc
 {
   GstPushSrc base_kayasrc;
 
   /* handles */
-  FGHANDLE fg_handle;
+  GstKayaSrcFramegrabber *fg_data;
   CAMHANDLE cam_handle;
   STREAM_HANDLE stream_handle;
   STREAM_BUFFER_HANDLE *buffer_handles;
@@ -58,6 +63,7 @@ struct _GstKayaSrc
   gchar *execute_command;
 
   gboolean acquisition_started;
+  guint64 frame_count;
   gboolean stop_requested;
   gint64 dropped_frames;
 
@@ -68,9 +74,20 @@ struct _GstKayaSrc
   GstClockTime kaya_base;
 };
 
+struct _GstKayaSrcFramegrabber
+{
+    FGHANDLE fg_handle;
+    guint32 ref_count;
+    CAMHANDLE cam_handles[4];
+    int num_cams;
+    GMutex fg_mutex;
+};
+
 struct _GstKayaSrcClass
 {
   GstPushSrcClass base_kayasrc_class;
+
+  GstKayaSrcFramegrabber fg_data[KAYA_SRC_MAX_FG_HANDLES];
 };
 
 GType gst_kayasrc_get_type (void);
