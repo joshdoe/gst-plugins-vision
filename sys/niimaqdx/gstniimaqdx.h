@@ -86,6 +86,10 @@ struct _GstNiImaqDxSrc {
   gboolean session_started;
 
   GAsyncQueue *time_queue;
+
+  GstClock *clock;
+  GstClockTime stream_base;
+  GstClockTime unix_base;
 };
 
 struct _GstNiImaqDxSrcClass {

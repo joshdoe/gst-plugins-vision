@@ -123,8 +123,7 @@ gst_niimaqdxsrc_frame_done_callback (IMAQdxSession session, uInt32 bufferNumber,
   time_entry = g_new (GstNiImaqDxSrcTimeEntry, 1);
 
   /* get clock time */
-  time_entry->clock_time =
-      gst_clock_get_time (gst_element_get_clock (GST_ELEMENT (src)));
+  time_entry->clock_time = gst_clock_get_time (src->clock);
   time_entry->frame_index = bufferNumber;
 
   g_async_queue_push (src->time_queue, time_entry);
@@ -132,6 +131,10 @@ gst_niimaqdxsrc_frame_done_callback (IMAQdxSession session, uInt32 bufferNumber,
   /* return 1 to rearm the callback */
   return 1;
 }
+
+#if GST_CHECK_VERSION(1,14,0)
+static GstStaticCaps unix_reference = GST_STATIC_CAPS ("timestamp/x-unix");
+#endif
 
 #define VIDEO_CAPS_MAKE_BAYER8(format)                     \
    "video/x-bayer, "                                       \
@@ -515,6 +518,7 @@ gst_niimaqdxsrc_init (GstNiImaqDxSrc * src)
   /* initialize pointers, then call reset to initialize the rest */
   src->temp_buffer = NULL;
   src->time_queue = NULL;
+  src->clock = NULL;
   gst_niimaqdxsrc_reset (src);
 }
 
@@ -627,6 +631,11 @@ gst_niimaqdxsrc_reset (GstNiImaqDxSrc * src)
     g_async_queue_unref (src->time_queue);
   }
   src->time_queue = g_async_queue_new ();
+
+  if (src->clock) {
+    gst_object_unref (src->clock);
+    src->clock = NULL;
+  }
 }
 
 static gboolean
@@ -674,11 +683,17 @@ gst_niimaqdxsrc_fill (GstPushSrc * psrc, GstBuffer * buf)
 
   /* start the IMAQ acquisition session if we haven't done so yet */
   if (!src->session_started) {
+    src->clock = gst_element_get_clock (GST_ELEMENT (src));
+
     if (!gst_niimaqdxsrc_start_acquisition (src)) {
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
           ("Unable to start acquisition."), (NULL));
       return GST_FLOW_ERROR;
     }
+
+    /* assume delay between these two calls is negligible */
+    src->unix_base = g_get_real_time () * 1000;
+    src->stream_base = gst_clock_get_time (src->clock);
   }
 
   /* will change attributes if provided */
@@ -719,7 +734,7 @@ gst_niimaqdxsrc_fill (GstPushSrc * psrc, GstBuffer * buf)
 
   if (src->is_jpeg) {
     /* JPEG sources don't seem to give reliable callbacks, just pull clock */
-    timestamp = gst_clock_get_time (gst_element_get_clock (GST_ELEMENT (src)));
+    timestamp = gst_clock_get_time (src->clock);
   }
 
   while (timestamp == GST_CLOCK_TIME_NONE) {
@@ -780,6 +795,23 @@ gst_niimaqdxsrc_fill (GstPushSrc * psrc, GstBuffer * buf)
       timestamp - gst_element_get_base_time (GST_ELEMENT (src));
   // TODO: fix duration
   //GST_BUFFER_DURATION (buf) = duration;
+#if GST_CHECK_VERSION(1,14,0)
+  {
+    GstClockTime unix_ts = src->unix_base + (timestamp - src->stream_base);
+    gst_buffer_add_reference_timestamp_meta (buf,
+        gst_static_caps_get (&unix_reference), unix_ts, GST_CLOCK_TIME_NONE);
+    GST_LOG_OBJECT (src, "Buffer #%d, adding unix timestamp: %llu",
+        GST_BUFFER_OFFSET (buf), unix_ts);
+    /*{
+       GDateTime *frame_time, *tmpdt;
+       tmpdt = g_date_time_new_from_unix_utc (0);
+       frame_time = g_date_time_add_seconds(tmpdt, (gdouble)unix_ts / GST_SECOND);
+       g_date_time_unref (tmpdt);
+       GST_LOG ("Unix timestamp added is: %s.%d", g_date_time_format (frame_time, "%Y-%m-%d %H:%M:%S"), g_date_time_get_microsecond(frame_time));
+       g_date_time_unref (frame_time);
+       } */
+  }
+#endif
 
   dropped = copied_number - src->cumbufnum;
   if (dropped > 0) {
