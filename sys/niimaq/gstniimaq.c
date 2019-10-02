@@ -32,8 +32,6 @@
  * </refsect2>
  */
 
-/* FIXME: timestamps sent in GST_TAG_DATE_TIME are off, need to adjust for time of first buffer */
-
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -103,6 +101,10 @@ static gboolean gst_niimaqsrc_close_interface (GstNiImaqSrc * src);
     GST_ERROR_OBJECT (src, "IMAQ error: %s", imaq_error_string); \
   }                                                  \
 }
+
+#if GST_CHECK_VERSION(1,14,0)
+static GstStaticCaps unix_reference = GST_STATIC_CAPS ("timestamp/x-unix");
+#endif
 
 uInt32
 gst_niimaqsrc_aq_in_progress_callback (SESSION_ID sid, IMG_ERR err,
@@ -322,6 +324,8 @@ gst_niimaqsrc_init (GstNiImaqSrc * src)
   src->interface_name = g_strdup (DEFAULT_PROP_DEVICE);
   src->is_signed = DEFAULT_PROP_IS_SIGNED;
   src->timeout = DEFAULT_PROP_TIMEOUT;
+
+  src->clock = NULL;
 }
 
 /**
@@ -459,6 +463,10 @@ gst_niimaqsrc_reset (GstNiImaqSrc * src)
     g_async_queue_unref (src->time_queue);
   }
   src->time_queue = g_async_queue_new ();
+
+  if (src->clock) {
+    gst_object_unref (src->clock);
+  }
 }
 
 static gboolean
@@ -510,6 +518,11 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
           ("Unable to start acquisition."), (NULL));
       return GST_FLOW_ERROR;
     }
+
+    src->clock = gst_element_get_clock (GST_ELEMENT (src));
+    /* assume delay between these two calls is negligible */
+    src->unix_base = g_get_real_time () * 1000;
+    src->stream_base = gst_clock_get_time (src->clock);
   }
 
   GST_LOG_OBJECT (src, "Allocating memory for IMAQ buffer #%d, size %d",
@@ -586,6 +599,23 @@ gst_niimaqsrc_create (GstPushSrc * psrc, GstBuffer ** buffer)
   GST_BUFFER_OFFSET_END (*buffer) = copied_number + 1;
   GST_BUFFER_TIMESTAMP (*buffer) =
       timestamp - gst_element_get_base_time (GST_ELEMENT (src));
+#if GST_CHECK_VERSION(1,14,0)
+  {
+    GstClockTime unix_ts = src->unix_base + (timestamp - src->stream_base);
+    gst_buffer_add_reference_timestamp_meta (*buffer,
+        gst_static_caps_get (&unix_reference), unix_ts, GST_CLOCK_TIME_NONE);
+    GST_LOG_OBJECT (src, "Buffer #%d, adding unix timestamp: %llu",
+        GST_BUFFER_OFFSET (buffer), unix_ts);
+    /*{
+       GDateTime *frame_time, *tmpdt;
+       tmpdt = g_date_time_new_from_unix_utc (0);
+       frame_time = g_date_time_add_seconds(tmpdt, (gdouble)unix_ts / GST_SECOND);
+       g_date_time_unref (tmpdt);
+       GST_LOG ("Unix timestamp added is: %s.%d", g_date_time_format (frame_time, "%Y-%m-%d %H:%M:%S"), g_date_time_get_microsecond(frame_time));
+       g_date_time_unref (frame_time);
+       } */
+  }
+#endif
 
   dropped = copied_number - src->cumbufnum;
   if (dropped > 0) {
