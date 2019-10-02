@@ -447,7 +447,7 @@ plugin_init (GstPlugin * plugin)
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    extract_color,
+    extractcolor,
     "Filter that applies various hacks to a video stream",
     plugin_init, GST_PACKAGE_VERSION, GST_PACKAGE_LICENSE, GST_PACKAGE_NAME,
     GST_PACKAGE_ORIGIN);
