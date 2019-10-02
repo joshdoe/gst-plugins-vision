@@ -63,6 +63,9 @@ struct _GstKayaSrc
 
   GstCaps *caps;
   GAsyncQueue *queue;
+
+  GstClockTime unix_base;
+  GstClockTime kaya_base;
 };
 
 struct _GstKayaSrcClass

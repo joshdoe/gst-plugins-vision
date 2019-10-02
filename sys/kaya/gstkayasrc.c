@@ -112,6 +112,11 @@ static GstStaticPadTemplate gst_kayasrc_src_template =
     );
 
 
+#if GST_CHECK_VERSION(1,14,0)
+static GstStaticCaps unix_reference = GST_STATIC_CAPS ("timestamp/x-unix");
+#endif
+
+
 /* class initialization */
 
 G_DEFINE_TYPE (GstKayaSrc, gst_kayasrc, GST_TYPE_PUSH_SRC);
@@ -201,6 +206,7 @@ gst_kayasrc_cleanup (GstKayaSrc * src)
   src->dropped_frames = 0;
   src->stop_requested = FALSE;
   src->acquisition_started = FALSE;
+  src->kaya_base = GST_CLOCK_TIME_NONE;
 
   if (src->caps) {
     gst_caps_unref (src->caps);
@@ -254,6 +260,8 @@ gst_kayasrc_init (GstKayaSrc * src)
   src->cam_handle = INVALID_CAMHANDLE;
   src->stream_handle = INVALID_STREAMHANDLE;
   src->buffer_handles = NULL;
+
+  src->kaya_base = GST_CLOCK_TIME_NONE;
 }
 
 static void
@@ -702,12 +710,14 @@ gst_kayasrc_stream_buffer_callback (STREAM_BUFFER_HANDLE buffer_handle,
   unsigned char *data;
   guint32 buf_id;
   static guint64 buffers_processed = 0;
+  GstClockTime timestamp;
   VideoFrame *vf;
   GstClock *clock;
 
+  KYFG_BufferGetInfo (buffer_handle, KY_STREAM_BUFFER_INFO_TIMESTAMP,
+      &timestamp, NULL, NULL);
   KYFG_BufferGetInfo (buffer_handle, KY_STREAM_BUFFER_INFO_BASE, &data, NULL,
       NULL);
-
   KYFG_BufferGetInfo (buffer_handle, KY_STREAM_BUFFER_INFO_ID, &buf_id, NULL,
       NULL);
 
@@ -722,6 +732,29 @@ gst_kayasrc_stream_buffer_callback (STREAM_BUFFER_HANDLE buffer_handle,
       gst_buffer_new_wrapped_full ((GstMemoryFlags) GST_MEMORY_FLAG_NO_SHARE,
       (gpointer) data, src->frame_size, 0, src->frame_size, vf,
       (GDestroyNotify) buffer_release);
+
+  if (src->kaya_base == GST_CLOCK_TIME_NONE) {
+    /* assume delay between these two calls is negligible */
+    src->kaya_base = KYFG_GetGrabberValueInt (src->cam_handle, "Timestamp");
+    src->unix_base = g_get_real_time () * 1000;
+  }
+#if GST_CHECK_VERSION(1,14,0)
+  {
+    GstClockTime unix_ts = src->unix_base + (timestamp - src->kaya_base);
+    gst_buffer_add_reference_timestamp_meta (buf,
+        gst_static_caps_get (&unix_reference), unix_ts, GST_CLOCK_TIME_NONE);
+    GST_LOG_OBJECT (src, "Buffer #%d, adding unix timestamp: %llu",
+        GST_BUFFER_OFFSET (buf), unix_ts);
+    /*{
+       GDateTime *frame_time, *tmpdt;
+       tmpdt = g_date_time_new_from_unix_utc (0);
+       frame_time = g_date_time_add_seconds(tmpdt, (gdouble)unix_ts / GST_SECOND);
+       g_date_time_unref (tmpdt);
+       GST_LOG ("Unix timestamp added is: %s.%d", g_date_time_format (frame_time, "%Y-%m-%d %H:%M:%S"), g_date_time_get_microsecond(frame_time));
+       g_date_time_unref (frame_time);
+       } */
+  }
+#endif
 
   clock = gst_element_get_clock (GST_ELEMENT (src));
   GST_BUFFER_TIMESTAMP (buf) =
