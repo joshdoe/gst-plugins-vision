@@ -706,7 +706,7 @@ gst_niimaqdxsrc_fill (GstPushSrc * psrc, GstBuffer * buf)
     return GST_FLOW_ERROR;
   }
 
-  GST_LOG_OBJECT (src, "Copying IMAQ buffer #%d, buffersize %d",
+  GST_LOG_OBJECT (src, "Trying to copy IMAQ buffer #%d, buffersize %d",
       src->cumbufnum, gst_buffer_get_size (buf));
 
   do_align_stride = src->dx_row_stride != src->gst_row_stride;
@@ -732,6 +732,14 @@ gst_niimaqdxsrc_fill (GstPushSrc * psrc, GstBuffer * buf)
     return GST_FLOW_ERROR;
   }
 
+  if (src->cumbufnum == 0 && src->cumbufnum != copied_number) {
+    /* with some cameras we always lose the first few frames, don't report
+       these as dropped frames */
+    GST_DEBUG_OBJECT (src, "Asked to copy buffer %d, was given %d instead",
+        src->cumbufnum, copied_number);
+    src->cumbufnum = copied_number;
+  }
+
   if (src->is_jpeg) {
     /* JPEG sources don't seem to give reliable callbacks, just pull clock */
     timestamp = gst_clock_get_time (src->clock);
@@ -748,13 +756,13 @@ gst_niimaqdxsrc_fill (GstPushSrc * psrc, GstBuffer * buf)
     }
 
     if (entry->frame_index < copied_number) {
-      GST_DEBUG_OBJECT (src,
-          "Got clocktime for frame %d while handling frame %d, frames dropped?",
+      GST_LOG_OBJECT (src,
+          "Discarding timestamp for frame %d while searching for frame %d",
           entry->frame_index, copied_number);
       g_free (entry);
       continue;
     } else if (entry->frame_index > copied_number) {
-      GST_DEBUG_OBJECT (src,
+      GST_WARNING_OBJECT (src,
           "Failed to get clocktime for frame %d, got one for frame %d instead",
           copied_number, entry->frame_index);
       g_free (entry);
