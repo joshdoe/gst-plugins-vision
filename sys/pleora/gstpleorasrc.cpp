@@ -43,6 +43,7 @@
 #include <PvDeviceGEV.h>
 #include <PvStreamGEV.h>
 #include <PvSystem.h>
+#include <PvVersion.h>
 
 GST_DEBUG_CATEGORY_STATIC (gst_pleorasrc_debug);
 #define GST_CAT_DEFAULT gst_pleorasrc_debug
@@ -384,12 +385,18 @@ gst_pleorasrc_print_device_info (GstPleoraSrc * src,
       const PvUSBHostController * >(device_info->GetInterface ());
 
   if (iface_nic != NULL) {
+    const char *ip, *subnet;
+#if VERSION_MAJOR == 4
+    ip = iface_nic->GetIPAddress ().GetAscii ();
+    subnet = iface_nic->GetSubnetMask ().GetAscii ();
+#else
+    ip = iface_nic->GetIPAddress (0).GetAscii ();
+    subnet = iface_nic->GetSubnetMask (0).GetAscii ();
+#endif
     GST_DEBUG_OBJECT (src,
         "Device found on network interface '%s', MAC: %s, IP: %s, Subnet: %s",
         iface_nic->GetDescription ().GetAscii (),
-        iface_nic->GetMACAddress ().GetAscii (),
-        iface_nic->GetIPAddress (0).GetAscii (),
-        iface_nic->GetSubnetMask (0).GetAscii ());
+        iface_nic->GetMACAddress ().GetAscii (), ip, subnet);
   } else if (iface_usb != NULL) {
     GST_DEBUG_OBJECT (src,
         "Device found on USB interface, VEN_%04X&DEV_%04X&SUBSYS_%08X&REV_%02X, '%s', %s Speed",
@@ -574,7 +581,11 @@ gst_pleorasrc_setup_device (GstPleoraSrc * src)
   /* if acting as a GigE controller configure stream */
   PvDeviceGEV *lDeviceGEV = dynamic_cast < PvDeviceGEV * >(src->device);
   if (!src->receiver_only && lDeviceGEV != NULL) {
+#if VERSION_MAJOR == 4
     PvStreamGEV *lStreamGEV = static_cast < PvStreamGEV * >(src->stream);
+#else
+    const PvStreamGEV *lStreamGEV = static_cast < PvStreamGEV * >(src->stream);
+#endif
 
     // Negotiate packet size
     lDeviceGEV->NegotiatePacketSize ();
