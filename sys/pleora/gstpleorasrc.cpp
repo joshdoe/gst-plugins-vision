@@ -972,7 +972,8 @@ gst_pleorasrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
   if (GST_VIDEO_INFO_FORMAT (&vinfo) != GST_VIDEO_FORMAT_UNKNOWN) {
     src->height = GST_VIDEO_INFO_HEIGHT (&vinfo);
     src->gst_stride = GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0);
-    src->pleora_stride = GST_VIDEO_INFO_WIDTH (&vinfo) * GST_VIDEO_INFO_COMP_PSTRIDE (&vinfo, 0);
+    src->pleora_stride =
+        GST_VIDEO_INFO_WIDTH (&vinfo) * GST_VIDEO_INFO_COMP_PSTRIDE (&vinfo, 0);
   } else {
     goto unsupported_caps;
   }
@@ -1066,7 +1067,6 @@ gst_pleorasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 {
   GstPleoraSrc *src = GST_PLEORA_SRC (psrc);
   PvResult pvRes, opRes;
-  guint32 dropped_frames;
   GstClock *clock;
   GstClockTime clock_time;
   PvBuffer *pvbuffer;
@@ -1133,38 +1133,38 @@ gst_pleorasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
   gpointer data = pvimage->GetDataPointer ();
   if (src->pleora_stride == src->gst_stride) {
-      VideoFrame *vf = g_new0 (VideoFrame, 1);
-      vf->src = src;
-      vf->buffer = pvbuffer;
+    VideoFrame *vf = g_new0 (VideoFrame, 1);
+    vf->src = src;
+    vf->buffer = pvbuffer;
 
-      gsize data_size = pvimage->GetImageSize ();
+    gsize data_size = pvimage->GetImageSize ();
 
-      *buf =
-          gst_buffer_new_wrapped_full ((GstMemoryFlags) GST_MEMORY_FLAG_READONLY,
-          (gpointer) data, data_size, 0, data_size, vf,
-          (GDestroyNotify) pvbuffer_release);
+    *buf =
+        gst_buffer_new_wrapped_full ((GstMemoryFlags) GST_MEMORY_FLAG_READONLY,
+        (gpointer) data, data_size, 0, data_size, vf,
+        (GDestroyNotify) pvbuffer_release);
   } else {
-      GstMapInfo minfo;
+    GstMapInfo minfo;
 
-      GST_LOG_OBJECT (src,
-          "Row stride not aligned, copying %d -> %d",
-          src->pleora_stride, src->gst_stride);
+    GST_LOG_OBJECT (src,
+        "Row stride not aligned, copying %d -> %d",
+        src->pleora_stride, src->gst_stride);
 
-      *buf = gst_buffer_new_and_alloc (src->height * src->gst_stride);
+    *buf = gst_buffer_new_and_alloc (src->height * src->gst_stride);
 
-      guint8 *s = (guint8*)data;
-      guint8 *d;
+    guint8 *s = (guint8 *) data;
+    guint8 *d;
 
-      gst_buffer_map (*buf, &minfo, GST_MAP_WRITE);
-      d = minfo.data;
+    gst_buffer_map (*buf, &minfo, GST_MAP_WRITE);
+    d = minfo.data;
 
-      g_assert (minfo.size >= src->pleora_stride * src->height);
-      for (int i = 0; i < src->height; i++)
-          memcpy (d + i * src->gst_stride, s + i * src->pleora_stride,
+    g_assert (minfo.size >= src->pleora_stride * src->height);
+    for (int i = 0; i < src->height; i++)
+      memcpy (d + i * src->gst_stride, s + i * src->pleora_stride,
           src->pleora_stride);
-      gst_buffer_unmap (*buf, &minfo);
+    gst_buffer_unmap (*buf, &minfo);
 
-      src->pipeline->ReleaseBuffer (pvbuffer);
+    src->pipeline->ReleaseBuffer (pvbuffer);
   }
   clock = gst_element_get_clock (GST_ELEMENT (src));
   clock_time = gst_clock_get_time (clock);
