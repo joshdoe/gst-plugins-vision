@@ -461,6 +461,11 @@ gst_pleorasrc_setup_device (GstPleoraSrc * src)
       return NULL;
     }
 
+    if (lSystem.GetDeviceCount () < 1) {
+      GST_WARNING_OBJECT (src, "No Pleora-compatible devices found");
+      return NULL;
+    }
+
     device_info = lSystem.GetDeviceInfo (src->device_index);
 
     if (device_info == NULL) {
@@ -546,7 +551,8 @@ gst_pleorasrc_setup_device (GstPleoraSrc * src)
     src->device = PvDevice::CreateAndConnect (device_info, &pvRes);
     if (src->device == NULL) {
       GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
-          ("Unable to create and connect to device"), (NULL));
+          ("Unable to create and connect to device: %s",
+              pvRes.GetDescription ().GetAscii ()), (NULL));
       return FALSE;
     }
     GST_DEBUG_OBJECT (src, "Connected to device");
@@ -573,7 +579,8 @@ gst_pleorasrc_setup_device (GstPleoraSrc * src)
 
   if (src->stream == NULL) {
     GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
-        ("Unable to create and connect to device"), (NULL));
+        ("Unable to create and open stream: %s",
+            pvRes.GetDescription ().GetAscii ()), (NULL));
     return FALSE;
   }
   GST_DEBUG_OBJECT (src, "Stream created for device");
@@ -829,8 +836,8 @@ gst_pleorasrc_start (GstBaseSrc * bsrc)
   GST_DEBUG_OBJECT (src, "Starting pipeline");
   pvRes = src->pipeline->Start ();
   if (!pvRes.IsOK ()) {
-    GST_ELEMENT_ERROR (src, RESOURCE, FAILED, ("Failed to start pipeline"),
-        (NULL));
+    GST_ELEMENT_ERROR (src, RESOURCE, FAILED, ("Failed to start pipeline: %s",
+            pvRes.GetDescription ().GetAscii ()), (NULL));
     goto error;
   }
 
@@ -851,15 +858,16 @@ gst_pleorasrc_start (GstBaseSrc * bsrc)
     }
     pvRes = src->device->StreamEnable ();
     if (!pvRes.IsOK ()) {
-      GST_ELEMENT_ERROR (src, RESOURCE, FAILED, ("Failed to enable stream"),
-          (NULL));
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED, ("Failed to enable stream: %s",
+              pvRes.GetDescription ().GetAscii ()), (NULL));
       goto error;
     }
 
     pvRes = start_cmd->Execute ();
     if (!pvRes.IsOK ()) {
-      GST_ELEMENT_ERROR (src, RESOURCE, FAILED, ("Failed to start acquisition"),
-          (NULL));
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+          ("Failed to start acquisition: %s",
+              pvRes.GetDescription ().GetAscii ()), (NULL));
       goto error;
     }
   }
