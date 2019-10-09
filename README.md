@@ -10,6 +10,7 @@ Image acquisition elements
 - edtpdvsrc: Video source for [EDT PDV frame grabbers][1] (Camera Link)
 - edtpdvsink: Video sink for [EDT PDV Camera Link simulator][2]
 - euresyssrc: Video source for [Euresys PICOLO, DOMINO and GRABLINK series frame grabbers][3] (analog, Camera Link)
+- gigesimsink: Video sink for [A&B Soft GigESim][18] GigE Vision simulator
 - idsueyesrc: Video source for [IDS uEye cameras][11] (GigE Vision, USB 2/3, USB3 Vision)
 - imperxflexsrc: Video source for [IMPERX FrameLink and FrameLink Express frame grabbers][5] (Camera Link)
 - imperxsdisrc: Video source for [IMPERX HD-SDI Express frame grabbers][15] (SDI, HD-SDI)
@@ -53,3 +54,4 @@ See also
 [15]: https://www.imperx.com/framegrabbers
 [16]: https://kayainstruments.com
 [17]: https://www.pleora.com
+[18]: http://www.ab-soft.com/gigesim.php

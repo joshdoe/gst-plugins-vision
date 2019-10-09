@@ -73,6 +73,9 @@ macro_log_feature(EDT_FOUND "EDT" "Required to build EDT PDV source element" "ht
 find_package(Euresys)
 macro_log_feature(EURESYS_FOUND "Euresys" "Required to build Euresys source element" "http://www.euresys.com/" FALSE)
 
+find_package(GigESim)
+macro_log_feature(GIGESIM_FOUND "GigESim" "Required to build A&B Soft GigESim sink element" "http://www.ab-soft.com/" FALSE)
+
 find_package(IDSuEye)
 macro_log_feature(IDSUEYE_FOUND "IDS uEye" "Required to build IDS uEye source element" "http://en.ids-imaging.com/" FALSE)
 
