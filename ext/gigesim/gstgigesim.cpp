@@ -39,6 +39,11 @@
 
 #include "gstgigesim.h"
 
+/* IYU2 was added in GStreamer 1.10, define here if needed */
+#ifndef GST_VIDEO_FORMAT_IYU2
+#define GST_VIDEO_FORMAT_IYU2 63
+#endif
+
 /* GObject prototypes */
 static void gst_gigesimsink_set_property (GObject * object,
     guint property_id, const GValue * value, GParamSpec * pspec);
