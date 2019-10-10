@@ -4,13 +4,11 @@ gst-plugins-vision
 GStreamer plugins related to the field of machine vision.
 
 Image acquisition elements
-------------------
+--------------------------
 - aptinasrc: Video source for [Aptina Imaging (On Semiconductor) dev kits][14] (USB dev kits)
 - bitflowsrc: Video source for [BitFlow frame grabbers][10] (analog, Camera Link, CoaXPress)
 - edtpdvsrc: Video source for [EDT PDV frame grabbers][1] (Camera Link)
-- edtpdvsink: Video sink for [EDT PDV Camera Link simulator][2]
 - euresyssrc: Video source for [Euresys PICOLO, DOMINO and GRABLINK series frame grabbers][3] (analog, Camera Link)
-- gigesimsink: Video sink for [A&B Soft GigESim][18] GigE Vision simulator
 - idsueyesrc: Video source for [IDS uEye cameras][11] (GigE Vision, USB 2/3, USB3 Vision)
 - imperxflexsrc: Video source for [IMPERX FrameLink and FrameLink Express frame grabbers][5] (Camera Link)
 - imperxsdisrc: Video source for [IMPERX HD-SDI Express frame grabbers][15] (SDI, HD-SDI)
@@ -23,6 +21,11 @@ Image acquisition elements
 - pleorasrc: Video source for [Pleora eBUS SDK devices][17] (GigE Vision, USB3 Vision)
 - saperasrc: Video source for [Teledyne DALSA frame grabbers][9] (analog, Camera Link, HSLink, LVDS)
 
+Image generation elements
+-------------------------
+- edtpdvsink: Video sink for [EDT PDV Camera Link simulator][2]
+- gigesimsink: Video sink for [A&B Soft GigESim][18] GigE Vision simulator
+
 Other elements
 --------------
 - sfx3dnoise: Applies 3D noise to video
@@ -31,7 +34,22 @@ Other elements
 Dependencies
 ------------
 - GStreamer 1.2.x
-- Specific frame grabber SDKs
+- Specific frame grabber SDKs and/or licenses
+
+Installation
+------------
+- Install GStreamer 1.2.x or newer (latest should work)
+- Build project or download [a release from Github](https://github.com/joshdoe/gst-plugins-vision/releases) (ZIP files under Assets)
+- Extract files somewhere
+- Create an environment variable `GST_PLUGIN_PATH` that points to where you extracted the files
+
+Examples
+--------
+Capture from a CoaXPress camera via a Kaya Komodo frame grabber, apply AGC to convert it to 8-bit monochrome, then output the video via A&B Software GigESim which generates GigE Vision video:
+> `gst-launch-1.0 kayasrc ! videolevels auto=continuous ! gigesimsink`
+
+Then in another command capture the GigE Vision video via Pleora eBUS and display the video to the screen:
+> `gst-launch-1.0 pleorasrc ! autovideoconvert ! autovideosink`
 
 See also
 --------
