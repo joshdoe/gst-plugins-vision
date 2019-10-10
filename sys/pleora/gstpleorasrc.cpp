@@ -749,6 +749,18 @@ GstPleoraCapsInfos gst_caps_infos[] = {
         0, 0, MAKE_FOURCC ('U', 'Y', 'V', 'Y')
       },
   {
+        PvPixelYUV411_8_UYYVYY,
+        "video/x-raw, format=(string)IYU1",
+        "video/x-raw", "IYU1",
+        0, 0, MAKE_FOURCC ('I', 'Y', 'U', '1')
+      },
+  {
+        PvPixelYUV8_UYV,
+        "video/x-raw, format=(string)IYU2",
+        "video/x-raw", "IYU2",
+        0, 0, MAKE_FOURCC ('I', 'Y', 'U', '2')
+      },
+  {
         PvPixelYUV422_8,
         "video/x-raw, format=(string)YUY2",
         "video/x-raw", "YUY2",
@@ -972,8 +984,6 @@ gst_pleorasrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
   if (GST_VIDEO_INFO_FORMAT (&vinfo) != GST_VIDEO_FORMAT_UNKNOWN) {
     src->height = GST_VIDEO_INFO_HEIGHT (&vinfo);
     src->gst_stride = GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0);
-    src->pleora_stride =
-        GST_VIDEO_INFO_WIDTH (&vinfo) * GST_VIDEO_INFO_COMP_PSTRIDE (&vinfo, 0);
   } else {
     goto unsupported_caps;
   }
@@ -1125,6 +1135,9 @@ gst_pleorasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
     }
     src->caps = caps;
     gst_base_src_set_caps (GST_BASE_SRC (src), src->caps);
+
+    guint32 pixel_bpp = PvGetPixelBitCount (pvimage->GetPixelType ());
+    src->pleora_stride = (pvimage->GetWidth () * pixel_bpp) / 8;
   } else {
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED, ("Pixel type not supported"),
         (NULL));
