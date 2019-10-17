@@ -55,6 +55,7 @@ struct _GstPleoraSrc
   gchar *multicast_group;
   gint port;
   gboolean receiver_only;
+  gint packet_size;
 
   guint32 last_frame_count;
   guint32 total_dropped_frames;

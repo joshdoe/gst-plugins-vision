@@ -76,7 +76,8 @@ enum
   PROP_DETECTION_TIMEOUT,
   PROP_MULTICAST_GROUP,
   PROP_PORT,
-  PROP_RECEIVER_ONLY
+  PROP_RECEIVER_ONLY,
+  PROP_PACKET_SIZE
 };
 
 #define DEFAULT_PROP_DEVICE ""
@@ -87,7 +88,7 @@ enum
 #define DEFAULT_PROP_MULTICAST_GROUP "0.0.0.0"
 #define DEFAULT_PROP_PORT 1042
 #define DEFAULT_PROP_RECEIVER_ONLY FALSE
-
+#define DEFAULT_PROP_PACKET_SIZE 0
 
 #define VIDEO_CAPS_MAKE_BAYER8(format)                     \
     "video/x-bayer, "                                        \
@@ -191,6 +192,11 @@ gst_pleorasrc_class_init (GstPleoraSrcClass * klass)
           "Only open video stream, don't open as controller",
           DEFAULT_PROP_RECEIVER_ONLY,
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
+  g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_PACKET_SIZE,
+      g_param_spec_int ("packet-size", "Packet size",
+          "Packet size (0 to auto negotiate)", 0, 65535,
+          DEFAULT_PROP_PACKET_SIZE,
+          (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
 }
 
 static void
@@ -269,6 +275,9 @@ gst_pleorasrc_set_property (GObject * object, guint property_id,
     case PROP_RECEIVER_ONLY:
       src->receiver_only = g_value_get_boolean (value);
       break;
+    case PROP_PACKET_SIZE:
+      src->packet_size = g_value_get_int (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -308,6 +317,9 @@ gst_pleorasrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_RECEIVER_ONLY:
       g_value_set_boolean (value, src->receiver_only);
+      break;
+    case PROP_PACKET_SIZE:
+      g_value_set_int (value, src->packet_size);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -622,14 +634,25 @@ gst_pleorasrc_setup_stream (GstPleoraSrc * src)
     const PvStreamGEV *lStreamGEV = static_cast < PvStreamGEV * >(src->stream);
 #endif
 
-    // Negotiate packet size
-    pvRes = lDeviceGEV->NegotiatePacketSize ();
-    if (!pvRes.IsOK ()) {
-      GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
-          ("Failed to negotiate packet size: %s",
-              pvRes.GetDescription ().GetAscii ()), (NULL));
-      goto stream_config_failed;
+    if (src->packet_size == 0) {
+      /* Negotiate packet size, use safe default if it fails */
+      pvRes = lDeviceGEV->NegotiatePacketSize (0, 1476);
+      if (!pvRes.IsOK ()) {
+        GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
+            ("Failed to negotiate packet size: %s",
+                pvRes.GetDescription ().GetAscii ()), (NULL));
+        goto stream_config_failed;
+      }
+    } else {
+      pvRes = lDeviceGEV->SetPacketSize (src->packet_size);
+      if (!pvRes.IsOK ()) {
+        GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
+            ("Failed to set packet size to %d: %s", src->packet_size,
+                pvRes.GetDescription ().GetAscii ()), (NULL));
+        goto stream_config_failed;
+      }
     }
+
     // Configure device streaming destination
     pvRes = lDeviceGEV->SetStreamDestination (lStreamGEV->GetLocalIPAddress (),
         lStreamGEV->GetLocalPort ());
