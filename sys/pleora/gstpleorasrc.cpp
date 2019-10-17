@@ -385,18 +385,17 @@ gst_pleorasrc_print_device_info (GstPleoraSrc * src,
       const PvUSBHostController * >(device_info->GetInterface ());
 
   if (iface_nic != NULL) {
-    const char *ip, *subnet;
 #if VERSION_MAJOR == 4
-    ip = iface_nic->GetIPAddress ().GetAscii ();
-    subnet = iface_nic->GetSubnetMask ().GetAscii ();
+#define PLEORA_GET_PARAM
 #else
-    ip = iface_nic->GetIPAddress (0).GetAscii ();
-    subnet = iface_nic->GetSubnetMask (0).GetAscii ();
+#define PLEORA_GET_PARAM 0
 #endif
     GST_DEBUG_OBJECT (src,
         "Device found on network interface '%s', MAC: %s, IP: %s, Subnet: %s",
         iface_nic->GetDescription ().GetAscii (),
-        iface_nic->GetMACAddress ().GetAscii (), ip, subnet);
+        iface_nic->GetMACAddress ().GetAscii (),
+        iface_nic->GetIPAddress (PLEORA_GET_PARAM).GetAscii (),
+        iface_nic->GetSubnetMask (PLEORA_GET_PARAM).GetAscii ());
   } else if (iface_usb != NULL) {
     GST_DEBUG_OBJECT (src,
         "Device found on USB interface, VEN_%04X&DEV_%04X&SUBSYS_%08X&REV_%02X, '%s', %s Speed",
@@ -426,13 +425,11 @@ gst_pleorasrc_print_device_info (GstPleoraSrc * src,
   }
 }
 
-static gboolean
-gst_pleorasrc_setup_device (GstPleoraSrc * src)
+static const PvDeviceInfo *
+gst_pleorasrc_get_device_info (GstPleoraSrc * src, PvSystem & lSystem)
 {
   PvResult pvRes;
-  static const PvDeviceInfo *device_info = NULL;
-
-  PvSystem lSystem;
+  const PvDeviceInfo *device_info = NULL;
 
   // time allowed to detect GEV cameras
   lSystem.SetDetectionTimeout (src->detection_timeout);
@@ -443,38 +440,45 @@ gst_pleorasrc_setup_device (GstPleoraSrc * src)
     pvRes = lSystem.FindDevice (src->device_id, &device_info);
 
     if (!pvRes.IsOK ()) {
-      GST_WARNING_OBJECT (src, "Failed to find device '%s': %s", src->device_id,
-          pvRes.GetCodeString ().GetAscii ());
+      GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
+          ("Failed to find device ID '%s': %s", src->device_id,
+              pvRes.GetDescription ().GetAscii ()), (NULL));
       return NULL;
     }
-
-    gst_pleorasrc_print_device_info (src, device_info);
   } else if (src->device_index >= 0) {
     GST_DEBUG_OBJECT (src, "Finding device based on index: %d",
         src->device_index);
 
+    /* Find will block for detection_timeout */
     pvRes = lSystem.Find ();
 
     if (!pvRes.IsOK ()) {
-      GST_WARNING_OBJECT (src, "Error finding devices: %s",
-          pvRes.GetCodeString ().GetAscii ());
+      GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
+          ("Error finding devices: %s", pvRes.GetDescription ().GetAscii ()),
+          (NULL));
       return NULL;
     }
 
     if (lSystem.GetDeviceCount () < 1) {
-      GST_WARNING_OBJECT (src, "No Pleora-compatible devices found");
+      GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
+          ("No Pleora-compatible devices found"), (NULL));
+      return NULL;
+    }
+
+    if (src->device_index >= lSystem.GetDeviceCount ()) {
+      GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
+          ("Device index specified (%d) does not exist, out of range [0, %d]",
+              src->device_index, lSystem.GetDeviceCount () - 1), (NULL));
       return NULL;
     }
 
     device_info = lSystem.GetDeviceInfo (src->device_index);
 
     if (device_info == NULL) {
-      GST_WARNING_OBJECT (src, "Failed to find device index %d",
-          src->device_index);
+      GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
+          ("Failed to find device index %d", src->device_index), (NULL));
       return NULL;
     }
-
-    gst_pleorasrc_print_device_info (src, device_info);
   } else {
     guint32 device_count;
 
@@ -483,12 +487,19 @@ gst_pleorasrc_setup_device (GstPleoraSrc * src)
     pvRes = lSystem.Find ();
 
     if (!pvRes.IsOK ()) {
-      GST_WARNING_OBJECT (src, "Error finding devices: %s",
-          pvRes.GetCodeString ().GetAscii ());
+      GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
+          ("Error finding devices: %s", pvRes.GetDescription ().GetAscii ()),
+          (NULL));
       return NULL;
     }
 
     device_count = lSystem.GetDeviceCount ();
+
+    if (device_count < 1) {
+      GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
+          ("No Pleora-compatible devices found"), (NULL));
+      return NULL;
+    }
 
     GST_DEBUG_OBJECT (src, "Found a total of %d device(s)", device_count);
     for (uint32_t x = 0; x < device_count; x++) {
@@ -536,52 +547,69 @@ gst_pleorasrc_setup_device (GstPleoraSrc * src)
       }
     }
 #endif
+
   }
 
+  return device_info;
+}
+
+static gboolean
+gst_pleorasrc_setup_stream (GstPleoraSrc * src)
+{
+  PvResult pvRes;
+  const PvDeviceInfo *device_info;
+  PvSystem lSystem;
+
+  /* PvSystem creates device info, so we must persist it across this call */
+  device_info = gst_pleorasrc_get_device_info (src, lSystem);
+
   if (device_info == NULL) {
-    GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND, ("No device found"), (NULL));
+    /* error already sent */
     return FALSE;
   }
 
+  GST_DEBUG_OBJECT (src, "Info for device that will be opened:");
+  gst_pleorasrc_print_device_info (src, device_info);
+
   /* open as controller by connecting to device */
   if (!src->receiver_only) {
-    GST_DEBUG_OBJECT (src, "Trying to connect to device '%s'",
+    GST_DEBUG_OBJECT (src, "Trying to connect to device '%s' as controller",
         device_info->GetDisplayID ().GetAscii ());
 
     src->device = PvDevice::CreateAndConnect (device_info, &pvRes);
     if (src->device == NULL) {
       GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
-          ("Unable to create and connect to device: %s",
+          ("Unable to connect to device as controller: %s",
               pvRes.GetDescription ().GetAscii ()), (NULL));
       return FALSE;
     }
-    GST_DEBUG_OBJECT (src, "Connected to device");
+    GST_DEBUG_OBJECT (src, "Connected to device as controller");
   }
 
   if (device_info->GetType () == PvDeviceInfoTypeGEV ||
       device_info->GetType () == PvDeviceInfoTypePleoraProtocol) {
-    GST_DEBUG_OBJECT (src, "Opening multicast stream");
     PvStreamGEV *stream = new PvStreamGEV;
     if (g_strcmp0 (src->multicast_group, DEFAULT_PROP_MULTICAST_GROUP) != 0) {
       GST_DEBUG_OBJECT (src, "Opening device in multicast mode, %s:%d",
           src->multicast_group, src->port);
-      stream->Open (device_info->GetConnectionID (), src->multicast_group,
+      pvRes =
+          stream->Open (device_info->GetConnectionID (), src->multicast_group,
           src->port);
     } else {
       GST_DEBUG_OBJECT (src, "Opening device in unicast mode");
-      stream->Open (device_info->GetConnectionID ());
+      pvRes = stream->Open (device_info->GetConnectionID ());
     }
+
     src->stream = stream;
   } else {
     src->stream =
         PvStream::CreateAndOpen (device_info->GetConnectionID (), &pvRes);
   }
 
-  if (src->stream == NULL) {
-    GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
-        ("Unable to create and open stream: %s",
+  if (src->stream == NULL || !pvRes.IsOK ()) {
+    GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ, ("Failed to open stream: %s",
             pvRes.GetDescription ().GetAscii ()), (NULL));
-    return FALSE;
+    goto stream_failed;
   }
   GST_DEBUG_OBJECT (src, "Stream created for device");
 
@@ -595,23 +623,62 @@ gst_pleorasrc_setup_device (GstPleoraSrc * src)
 #endif
 
     // Negotiate packet size
-    lDeviceGEV->NegotiatePacketSize ();
-
+    pvRes = lDeviceGEV->NegotiatePacketSize ();
+    if (!pvRes.IsOK ()) {
+      GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
+          ("Failed to negotiate packet size: %s",
+              pvRes.GetDescription ().GetAscii ()), (NULL));
+      goto stream_config_failed;
+    }
     // Configure device streaming destination
-    lDeviceGEV->SetStreamDestination (lStreamGEV->GetLocalIPAddress (),
+    pvRes = lDeviceGEV->SetStreamDestination (lStreamGEV->GetLocalIPAddress (),
         lStreamGEV->GetLocalPort ());
+
+    if (!pvRes.IsOK ()) {
+      GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
+          ("Failed to set stream destination: %s",
+              pvRes.GetDescription ().GetAscii ()), (NULL));
+      goto stream_config_failed;
+    }
   }
 
   src->pipeline = new PvPipeline (src->stream);
   if (src->pipeline == NULL) {
     GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
-        ("Unable to create pipeline"), (NULL));
-    return FALSE;
+        ("Unable to create pipeline from stream"), (NULL));
+    goto stream_config_failed;
   }
 
-  src->pipeline->SetBufferCount (src->num_capture_buffers);
+  pvRes = src->pipeline->SetBufferCount (src->num_capture_buffers);
+  if (!pvRes.IsOK ()) {
+    GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
+        ("Unable to set buffer count: %s", pvRes.GetDescription ().GetAscii ()),
+        (NULL));
+    goto pipeline_config_failed;
+  }
 
   return TRUE;
+
+pipeline_config_failed:
+  if (src->pipeline) {
+    delete src->pipeline;
+    src->pipeline = NULL;
+  }
+
+stream_config_failed:
+  if (src->stream) {
+    src->stream->Close ();
+    PvStream::Free (src->stream);
+    src->stream = NULL;
+  }
+
+stream_failed:
+  if (src->device) {
+    src->device->Disconnect ();
+    PvDevice::Free (src->device);
+    src->device = NULL;
+  }
+  return FALSE;
 }
 
 // borrowed from Aravis, arvmisc.c
@@ -838,9 +905,8 @@ gst_pleorasrc_start (GstBaseSrc * bsrc)
 
   GST_DEBUG_OBJECT (src, "start");
 
-  if (!gst_pleorasrc_setup_device (src)) {
-    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-        ("Failed to create Pleora pipeline"), (NULL));
+  if (!gst_pleorasrc_setup_stream (src)) {
+    /* error already sent */
     goto error;
   }
 
@@ -991,7 +1057,8 @@ gst_pleorasrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
   return TRUE;
 
 unsupported_caps:
-  GST_ERROR_OBJECT (src, "Unsupported caps: %" GST_PTR_FORMAT, caps);
+  GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+      ("Unsupported caps: %" GST_PTR_FORMAT, caps), (NULL));
   return FALSE;
 }
 
@@ -1096,7 +1163,7 @@ gst_pleorasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
     // continue if we get a bad frame
     if (!opRes.IsOK ()) {
       GST_WARNING_OBJECT (src, "Failed to get buffer: 0x%04x, '%s'",
-          opRes.GetCode (), opRes.GetCodeString ().GetAscii ());
+          opRes.GetCode (), opRes.GetDescription ().GetAscii ());
       src->pipeline->ReleaseBuffer (pvbuffer);
       continue;
     }
@@ -1139,8 +1206,8 @@ gst_pleorasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
     guint32 pixel_bpp = PvGetPixelBitCount (pvimage->GetPixelType ());
     src->pleora_stride = (pvimage->GetWidth () * pixel_bpp) / 8;
   } else {
-    GST_ELEMENT_ERROR (src, RESOURCE, FAILED, ("Pixel type not supported"),
-        (NULL));
+    GST_ELEMENT_ERROR (src, RESOURCE, FAILED, ("Pixel type %d not supported",
+            pvimage->GetPixelType ()), (NULL));
     return GST_FLOW_ERROR;
   }
 
