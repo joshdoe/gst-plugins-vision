@@ -56,6 +56,8 @@ struct _GstPleoraSrc
   gint port;
   gboolean receiver_only;
   gint packet_size;
+  gchar *config_file;
+  gboolean config_file_connect;
 
   guint32 last_frame_count;
   guint32 total_dropped_frames;
