@@ -264,6 +264,8 @@ gst_pleorasrc_init (GstPleoraSrc * src)
   src->stop_requested = FALSE;
   src->caps = NULL;
 
+  src->pvbuffer = NULL;
+
   gst_pleorasrc_reset (src);
 }
 
@@ -1144,6 +1146,12 @@ gst_pleorasrc_start (GstBaseSrc * bsrc)
     }
   }
 
+  /* grab first buffer so we can set caps before _create */
+  src->pvbuffer = gst_pleorasrc_get_pvbuffer (src);
+  if (!src->pvbuffer) {
+    goto error;
+  }
+
   return TRUE;
 
 error:
@@ -1423,7 +1431,14 @@ gst_pleorasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
   GST_LOG_OBJECT (src, "create");
 
-  pvbuffer = gst_pleorasrc_get_pvbuffer (src);
+  if (src->pvbuffer) {
+    /* we have a buffer from _start to handle */
+    pvbuffer = src->pvbuffer;
+    src->pvbuffer = NULL;
+  } else {
+    pvbuffer = gst_pleorasrc_get_pvbuffer (src);
+  }
+
   if (!pvbuffer) {
     /* error already posted */
     return GST_FLOW_ERROR;
