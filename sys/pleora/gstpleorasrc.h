@@ -63,6 +63,8 @@ struct _GstPleoraSrc
   guint32 total_dropped_frames;
 
   GstCaps *caps;
+  PvPixelType pv_pixel_type;
+  gint width;
   gint height;
   gint gst_stride;
   gint pleora_stride;

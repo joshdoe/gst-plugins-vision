@@ -68,6 +68,7 @@ static gboolean gst_pleorasrc_unlock_stop (GstBaseSrc * src);
 
 static GstFlowReturn gst_pleorasrc_create (GstPushSrc * src, GstBuffer ** buf);
 
+static PvBuffer *gst_pleorasrc_get_pvbuffer (GstPleoraSrc * src);
 
 enum
 {
@@ -233,6 +234,10 @@ gst_pleorasrc_reset (GstPleoraSrc * src)
     gst_caps_unref (src->caps);
     src->caps = NULL;
   }
+
+  src->pv_pixel_type = PvPixelUndefined;
+  src->width = 0;
+  src->height = 0;
 }
 
 static void
@@ -1328,17 +1333,12 @@ pvbuffer_release (void *data)
   }
 }
 
-static GstFlowReturn
-gst_pleorasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
+static PvBuffer *
+gst_pleorasrc_get_pvbuffer (GstPleoraSrc * src)
 {
-  GstPleoraSrc *src = GST_PLEORA_SRC (psrc);
   PvResult pvRes, opRes;
-  GstClock *clock;
-  GstClockTime clock_time;
   PvBuffer *pvbuffer;
   PvImage *pvimage;
-
-  GST_LOG_OBJECT (src, "create");
 
   while (TRUE) {
     pvRes = src->pipeline->RetrieveNextBuffer (&pvbuffer, src->timeout, &opRes);
@@ -1347,13 +1347,12 @@ gst_pleorasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
           ("Failed to retrieve buffer in timeout (%d ms): 0x%04x, '%s'",
               src->timeout, pvRes.GetCode (),
               pvRes.GetDescription ().GetAscii ()), (NULL));
-      return GST_FLOW_ERROR;
+      return NULL;
     }
-    // continue if we get a bad frame
+    /* continue if we get a bad frame */
     if (!opRes.IsOK ()) {
       GST_WARNING_OBJECT (src, "Failed to get buffer: 0x%04x, '%s'",
           opRes.GetCode (), opRes.GetDescription ().GetAscii ());
-      src->pipeline->ReleaseBuffer (pvbuffer);
       continue;
     }
 
@@ -1362,43 +1361,75 @@ gst_pleorasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
       GST_ERROR_OBJECT (src, "Got buffer with non-image data");
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
           ("Got buffer with non-image data"), (NULL));
-      return GST_FLOW_ERROR;
+      src->pipeline->ReleaseBuffer (pvbuffer);
+      return NULL;
     }
-
-    pvimage = pvbuffer->GetImage ();
 
     break;
   }
 
-  const char *caps_string =
-      gst_pleorasrc_pixel_type_to_gst_caps_string (pvimage->GetPixelType ());
+  pvimage = pvbuffer->GetImage ();
 
-  /* TODO: cache previous caps_string */
-  if (caps_string != NULL) {
-    GstStructure *structure;
-    GstCaps *caps;
+  if (src->pv_pixel_type != pvimage->GetPixelType () ||
+      src->width != pvimage->GetWidth () ||
+      src->height != pvimage->GetHeight ()) {
+    const char *caps_string =
+        gst_pleorasrc_pixel_type_to_gst_caps_string (pvimage->GetPixelType ());
 
-    caps = gst_caps_new_empty ();
-    structure = gst_structure_from_string (caps_string, NULL);
-    gst_structure_set (structure,
-        "width", G_TYPE_INT, pvimage->GetWidth (),
-        "height", G_TYPE_INT, pvimage->GetHeight (),
-        "framerate", GST_TYPE_FRACTION, 30, 1, NULL);
-    gst_caps_append_structure (caps, structure);
+    if (caps_string != NULL) {
+      GstStructure *structure;
+      GstCaps *caps;
 
-    if (src->caps) {
-      gst_caps_unref (src->caps);
+      caps = gst_caps_new_empty ();
+      structure = gst_structure_from_string (caps_string, NULL);
+      gst_structure_set (structure,
+          "width", G_TYPE_INT, pvimage->GetWidth (),
+          "height", G_TYPE_INT, pvimage->GetHeight (),
+          "framerate", GST_TYPE_FRACTION, 30, 1, NULL);
+      gst_caps_append_structure (caps, structure);
+
+      if (src->caps) {
+        gst_caps_unref (src->caps);
+      }
+      src->caps = caps;
+      gst_base_src_set_caps (GST_BASE_SRC (src), src->caps);
+
+      src->pv_pixel_type = pvimage->GetPixelType ();
+      src->width = pvimage->GetWidth ();
+      src->height = pvimage->GetHeight ();
+
+      guint32 pixel_bpp = PvGetPixelBitCount (pvimage->GetPixelType ());
+      src->pleora_stride = (pvimage->GetWidth () * pixel_bpp) / 8;
+    } else {
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED, ("Pixel type %d not supported",
+              pvimage->GetPixelType ()), (NULL));
+      src->pipeline->ReleaseBuffer (pvbuffer);
+      return NULL;
     }
-    src->caps = caps;
-    gst_base_src_set_caps (GST_BASE_SRC (src), src->caps);
+  }
 
-    guint32 pixel_bpp = PvGetPixelBitCount (pvimage->GetPixelType ());
-    src->pleora_stride = (pvimage->GetWidth () * pixel_bpp) / 8;
-  } else {
-    GST_ELEMENT_ERROR (src, RESOURCE, FAILED, ("Pixel type %d not supported",
-            pvimage->GetPixelType ()), (NULL));
+  return pvbuffer;
+}
+
+static GstFlowReturn
+gst_pleorasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
+{
+  GstPleoraSrc *src = GST_PLEORA_SRC (psrc);
+  PvResult pvRes;
+  GstClock *clock;
+  GstClockTime clock_time;
+  PvBuffer *pvbuffer;
+  PvImage *pvimage;
+
+  GST_LOG_OBJECT (src, "create");
+
+  pvbuffer = gst_pleorasrc_get_pvbuffer (src);
+  if (!pvbuffer) {
+    /* error already posted */
     return GST_FLOW_ERROR;
   }
+
+  pvimage = pvbuffer->GetImage ();
 
   gpointer data = pvimage->GetDataPointer ();
   if (src->pleora_stride == src->gst_stride) {
