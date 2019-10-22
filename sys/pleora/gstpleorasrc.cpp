@@ -622,6 +622,16 @@ gst_pleorasrc_restore_device_from_config (GstPleoraSrc * src)
     return FALSE;
   }
 
+  if (lConfigReader.GetDeviceCount () == 0) {
+    GST_DEBUG_OBJECT (src, "Config file has no device configurations");
+    return TRUE;
+  } else {
+    PvString name;
+    lConfigReader.GetDeviceName (0, name);
+    GST_DEBUG_OBJECT (src, "Loading device config named '%s'",
+        name.GetAscii ());
+  }
+
   if (src->device == NULL) {
     PvDeviceGEV *lDeviceGEV = new PvDeviceGEV ();
     PvDeviceU3V *lDeviceU3V = new PvDeviceU3V ();
@@ -638,7 +648,7 @@ gst_pleorasrc_restore_device_from_config (GstPleoraSrc * src)
         src->device = lDeviceU3V;
         delete lDeviceGEV;
       } else {
-        GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
+        GST_ELEMENT_WARNING (src, RESOURCE, SETTINGS,
             ("Failed to restore device from config file (%s): %s",
                 src->config_file, pvRes.GetDescription ().GetAscii ()), (NULL));
         return FALSE;
@@ -648,7 +658,7 @@ gst_pleorasrc_restore_device_from_config (GstPleoraSrc * src)
     GST_DEBUG_OBJECT (src, "Restoring device settings from config file");
     pvRes = lConfigReader.Restore (0, src->device);
     if (!pvRes.IsOK ()) {
-      GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
+      GST_ELEMENT_WARNING (src, RESOURCE, SETTINGS,
           ("Failed to restore device from config file (%s): %s",
               src->config_file, pvRes.GetDescription ().GetAscii ()), (NULL));
       return FALSE;
@@ -673,6 +683,16 @@ gst_pleorasrc_restore_stream_from_config (GstPleoraSrc * src)
     return FALSE;
   }
 
+  if (lConfigReader.GetStreamCount () == 0) {
+    GST_DEBUG_OBJECT (src, "Config file has no stream configurations");
+    return TRUE;
+  } else {
+    PvString name;
+    lConfigReader.GetStreamName (0, name);
+    GST_DEBUG_OBJECT (src, "Loading stream config named '%s'",
+        name.GetAscii ());
+  }
+
   if (src->stream == NULL) {
     PvStreamGEV *lStreamGEV = new PvStreamGEV ();
     PvStreamU3V *lStreamU3V = new PvStreamU3V ();
@@ -689,7 +709,7 @@ gst_pleorasrc_restore_stream_from_config (GstPleoraSrc * src)
         src->stream = lStreamU3V;
         delete lStreamGEV;
       } else {
-        GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
+        GST_ELEMENT_WARNING (src, RESOURCE, SETTINGS,
             ("Failed to restore stream from config file (%s): %s",
                 src->config_file, pvRes.GetDescription ().GetAscii ()), (NULL));
         return FALSE;
@@ -699,7 +719,7 @@ gst_pleorasrc_restore_stream_from_config (GstPleoraSrc * src)
     GST_DEBUG_OBJECT (src, "Restoring stream settings from config file");
     pvRes = lConfigReader.Restore (0, src->stream);
     if (!pvRes.IsOK ()) {
-      GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
+      GST_ELEMENT_WARNING (src, RESOURCE, SETTINGS,
           ("Failed to restore stream from config file (%s): %s",
               src->config_file, pvRes.GetDescription ().GetAscii ()), (NULL));
       return FALSE;
@@ -718,13 +738,11 @@ gst_pleorasrc_setup_stream (GstPleoraSrc * src)
 
   if (g_strcmp0 (src->config_file, DEFAULT_PROP_CONFIG_FILE) != 0 &&
       src->config_file_connect) {
-    if (!gst_pleorasrc_restore_device_from_config (src)) {
-      /* error already sent */
-      return FALSE;
-    }
-
-    if (!gst_pleorasrc_restore_stream_from_config (src)) {
-      /* error already sent */
+    if (!gst_pleorasrc_restore_device_from_config (src) ||
+        !gst_pleorasrc_restore_stream_from_config (src)) {
+      GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
+          ("Failed to load device or stream config from file (%s)",
+              src->config_file), (NULL));
       return FALSE;
     }
   } else {
