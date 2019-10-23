@@ -479,10 +479,50 @@ gst_pleorasrc_print_device_info (GstPleoraSrc * src,
   }
 }
 
-static const PvDeviceInfo *
-gst_pleorasrc_get_device_info (GstPleoraSrc * src, PvSystem & lSystem)
+static PvDeviceType
+device_type_from_device_info_type (PvDeviceInfoType devinfotype)
+{
+  switch (devinfotype) {
+    case PvDeviceInfoTypeGEV:
+    case PvDeviceInfoTypePleoraProtocol:
+      return PvDeviceTypeGEV;
+      break;
+    case PvDeviceInfoTypeU3V:
+    case PvDeviceInfoTypeUSB:
+      return PvDeviceTypeU3V;
+      break;
+    default:
+      return PvDeviceTypeUnknown;
+  }
+}
+
+static PvString
+device_id_from_device_info (const PvDeviceInfo * device_info)
+{
+  PvString id;
+  const PvDeviceInfoGEV *device_info_GEV =
+      dynamic_cast < const PvDeviceInfoGEV * >(device_info);
+  const PvDeviceInfoU3V *device_info_U3V =
+      dynamic_cast < const PvDeviceInfoU3V * >(device_info);
+  const PvDeviceInfoPleoraProtocol *device_info_pleora =
+      dynamic_cast < const PvDeviceInfoPleoraProtocol * >(device_info);
+
+  if (device_info_GEV) {
+    id = device_info_GEV->GetIPAddress ();
+  } else if (device_info_U3V) {
+    id = device_info_U3V->GetDeviceGUID ();
+  } else if (device_info_pleora) {
+    id = device_info_pleora->GetIPAddress ();
+  }
+
+  return id;
+}
+
+static gboolean
+gst_pleorasrc_find_device (GstPleoraSrc * src)
 {
   PvResult pvRes;
+  PvSystem lSystem;
   const PvDeviceInfo *device_info = NULL;
 
   // time allowed to detect GEV cameras
@@ -497,7 +537,7 @@ gst_pleorasrc_get_device_info (GstPleoraSrc * src, PvSystem & lSystem)
       GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
           ("Failed to find device ID '%s': %s", src->device_id,
               pvRes.GetDescription ().GetAscii ()), (NULL));
-      return NULL;
+      return FALSE;
     }
   } else if (src->device_index >= 0) {
     GST_DEBUG_OBJECT (src, "Finding device based on index: %d",
@@ -510,20 +550,20 @@ gst_pleorasrc_get_device_info (GstPleoraSrc * src, PvSystem & lSystem)
       GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
           ("Error finding devices: %s", pvRes.GetDescription ().GetAscii ()),
           (NULL));
-      return NULL;
+      return FALSE;
     }
 
     if (lSystem.GetDeviceCount () < 1) {
       GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
           ("No Pleora-compatible devices found"), (NULL));
-      return NULL;
+      return FALSE;
     }
 
     if (src->device_index >= lSystem.GetDeviceCount ()) {
       GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
           ("Device index specified (%d) does not exist, out of range [0, %d)",
               src->device_index, lSystem.GetDeviceCount ()), (NULL));
-      return NULL;
+      return FALSE;
     }
 
     device_info = lSystem.GetDeviceInfo (src->device_index);
@@ -531,7 +571,7 @@ gst_pleorasrc_get_device_info (GstPleoraSrc * src, PvSystem & lSystem)
     if (device_info == NULL) {
       GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
           ("Failed to find device index %d", src->device_index), (NULL));
-      return NULL;
+      return FALSE;
     }
   } else {
     guint32 device_count;
@@ -544,7 +584,7 @@ gst_pleorasrc_get_device_info (GstPleoraSrc * src, PvSystem & lSystem)
       GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
           ("Error finding devices: %s", pvRes.GetDescription ().GetAscii ()),
           (NULL));
-      return NULL;
+      return FALSE;
     }
 
     device_count = lSystem.GetDeviceCount ();
@@ -552,7 +592,7 @@ gst_pleorasrc_get_device_info (GstPleoraSrc * src, PvSystem & lSystem)
     if (device_count < 1) {
       GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
           ("No Pleora-compatible devices found"), (NULL));
-      return NULL;
+      return FALSE;
     }
 
     GST_DEBUG_OBJECT (src, "Found a total of %d device(s)", device_count);
@@ -604,7 +644,19 @@ gst_pleorasrc_get_device_info (GstPleoraSrc * src, PvSystem & lSystem)
 
   }
 
-  return device_info;
+  GST_DEBUG_OBJECT (src, "Info for device that will be opened:");
+  gst_pleorasrc_print_device_info (src, device_info);
+
+  if (g_strcmp0 (src->device_id, "") == 0) {
+    g_free (src->device_id);
+    src->device_id =
+        g_strdup (device_id_from_device_info (device_info).GetAscii ());
+  }
+
+  src->device_type =
+      device_type_from_device_info_type (device_info->GetType ());
+
+  return TRUE;
 }
 
 static gboolean
@@ -730,39 +782,32 @@ gst_pleorasrc_restore_stream_from_config (GstPleoraSrc * src)
 }
 
 static gboolean
-gst_pleorasrc_setup_stream (GstPleoraSrc * src)
+gst_pleorasrc_open_device (GstPleoraSrc * src)
 {
   PvResult pvRes;
-  const PvDeviceInfo *device_info;
-  PvSystem lSystem;
 
+  /* open device */
   if (g_strcmp0 (src->config_file, DEFAULT_PROP_CONFIG_FILE) != 0 &&
       src->config_file_connect) {
-    if (!gst_pleorasrc_restore_device_from_config (src) ||
-        !gst_pleorasrc_restore_stream_from_config (src)) {
+    /* open device from config file */
+    if (!gst_pleorasrc_restore_device_from_config (src)) {
       GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
-          ("Failed to load device or stream config from file (%s)",
+          ("Failed to load device config from file (%s)",
               src->config_file), (NULL));
       return FALSE;
     }
   } else {
-    /* PvSystem creates device info, so we must persist it across this call */
-    device_info = gst_pleorasrc_get_device_info (src, lSystem);
-
-    if (device_info == NULL) {
+    /* open device from element properties */
+    if (!gst_pleorasrc_find_device (src)) {
       /* error already sent */
       return FALSE;
     }
 
-    GST_DEBUG_OBJECT (src, "Info for device that will be opened:");
-    gst_pleorasrc_print_device_info (src, device_info);
-
     /* open device (for GEV, opening device means we're a controller */
     if (!src->receiver_only) {
-      GST_DEBUG_OBJECT (src, "Trying to connect to device '%s' as controller",
-          device_info->GetDisplayID ().GetAscii ());
+      GST_DEBUG_OBJECT (src, "Trying to connect to device as controller");
 
-      src->device = PvDevice::CreateAndConnect (device_info, &pvRes);
+      src->device = PvDevice::CreateAndConnect (src->device_id, &pvRes);
       if (src->device == NULL) {
         GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
             ("Unable to connect to device as controller: %s",
@@ -771,76 +816,136 @@ gst_pleorasrc_setup_stream (GstPleoraSrc * src)
       }
       GST_DEBUG_OBJECT (src, "Connected to device as controller");
     }
+  }
 
-    /* open stream */
-    if (device_info->GetType () == PvDeviceInfoTypeGEV ||
-        device_info->GetType () == PvDeviceInfoTypePleoraProtocol) {
+  return TRUE;
+}
+
+static gboolean
+gst_pleorasrc_open_stream (GstPleoraSrc * src)
+{
+  PvResult pvRes;
+
+  /* open stream */
+  if (g_strcmp0 (src->config_file, DEFAULT_PROP_CONFIG_FILE) != 0 &&
+      src->config_file_connect) {
+    /* try to restore stream from config file */
+    if (!gst_pleorasrc_restore_stream_from_config (src)) {
+      GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
+          ("Failed to load stream config from file (%s)",
+              src->config_file), (NULL));
+      return FALSE;
+    }
+  } else {
+    /* get connection ID from device or scan for device info */
+    if (g_strcmp0 (src->device_id, "") == 0) {
+      if (src->device) {
+        PvDeviceGEV *lDeviceGEV = dynamic_cast < PvDeviceGEV * >(src->device);
+        PvDeviceU3V *lDeviceU3V = dynamic_cast < PvDeviceU3V * >(src->device);
+        if (lDeviceGEV) {
+          g_free (src->device_id);
+          src->device_id = g_strdup (lDeviceGEV->GetIPAddress ().GetAscii ());
+          src->device_type = PvDeviceTypeGEV;
+        } else if (lDeviceU3V) {
+          g_free (src->device_id);
+          src->device_id = g_strdup (lDeviceU3V->GetGUID ().GetAscii ());
+          src->device_type = PvDeviceTypeU3V;
+        } else {
+          GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
+              ("Unsupported device type %d", src->device->GetType ()), (NULL));
+          return FALSE;
+        }
+      } else {
+        /* open device from element properties */
+        if (!gst_pleorasrc_find_device (src)) {
+          /* error already sent */
+          return FALSE;
+        }
+      }
+    }
+
+    GST_DEBUG_OBJECT (src, "Using connection ID '%s'", src->device_id);
+
+    if (src->device_type == PvDeviceTypeGEV) {
       PvStreamGEV *stream = new PvStreamGEV;
       if (g_strcmp0 (src->multicast_group, DEFAULT_PROP_MULTICAST_GROUP) != 0) {
-        GST_DEBUG_OBJECT (src, "Opening device in multicast mode, %s:%d",
+        GST_DEBUG_OBJECT (src, "Opening GEV stream in multicast mode, %s:%d",
             src->multicast_group, src->port);
-        pvRes =
-            stream->Open (device_info->GetConnectionID (), src->multicast_group,
-            src->port);
+        pvRes = stream->Open (src->device_id, src->multicast_group, src->port);
       } else {
-        GST_DEBUG_OBJECT (src, "Opening device in unicast mode");
-        pvRes = stream->Open (device_info->GetConnectionID ());
+        GST_DEBUG_OBJECT (src, "Opening GEV stream in unicast mode");
+        pvRes = stream->Open (src->device_id);
       }
 
       src->stream = stream;
     } else {
-      src->stream =
-          PvStream::CreateAndOpen (device_info->GetConnectionID (), &pvRes);
+      src->stream = PvStream::CreateAndOpen (src->device_id, &pvRes);
     }
+  }
 
-    if (src->stream == NULL || !pvRes.IsOK ()) {
-      GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ, ("Failed to open stream: %s",
-              pvRes.GetDescription ().GetAscii ()), (NULL));
-      goto stream_failed;
-    }
-    GST_DEBUG_OBJECT (src, "Stream created for device");
+  if (src->stream == NULL) {
+    GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ, ("Failed to open stream: %s",
+            pvRes.GetDescription ().GetAscii ()), (NULL));
+    return FALSE;
+  }
 
-    /* if acting as a GigE controller, configure stream */
-    PvDeviceGEV *lDeviceGEV = dynamic_cast < PvDeviceGEV * >(src->device);
-    if (!src->receiver_only && lDeviceGEV != NULL) {
+  return TRUE;
+}
+
+static gboolean
+gst_pleorasrc_setup_stream (GstPleoraSrc * src)
+{
+  PvResult pvRes;
+
+  if (!gst_pleorasrc_open_device (src)) {
+    return FALSE;
+  }
+
+  if (!gst_pleorasrc_open_stream (src)) {
+    return FALSE;
+  }
+
+  GST_DEBUG_OBJECT (src, "Stream created for device");
+
+  /* if acting as a GigE controller, configure stream */
+  PvDeviceGEV *lDeviceGEV = dynamic_cast < PvDeviceGEV * >(src->device);
+  if (!src->receiver_only && lDeviceGEV != NULL) {
 #if VERSION_MAJOR == 4
-      PvStreamGEV *lStreamGEV = static_cast < PvStreamGEV * >(src->stream);
+    PvStreamGEV *lStreamGEV = static_cast < PvStreamGEV * >(src->stream);
 #else
-      const PvStreamGEV *lStreamGEV =
-          static_cast < PvStreamGEV * >(src->stream);
+    const PvStreamGEV *lStreamGEV = static_cast < PvStreamGEV * >(src->stream);
 #endif
 
-      /* negotiate or set packet size */
-      if (src->packet_size == 0) {
-        /* Negotiate packet size, use safe default if it fails */
-        pvRes = lDeviceGEV->NegotiatePacketSize (0, 1476);
-        if (!pvRes.IsOK ()) {
-          GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
-              ("Failed to negotiate packet size: %s",
-                  pvRes.GetDescription ().GetAscii ()), (NULL));
-          goto stream_config_failed;
-        }
-      } else {
-        pvRes = lDeviceGEV->SetPacketSize (src->packet_size);
-        if (!pvRes.IsOK ()) {
-          GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
-              ("Failed to set packet size to %d: %s", src->packet_size,
-                  pvRes.GetDescription ().GetAscii ()), (NULL));
-          goto stream_config_failed;
-        }
-      }
-
-      /* Configure device streaming destination */
-      pvRes =
-          lDeviceGEV->SetStreamDestination (lStreamGEV->GetLocalIPAddress (),
-          lStreamGEV->GetLocalPort ());
-
+    /* negotiate or set packet size */
+    if (src->packet_size == 0) {
+      /* Negotiate packet size, use safe default if it fails */
+      pvRes = lDeviceGEV->NegotiatePacketSize (0, 1476);
       if (!pvRes.IsOK ()) {
         GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
-            ("Failed to set stream destination: %s",
+            ("Failed to negotiate packet size: %s",
                 pvRes.GetDescription ().GetAscii ()), (NULL));
         goto stream_config_failed;
       }
+    } else {
+      pvRes = lDeviceGEV->SetPacketSize (src->packet_size);
+      if (!pvRes.IsOK ()) {
+        GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
+            ("Failed to set packet size to %d: %s", src->packet_size,
+                pvRes.GetDescription ().GetAscii ()), (NULL));
+        goto stream_config_failed;
+      }
+    }
+
+    /* Configure device streaming destination */
+    pvRes =
+        lDeviceGEV->SetStreamDestination (lStreamGEV->GetLocalIPAddress (),
+        lStreamGEV->GetLocalPort ());
+
+    if (!pvRes.IsOK ()) {
+      GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
+          ("Failed to set stream destination: %s",
+              pvRes.GetDescription ().GetAscii ()), (NULL));
+      goto stream_config_failed;
     }
   }
 
@@ -886,7 +991,6 @@ stream_config_failed:
     src->stream = NULL;
   }
 
-stream_failed:
   if (src->device) {
     src->device->Disconnect ();
     PvDevice::Free (src->device);

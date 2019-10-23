@@ -46,6 +46,7 @@ struct _GstPleoraSrc
   PvDevice *device;
   PvStream *stream;
   PvBuffer *pvbuffer;
+  PvDeviceType device_type;
 
   /* properties */
   gchar *device_id;
