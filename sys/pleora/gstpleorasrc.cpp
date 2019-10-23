@@ -936,6 +936,17 @@ gst_pleorasrc_setup_stream (GstPleoraSrc * src)
       }
     }
 
+    PvGenInteger *packetParam =
+        src->device->GetParameters ()->GetInteger ("GevSCPSPacketSize");
+    if (packetParam) {
+      gint64 val;
+      packetParam->GetValue (val);
+      GST_DEBUG_OBJECT (src, "Packet size is currently %d", val);
+      src->packet_size = (gint) val;
+    } else {
+      GST_WARNING_OBJECT (src, "Couldn't get current packet size");
+    }
+
     /* Configure device streaming destination */
     pvRes =
         lDeviceGEV->SetStreamDestination (lStreamGEV->GetLocalIPAddress (),
