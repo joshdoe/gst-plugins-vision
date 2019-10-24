@@ -1270,6 +1270,9 @@ gst_pleorasrc_start (GstBaseSrc * bsrc)
       goto error;
     }
 
+    GST_DEBUG_OBJECT (src, "Lock streaming-related parameters");
+    lDeviceParams->SetIntegerValue ("TLParamsLocked", 1);
+
     pvRes = start_cmd->Execute ();
     if (!pvRes.IsOK ()) {
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
@@ -1319,6 +1322,10 @@ gst_pleorasrc_stop (GstBaseSrc * bsrc)
     PvGenCommand *lStop =
         dynamic_cast < PvGenCommand * >(lDeviceParams->Get ("AcquisitionStop"));
     lStop->Execute ();
+
+    GST_DEBUG_OBJECT (src, "Unlocking streaming-related parameters");
+    lDeviceParams->SetIntegerValue ("TLParamsLocked", 0);
+
     src->device->StreamDisable ();
   }
   src->pipeline->Stop ();
