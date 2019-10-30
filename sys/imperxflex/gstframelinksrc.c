@@ -640,8 +640,15 @@ gst_framelinksrc_callback (void *lpUserData, VCECLB_FrameInfoEx * pFrameInfo)
   static guint64 last_frame_number = 0;
   static guint64 buffers_processed = 0;
   static guint64 total_dropped_frames = 0;
+  GstClock *clock;
+  GstClockTime timestamp;
 
   g_assert (src != NULL);
+
+  clock = gst_element_get_clock (GST_ELEMENT (src));
+  timestamp = GST_CLOCK_DIFF (gst_element_get_base_time (GST_ELEMENT (src)),
+      gst_clock_get_time (clock));
+  gst_object_unref (clock);
 
   /* check for DMA errors */
   if (pFrameInfo->dma_status == VCECLB_DMA_STATUS_FRAME_DROP) {
@@ -691,9 +698,8 @@ gst_framelinksrc_callback (void *lpUserData, VCECLB_FrameInfoEx * pFrameInfo)
 
   src->buffer = gst_framelinksrc_create_buffer_from_frameinfo (src, pFrameInfo);
 
-  GST_BUFFER_TIMESTAMP (src->buffer) =
-      GST_CLOCK_DIFF (gst_element_get_base_time (GST_ELEMENT (src)),
-      src->acq_start_time + pFrameInfo->timestamp * GST_USECOND);
+  GST_BUFFER_TIMESTAMP (src->buffer) = timestamp;
+
   GST_BUFFER_OFFSET (src->buffer) = buffers_processed;
   ++buffers_processed;
 
