@@ -12,7 +12,7 @@
 # For details see the accompanying COPYING-CMAKE-SCRIPTS file.
 
 if (NOT PLEORA_DIR)
-    set (PLEORA_DIR "C:/Program Files (x86)/Pleora Technologies Inc/eBUS SDK" CACHE PATH "Directory containing Pleora SDK includes and libraries")
+    set (PLEORA_DIR $ENV{PUREGEV_ROOT} CACHE PATH "Directory containing Pleora SDK includes and libraries")
 endif ()
 
 if (CMAKE_SIZEOF_VOID_P MATCHES "8")
@@ -24,11 +24,15 @@ endif ()
 find_path (PLEORA_INCLUDE_DIR PvBase.h
     PATHS
     "${PLEORA_DIR}/Includes"
+    "C:/Program Files/Pleora Technologies Inc/eBUS SDK/Includes"
+    "C:/Program Files (x86)/Pleora Technologies Inc/eBUS SDK/Includes"
     DOC "Directory containing Pleora eBUS SDK headers")
 
 find_path (PLEORA_LIBRARIES_DIR PvBase${_LIB_SUFFIX}.lib
     PATHS
     "${PLEORA_DIR}/Libraries"
+    "C:/Program Files/Pleora Technologies Inc/eBUS SDK/Libraries"
+    "C:/Program Files (x86)/Pleora Technologies Inc/eBUS SDK/Libraries"
     DOC "Directory containing Pleora eBUS SDK libraries")
 
 include (FindPackageHandleStandardArgs)
