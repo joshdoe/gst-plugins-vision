@@ -356,9 +356,7 @@ gst_framelinksrc_start (GstBaseSrc * bsrc)
   memcpy (&src->pixInfo, &camConfig.pixelInfo, sizeof (VCECLB_RawPixelInfoEx));
 
   if (ci->Packed == 1) {
-    GST_ELEMENT_ERROR (src, RESOURCE, SETTINGS,
-        ("Packed pixel data not supported yet."), (NULL));
-    return FALSE;
+    GST_LOG_OBJECT (src, "Pixel data is packed, we'll unpack it");
   }
 
   /* enumerate devices */
