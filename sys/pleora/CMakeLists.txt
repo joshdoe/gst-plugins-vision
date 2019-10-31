@@ -1,10 +1,15 @@
 add_definitions(-D_XKEYCHECK_H)
 
 set (SOURCES
-  gstpleorasrc.cpp)
+  gstpleora.cpp
+  gstpleorasink.cpp
+  gstpleorasrc.cpp
+  streamingchannelsource.cpp)
     
 set (HEADERS
-  gstpleorasrc.h)
+  gstpleorasink.h
+  gstpleorasrc.h
+  streamingchannelsource.h)
 
 include_directories (AFTER
   ${PLEORA_INCLUDE_DIR})

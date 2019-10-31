@@ -138,6 +138,9 @@ gst_pleorasrc_class_init (GstPleoraSrcClass * klass)
   GstBaseSrcClass *gstbasesrc_class = GST_BASE_SRC_CLASS (klass);
   GstPushSrcClass *gstpushsrc_class = GST_PUSH_SRC_CLASS (klass);
 
+  GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "pleorasrc", 0,
+      "Pleora eBUS SDK source");
+
   gobject_class->set_property = gst_pleorasrc_set_property;
   gobject_class->get_property = gst_pleorasrc_get_property;
   gobject_class->dispose = gst_pleorasrc_dispose;
@@ -1666,22 +1669,3 @@ gst_pleorasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
   return GST_FLOW_OK;
 }
-
-
-static gboolean
-plugin_init (GstPlugin * plugin)
-{
-  GST_DEBUG_CATEGORY_INIT (gst_pleorasrc_debug, "pleorasrc", 0,
-      "debug category for pleorasrc element");
-  gst_element_register (plugin, "pleorasrc", GST_RANK_NONE,
-      gst_pleorasrc_get_type ());
-
-  return TRUE;
-}
-
-GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-    GST_VERSION_MINOR,
-    pleora,
-    "Pleora eBUS video source",
-    plugin_init, GST_PACKAGE_VERSION, GST_PACKAGE_LICENSE, GST_PACKAGE_NAME,
-    GST_PACKAGE_ORIGIN)
