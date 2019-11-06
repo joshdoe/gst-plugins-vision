@@ -89,7 +89,7 @@ static GstStaticPadTemplate gst_imperxsdisrc_src_template =
 GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("{ AYUV64, YUY2, BGR }"))
+    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("{ v210, AYUV64, YUY2, BGR }"))
     );
 
 /* class initialization */
@@ -464,6 +464,45 @@ unpack_YVYU10 (gpointer dest, const gpointer data,
   }
 }
 
+static void
+repack_YVYU10_to_v210 (gpointer dest, const gpointer data,
+    const gint stride, gint x, gint y, gint width)
+{
+  int i;
+  const guint8 *restrict s = (guint8 *) (data) + stride * y;
+  guint32 *restrict d = (guint32 *) dest;
+  guint32 a0, a1, a2, a3;
+  guint16 y0, y1, y2, y3, y4, y5;
+  guint16 u0, u2, u4;
+  guint16 v0, v2, v4;
+
+  s += x * 2;
+  for (i = 0; i < width; i += 4) {
+    a0 = GST_READ_UINT32_LE (s + (i / 4) * 16 + 0);
+    a1 = GST_READ_UINT32_LE (s + (i / 4) * 16 + 4);
+    a2 = GST_READ_UINT32_LE (s + (i / 4) * 16 + 8);
+    a3 = GST_READ_UINT32_LE (s + (i / 4) * 16 + 12);
+
+    y0 = ((a0 >> 0) & 0x3ff);
+    u0 = ((a0 >> 10) & 0x3ff);
+    y1 = ((a0 >> 20) & 0x3ff);
+    v0 = (((a0 >> 30) | (a1 << 2)) & 0x3ff);
+    y2 = ((a1 >> 8) & 0x3ff);
+    u2 = ((a1 >> 18) & 0x3ff);
+
+    y3 = ((a2 >> 0) & 0x3ff);
+    v2 = ((a2 >> 10) & 0x3ff);
+    y4 = ((a2 >> 20) & 0x3ff);
+    u4 = (((a2 >> 30) | (a3 << 2)) & 0x3ff);
+    y5 = ((a3 >> 8) & 0x3ff);
+    v4 = ((a3 >> 18) & 0x3ff);
+
+    d[i + 0] = (v0 << 20) | (y0 << 10) | u0;
+    d[i + 1] = (y2 << 20) | (u2 << 10) | y1;
+    d[i + 2] = (u4 << 20) | (y3 << 10) | v2;
+    d[i + 3] = (y5 << 20) | (v4 << 10) | y4;
+  }
+}
 
 static GstBuffer *
 gst_imperxsdisrc_create_buffer_from_frameinfo (GstImperxSdiSrc * src,
@@ -473,7 +512,8 @@ gst_imperxsdisrc_create_buffer_from_frameinfo (GstImperxSdiSrc * src,
   GstBuffer *buf;
   int buffer_size;
 
-  if (src->is_interlaced && src->format != GST_VIDEO_FORMAT_AYUV64) {
+  if (src->is_interlaced
+      && src->camera_data.Format != VCESDI_OutputFormat_YCrCb10) {
     VCESDI_Decode (&src->camera_data, NULL, NULL, &src->imperx_stride,
         src->camera_data.Format, NULL, NULL);
     buffer_size = src->camera_data.CameraStatus.Height * src->imperx_stride;
@@ -490,7 +530,8 @@ gst_imperxsdisrc_create_buffer_from_frameinfo (GstImperxSdiSrc * src,
       pFrameInfo->bufferSize, src->imperx_stride, minfo.size, src->gst_stride,
       pFrameInfo->number, pFrameInfo->timestamp);
 
-  if (src->is_interlaced && src->format != GST_VIDEO_FORMAT_AYUV64) {
+  if (src->is_interlaced
+      && src->camera_data.Format != VCESDI_OutputFormat_YCrCb10) {
     VCESDI_Decode (&src->camera_data, pFrameInfo->lpRawBuffer, minfo.data,
         &src->imperx_stride, src->camera_data.Format, NULL, NULL);
   } else {
@@ -509,6 +550,24 @@ gst_imperxsdisrc_create_buffer_from_frameinfo (GstImperxSdiSrc * src,
       } else {
         for (row = 0; row < src->height; row++) {
           unpack_YVYU10 (minfo.data + src->gst_stride * row,
+              pFrameInfo->lpRawBuffer, src->imperx_stride, 0, row, src->width);
+        }
+      }
+    } else if (src->format == GST_VIDEO_FORMAT_v210) {
+      gint row;
+      if (src->is_interlaced) {
+        gint hh = src->height / 2;
+        /* assumes even number of rows, which is the case for all formats */
+        for (row = 0; row < hh; row++) {
+          repack_YVYU10_to_v210 (minfo.data + src->gst_stride * (row * 2),
+              pFrameInfo->lpRawBuffer, src->imperx_stride, 0, row, src->width);
+          repack_YVYU10_to_v210 (minfo.data + src->gst_stride * (row * 2 + 1),
+              pFrameInfo->lpRawBuffer, src->imperx_stride, 0, row + hh,
+              src->width);
+        }
+      } else {
+        for (row = 0; row < src->height; row++) {
+          repack_YVYU10_to_v210 (minfo.data + src->gst_stride * row,
               pFrameInfo->lpRawBuffer, src->imperx_stride, 0, row, src->width);
         }
       }
@@ -610,6 +669,7 @@ gst_imperxsdisrc_start_grab (GstImperxSdiSrc * src)
 
   src->format = GST_VIDEO_INFO_FORMAT (&vinfo);
   switch (src->format) {
+    case GST_VIDEO_FORMAT_v210:
     case GST_VIDEO_FORMAT_AYUV64:
       src->camera_data.Format = VCESDI_OutputFormat_YCrCb10;
       /* 12 components (6 pixels), in 16 bytes */
