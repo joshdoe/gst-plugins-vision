@@ -287,6 +287,10 @@ gst_idsueyesrc_set_caps_from_camera (GstIdsueyeSrc * src)
   idsColorMode = is_SetColorMode (src->hCam, IS_GET_COLOR_MODE);
 
   switch (idsColorMode) {
+    case IS_CM_SENSOR_RAW8:
+      bpp = 8;
+      videoFormat = GST_VIDEO_FORMAT_GRAY8;
+      break;
     case IS_CM_MONO8:
       bpp = 8;
       videoFormat = GST_VIDEO_FORMAT_GRAY8;
