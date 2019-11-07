@@ -54,9 +54,9 @@ if (PHOENIX_FOUND)
 	add_subdirectory(phoenix)
 endif (PHOENIX_FOUND)
 
-if (PLEORA_FOUND)
+if (Pleora_FOUND)
 	add_subdirectory(pleora)
-endif (PLEORA_FOUND)
+endif (Pleora_FOUND)
 
 if (SAPERA_FOUND)
 	add_subdirectory(sapera)

@@ -2,21 +2,28 @@ add_definitions(-D_XKEYCHECK_H)
 
 set (SOURCES
   gstpleora.cpp
-  gstpleorasink.cpp
-  gstpleorasrc.cpp
-  streamingchannelsource.cpp)
+  gstpleorasrc.cpp)
     
 set (HEADERS
-  gstpleorasink.h
-  gstpleorasrc.h
-  streamingchannelsource.h)
+  gstpleorasrc.h)
+
+if (Pleora_VERSION_MAJOR GREATER 5)
+  set (SOURCES
+    ${SOURCES}
+    gstpleorasink.cpp
+    streamingchannelsource.cpp)
+  set (HEADERS
+    ${HEADERS}
+    gstpleorasink.h
+    streamingchannelsource.h)
+endif ()
 
 include_directories (AFTER
-  ${PLEORA_INCLUDE_DIR})
+  ${Pleora_INCLUDE_DIR})
 
-set (libname libgstpleora)
+link_directories(${Pleora_LIBRARY_DIR})
 
-link_directories(${PLEORA_LIBRARIES_DIR})
+set (libname libgstpleora${Pleora_VERSION_MAJOR})
 
 add_library (${libname} MODULE
   ${SOURCES}

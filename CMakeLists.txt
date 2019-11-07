@@ -98,7 +98,7 @@ find_package(Phoenix)
 macro_log_feature(PHOENIX_FOUND "Active Silicon Phoenix" "Required to build Active Silicon Phoenix source element" "http://www.activesilicon.com/" FALSE)
 
 find_package(Pleora)
-macro_log_feature(PLEORA_FOUND "Pleora eBUS" "Required to build Pleora eBUS source element" "http://www.pleora.com/" FALSE)
+macro_log_feature(Pleora_FOUND "Pleora eBUS" "Required to build Pleora eBUS source element" "http://www.pleora.com/" FALSE)
 
 find_package(Sapera)
 macro_log_feature(SAPERA_FOUND "Teledyne DALSA Sapera" "Required to build Teledyne DALSA Sapera source element" "http://www.teledynedalsa.com/" FALSE)
