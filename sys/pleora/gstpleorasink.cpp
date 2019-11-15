@@ -100,7 +100,7 @@ GST_STATIC_PAD_TEMPLATE ("sink",
 /* class initialization */
 
 /* setup debug */
-GST_DEBUG_CATEGORY_STATIC (pleorasink_debug);
+GST_DEBUG_CATEGORY (pleorasink_debug);
 #define GST_CAT_DEFAULT pleorasink_debug
 
 G_DEFINE_TYPE (GstPleoraSink, gst_pleorasink, GST_TYPE_BASE_SINK);
@@ -330,18 +330,32 @@ gst_pleorasink_select_interface (GstPleoraSink * sink)
 {
   PvSystem lSystem;
   const PvNetworkAdapter *selected_nic = NULL;
+  guint iface_count;
   gchar *desired_mac = NULL;
   gchar *found_mac = NULL;
 
   /* we'll compare uppercase version of MAC */
   desired_mac = g_ascii_strup (sink->mac, -1);
 
-  for (guint32 i = 0; i < lSystem.GetInterfaceCount (); i++) {
+  iface_count = lSystem.GetInterfaceCount ();
+
+  GST_DEBUG_OBJECT (sink, "Found %d interface(s)", iface_count);
+
+  for (guint32 i = 0; i < iface_count; i++) {
     const PvNetworkAdapter *lNIC = NULL;
     lNIC = dynamic_cast < const PvNetworkAdapter *>(lSystem.GetInterface (i));
+
+    GST_DEBUG_OBJECT (sink,
+        "Found network interface '%s', MAC: %s, IP: %s, Subnet: %s",
+        lNIC->GetDescription ().GetAscii (),
+        lNIC->GetMACAddress ().GetAscii (),
+        lNIC->GetIPAddress (0).GetAscii (),
+        lNIC->GetSubnetMask (0).GetAscii ());
+
     if ((lNIC == NULL) ||
         (lNIC->GetIPAddressCount () == 0) ||
         (lNIC->GetIPAddress (0) == "0.0.0.0")) {
+      GST_DEBUG_OBJECT (sink, "Interface %d has no valid IP address", i);
       continue;
     }
 

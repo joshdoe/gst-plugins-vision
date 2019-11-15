@@ -19,6 +19,10 @@
 
 #include "streamingchannelsource.h"
 
+/* setup debug */
+GST_DEBUG_CATEGORY_EXTERN (pleorasink_debug);
+#define GST_CAT_DEFAULT pleorasink_debug
+
 GstStreamingChannelSource::GstStreamingChannelSource ()
 :  mAcquisitionBuffer (NULL), mBufferCount (0), mBufferValid (FALSE)
 {
@@ -163,7 +167,7 @@ GstStreamingChannelSource::ResizeBufferIfNeeded (PvBuffer * aBuffer)
 void
 GstStreamingChannelSource::SetBuffer (GstBuffer * buf)
 {
-  GST_ERROR ("Set buffer");
+  GST_LOG ("SetBuffer");
 
   g_mutex_lock (&mSink->mutex);
 
