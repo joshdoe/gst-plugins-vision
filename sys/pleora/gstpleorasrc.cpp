@@ -48,6 +48,9 @@
 #include <PvSystem.h>
 #include <PvVersion.h>
 
+/* FIXME: include this for now until gst-plugins-base MR124 is accepted */
+#include "klv.h"
+
 GST_DEBUG_CATEGORY_STATIC (gst_pleorasrc_debug);
 #define GST_CAT_DEFAULT gst_pleorasrc_debug
 
@@ -83,7 +86,8 @@ enum
   PROP_RECEIVER_ONLY,
   PROP_PACKET_SIZE,
   PROP_CONFIG_FILE,
-  PROP_CONFIG_FILE_CONNECT
+  PROP_CONFIG_FILE_CONNECT,
+  PROP_OUTPUT_KLV
 };
 
 #define DEFAULT_PROP_DEVICE ""
@@ -97,6 +101,7 @@ enum
 #define DEFAULT_PROP_PACKET_SIZE 0
 #define DEFAULT_PROP_CONFIG_FILE ""
 #define DEFAULT_PROP_CONFIG_FILE_CONNECT TRUE
+#define DEFAULT_PROP_OUTPUT_KLV TRUE
 
 #define VIDEO_CAPS_MAKE_BAYER8(format)                     \
     "video/x-bayer, "                                        \
@@ -221,6 +226,12 @@ gst_pleorasrc_class_init (GstPleoraSrcClass * klass)
           "connects using properties and then restores configuration",
           DEFAULT_PROP_CONFIG_FILE_CONNECT,
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
+  g_object_class_install_property (gobject_class, PROP_OUTPUT_KLV,
+      g_param_spec_boolean ("output-klv", "Output KLV",
+          "Whether to output MISB ST1608 KLV as buffer meta",
+          DEFAULT_PROP_OUTPUT_KLV,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+              GST_PARAM_MUTABLE_READY)));
 }
 
 static void
@@ -263,6 +274,7 @@ gst_pleorasrc_init (GstPleoraSrc * src)
   src->receiver_only = DEFAULT_PROP_RECEIVER_ONLY;
   src->config_file = g_strdup (DEFAULT_PROP_CONFIG_FILE);
   src->config_file_connect = DEFAULT_PROP_CONFIG_FILE_CONNECT;
+  src->output_klv = DEFAULT_PROP_OUTPUT_KLV;
 
   src->stop_requested = FALSE;
   src->caps = NULL;
@@ -317,6 +329,9 @@ gst_pleorasrc_set_property (GObject * object, guint property_id,
     case PROP_CONFIG_FILE_CONNECT:
       src->config_file_connect = g_value_get_boolean (value);
       break;
+    case PROP_OUTPUT_KLV:
+      src->output_klv= g_value_get_boolean (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -365,6 +380,9 @@ gst_pleorasrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_CONFIG_FILE_CONNECT:
       g_value_set_boolean (value, src->config_file_connect);
+      break;
+    case PROP_OUTPUT_KLV:
+      g_value_set_boolean (value, src->output_klv);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -1587,8 +1605,8 @@ gst_pleorasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
     return GST_FLOW_ERROR;
   }
 
+  /* wrap or copy image data to buffer */
   pvimage = pvbuffer->GetImage ();
-
   gpointer data = pvimage->GetDataPointer ();
   if (src->pleora_stride == src->gst_stride) {
     VideoFrame *vf = g_new0 (VideoFrame, 1);
@@ -1621,12 +1639,69 @@ gst_pleorasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
       memcpy (d + i * src->gst_stride, s + i * src->pleora_stride,
           src->pleora_stride);
     gst_buffer_unmap (*buf, &minfo);
-
-    src->pipeline->ReleaseBuffer (pvbuffer);
   }
+
+  /* TODO: use PvBuffer timestamps */
   clock = gst_element_get_clock (GST_ELEMENT (src));
   clock_time = gst_clock_get_time (clock);
   gst_object_unref (clock);
+
+  if (src->output_klv && pvbuffer->HasChunks ()) {
+    guint32 num_chunks;
+    num_chunks = pvbuffer->GetChunkCount ();
+    GST_LOG_OBJECT (src, "Buffer has %d chunk(s) with layout ID %d", num_chunks,
+        pvbuffer->GetChunkLayoutID ());
+
+    /* TODO: spec says "Image must be the first chunk", but that doesn't seem
+       to be true, so check every chunk */
+    for (guint i = 0; i < num_chunks; ++i) {
+      guint32 chunk_id, chunk_size;
+      const guint8 *chunk_data;
+
+      pvRes = pvbuffer->GetChunkIDByIndex (i, chunk_id);
+      if (!pvRes.IsOK ()) {
+        GST_WARNING_OBJECT (src, "Failed to get chunk ID for index %d: '%s'", i,
+            pvRes.GetDescription ().GetAscii ());
+        continue;
+      }
+
+      chunk_size = pvbuffer->GetChunkSizeByIndex (i);
+      if (chunk_size == 0) {
+        GST_WARNING_OBJECT (src, "Chunk size reported as zero for index %d", i);
+        continue;
+      }
+
+      chunk_data = pvbuffer->GetChunkRawDataByIndex (i);
+      if (chunk_data == NULL) {
+        GST_WARNING_OBJECT (src, "Chunk data is NULL for index %d", i);
+        continue;
+      }
+
+      GST_LOG_OBJECT (src,
+          "Found chunk at index %d with ID %04x of size %d bytes", i, chunk_id,
+          chunk_size);
+      GST_MEMDUMP_OBJECT (src, "Chunk data", chunk_data, chunk_size);
+
+      if (chunk_size < 17) {
+        GST_LOG_OBJECT (src, "Chunk data is too small to contain KLV");
+        continue;
+      }
+
+      if (GST_READ_UINT32_BE (chunk_data) != 0x060E2B34) {
+        GST_LOG_OBJECT (src, "Chunk doesn't contain KLV data");
+        continue;
+      }
+
+      GST_LOG_OBJECT (src, "Adding KLV meta to buffer");
+      /* TODO: do we need to exclude padding that may be present? */
+      gst_buffer_add_klv_meta_from_data (*buf, chunk_data, chunk_size);
+    }
+  }
+
+  if (src->pleora_stride != src->gst_stride) {
+    src->pipeline->ReleaseBuffer (pvbuffer);
+    pvbuffer = NULL;
+  }
 
   /* check for dropped frames and disrupted signal */
   //dropped_frames = (circ_handle.FrameCount - src->last_frame_count) - 1;

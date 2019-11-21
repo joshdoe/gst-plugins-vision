@@ -75,7 +75,8 @@ enum
   PROP_VERSION,
   PROP_INFO,
   PROP_SERIAL,
-  PROP_MAC
+  PROP_MAC,
+  PROP_OUTPUT_KLV
 };
 
 #define DEFAULT_PROP_NUM_INTERNAL_BUFFERS 3
@@ -86,6 +87,7 @@ enum
 #define DEFAULT_PROP_INFO         "Pleora eBUS GStreamer Sink"
 #define DEFAULT_PROP_SERIAL       "0001"
 #define DEFAULT_PROP_MAC          ""
+#define DEFAULT_PROP_OUTPUT_KLV   TRUE
 
 /* pad templates */
 
@@ -184,6 +186,12 @@ gst_pleorasink_class_init (GstPleoraSinkClass * klass)
           DEFAULT_PROP_MAC,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               GST_PARAM_MUTABLE_READY)));
+  g_object_class_install_property (gobject_class, PROP_OUTPUT_KLV,
+      g_param_spec_boolean ("output-klv", "Output KLV",
+          "Whether to output KLV as chunk data according to MISB ST1608",
+          DEFAULT_PROP_OUTPUT_KLV,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+              GST_PARAM_MUTABLE_READY)));
 }
 
 static void
@@ -198,6 +206,7 @@ gst_pleorasink_init (GstPleoraSink * sink)
   sink->info = g_strdup (DEFAULT_PROP_INFO);
   sink->serial = g_strdup (DEFAULT_PROP_SERIAL);
   sink->mac = g_strdup (DEFAULT_PROP_MAC);
+  sink->output_klv = DEFAULT_PROP_OUTPUT_KLV;
 
   sink->camera_connected = FALSE;
 
@@ -253,6 +262,10 @@ gst_pleorasink_set_property (GObject * object, guint property_id,
       g_free (sink->mac);
       sink->mac = g_strdup (g_value_get_string (value));
       break;
+    case PROP_OUTPUT_KLV:
+      sink->output_klv = g_value_get_boolean (value);
+      sink->source->SetKlvEnabled (sink->output_klv);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -292,6 +305,9 @@ gst_pleorasink_get_property (GObject * object, guint property_id,
       break;
     case PROP_MAC:
       g_value_set_string (value, sink->mac);
+      break;
+    case PROP_OUTPUT_KLV:
+      g_value_set_boolean (value, sink->output_klv);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);

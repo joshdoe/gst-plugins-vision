@@ -52,6 +52,7 @@ struct _GstPleoraSink
   gchar *info;
   gchar *serial;
   gchar *mac;
+  gboolean output_klv;
 
   gboolean camera_connected;
   GstVideoInfo vinfo;

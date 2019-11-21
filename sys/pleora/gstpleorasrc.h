@@ -60,6 +60,7 @@ struct _GstPleoraSrc
   gint packet_size;
   gchar *config_file;
   gboolean config_file_connect;
+  gboolean output_klv;
 
   guint32 last_frame_count;
   guint32 total_dropped_frames;

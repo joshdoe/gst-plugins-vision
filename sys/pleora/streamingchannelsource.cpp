@@ -18,13 +18,19 @@
  */
 
 #include "streamingchannelsource.h"
+#include "klv.h"
 
 /* setup debug */
 GST_DEBUG_CATEGORY_EXTERN (pleorasink_debug);
 #define GST_CAT_DEFAULT pleorasink_debug
 
+/* these seem to be arbitrary */
+#define CHUNKLAYOUTID 0xABCD
+#define KLV_CHUNKID 0xFEDC
+
 GstStreamingChannelSource::GstStreamingChannelSource ()
-:  mAcquisitionBuffer (NULL), mBufferCount (0), mBufferValid (FALSE)
+:  mAcquisitionBuffer (NULL), mBufferCount (0), mBufferValid (FALSE),
+    mChunkModeActive(TRUE), mChunkKlvEnabled(TRUE), mKlvChunkSize(0)
 {
 
 }
@@ -56,6 +62,67 @@ PvResult GstStreamingChannelSource::GetSupportedPixelType (int aIndex,
 
   aPixelType = mPixelType;
   return PvResult::Code::OK;
+}
+
+PvResult GstStreamingChannelSource::GetSupportedChunk (int aIndex, uint32_t &aID, PvString &aName) const
+{
+    switch (aIndex) {
+    case 0:
+        aID = KLV_CHUNKID;
+        aName = "KLV";
+        return PvResult::Code::OK;
+    default:
+        break;
+    }
+
+    return PvResult::Code::INVALID_PARAMETER;
+}
+
+bool GstStreamingChannelSource::GetChunkEnable (uint32_t aChunkID) const
+{
+    switch (aChunkID) {
+    case KLV_CHUNKID:
+        return mChunkKlvEnabled;
+    default:
+        break;
+    }
+
+    return false;
+}
+
+PvResult GstStreamingChannelSource::SetChunkEnable (uint32_t aChunkID, bool aEnabled)
+{
+    switch (aChunkID) {
+    case KLV_CHUNKID:
+        mChunkKlvEnabled = aEnabled;
+        mSink->output_klv = mChunkKlvEnabled;
+        return PvResult::Code::OK;
+    default:
+        break;
+    }
+
+    return PvResult::Code::INVALID_PARAMETER;
+}
+
+uint32_t GstStreamingChannelSource::GetRequiredChunkSize() const
+{
+    if (mChunkModeActive && mChunkKlvEnabled) {
+        /* chunk data must be multiple of 4 bytes, and 16 bytes extra seem
+           to be needed for chunk ID and length */
+        return GST_ROUND_UP_4 (mKlvChunkSize) + 16;
+    } else {
+        return 0;
+    }
+}
+
+void GstStreamingChannelSource::SetKlvEnabled (gboolean enable)
+{
+    SetChunkEnable (KLV_CHUNKID, enable);
+}
+
+gboolean GstStreamingChannelSource::GetKlvEnabled()
+{
+    return GetChunkEnable (KLV_CHUNKID);
 }
 
 PvBuffer * GstStreamingChannelSource::AllocBuffer ()
@@ -154,12 +221,13 @@ GstStreamingChannelSource::SetCaps (GstCaps * caps)
 void
 GstStreamingChannelSource::ResizeBufferIfNeeded (PvBuffer * aBuffer)
 {
-  uint32_t lRequiredChunkSize = 0;
+  uint32_t lRequiredChunkSize = GetRequiredChunkSize();
   PvImage *lImage = aBuffer->GetImage ();
   if ((lImage->GetWidth () != mWidth) ||
       (lImage->GetHeight () != mHeight) ||
       (lImage->GetPixelType () != mPixelType) ||
       (lImage->GetMaximumChunkLength () != lRequiredChunkSize)) {
+    GST_LOG_OBJECT (mSink, "Width=%d, Height=%d, PixelType=%d, and/or ChunkLength=%d changed, reallocating buffer", mWidth, mHeight, mPixelType, lRequiredChunkSize);
     lImage->Alloc (mWidth, mHeight, mPixelType, 0, 0, lRequiredChunkSize);
   }
 }
@@ -167,7 +235,9 @@ GstStreamingChannelSource::ResizeBufferIfNeeded (PvBuffer * aBuffer)
 void
 GstStreamingChannelSource::SetBuffer (GstBuffer * buf)
 {
-  GST_LOG ("SetBuffer");
+  GByteArray * klv_byte_array = NULL;
+
+  GST_LOG_OBJECT (mSink, "SetBuffer");
 
   g_mutex_lock (&mSink->mutex);
 
@@ -184,15 +254,25 @@ GstStreamingChannelSource::SetBuffer (GstBuffer * buf)
     return;
   }
 
+  if (mChunkKlvEnabled) {
+      klv_byte_array = GetKlvByteArray (buf);
+      if (klv_byte_array) {
+          mKlvChunkSize = klv_byte_array->len;
+      } else {
+          mKlvChunkSize = 0;
+      }
+  }
+
+  ResizeBufferIfNeeded (mAcquisitionBuffer);
+
   /* TODO: avoid memcpy (when strides align) by attaching to PvBuffer */
   GstMapInfo minfo;
   gst_buffer_map (buf, &minfo, GST_MAP_READ);
 
-  ResizeBufferIfNeeded (mAcquisitionBuffer);
 
   guint8 *dst = mAcquisitionBuffer->GetDataPointer ();
   if (!dst) {
-    GST_ERROR ("Have buffer to fill, but data pointer is invalid");
+    GST_ERROR_OBJECT (mSink, "Have buffer to fill, but data pointer is invalid");
     g_mutex_unlock (&mSink->mutex);
     return;
   }
@@ -202,8 +282,68 @@ GstStreamingChannelSource::SetBuffer (GstBuffer * buf)
 
   gst_buffer_unmap (buf, &minfo);
 
+  mAcquisitionBuffer->ResetChunks();
+  mAcquisitionBuffer->SetChunkLayoutID(CHUNKLAYOUTID);
+
+  if (mChunkKlvEnabled && klv_byte_array && klv_byte_array->len > 0) {
+    PvResult pvRes;
+    pvRes = mAcquisitionBuffer->AddChunk (KLV_CHUNKID, (uint8_t*)klv_byte_array->data, klv_byte_array->len);
+    if (pvRes.IsOK ()) {
+        GST_LOG_OBJECT (mSink, "Added KLV as chunk data (len=%d)", klv_byte_array->len);
+    } else {
+        GST_WARNING_OBJECT (mSink, "Failed to add KLV as chunk data (len=%d): %s",
+            klv_byte_array->len,
+            pvRes.GetDescription ().GetAscii ());
+    }
+  }
+
+  if (klv_byte_array) {
+      g_byte_array_unref (klv_byte_array);
+  }
+
   mBufferValid = TRUE;
   g_cond_signal (&mSink->cond);
 
   g_mutex_unlock (&mSink->mutex);
+}
+
+GByteArray * GstStreamingChannelSource::GetKlvByteArray (GstBuffer * buf)
+{
+      GstKLVMeta *klv_meta;
+      gpointer iter = NULL;
+      GByteArray *byte_array;
+
+      {
+          //FIXME put fake data for testing
+          const guint8 klv_header[18] =
+          { 0x06, 0x0e, 0x2b, 0x34, 0x02, 0x0b, 0x01, 0x01, 0x0e, 0x01, 0x03,
+          0x01, 0x01, 0x00, 0x00, 0x00, 0x01, 0xFF };
+          buf = gst_buffer_make_writable (buf);
+          gst_buffer_add_klv_meta_from_data (buf, klv_header, sizeof (klv_header));
+          gst_buffer_add_klv_meta_from_data (buf, klv_header, sizeof (klv_header));
+      }
+
+      /* spec says KLV can all be in one chunk, or multiple chunks, we do one chunk */
+      byte_array = g_byte_array_new ();
+      while ((klv_meta = (GstKLVMeta *) gst_buffer_iterate_meta_filtered (buf,
+          &iter, GST_KLV_META_API_TYPE))) {
+              gsize klv_size;
+              const guint8 *klv_data;
+              klv_data = gst_klv_meta_get_data (klv_meta, &klv_size);
+              if (!klv_data) {
+                  GST_WARNING_OBJECT (mSink, "Failed to get KLV data from meta");
+                  break;
+              }
+
+              g_byte_array_append (byte_array, klv_data, klv_size);
+      }
+
+      /* chunk length must be multiple of 4 bytes */
+      if (byte_array->len % 4 != 0) {
+          const guint8 padding[4] = {0};
+          const guint padding_len = GST_ROUND_UP_4 (byte_array->len) - byte_array->len;
+          g_byte_array_append (byte_array, padding, padding_len);
+      }
+
+      return byte_array;
 }

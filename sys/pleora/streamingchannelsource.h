@@ -41,6 +41,18 @@ public:
     void GetHeightInfo (uint32_t & aMin, uint32_t & aMax, uint32_t & aInc) const;
     PvResult GetSupportedPixelType (int aIndex, PvPixelType & aPixelType) const;
 
+    PvResult GetSupportedChunk (int aIndex, uint32_t &aID, PvString &aName) const;
+    bool GetChunkEnable (uint32_t aChunkID) const;
+    PvResult SetChunkEnable (uint32_t aChunkID, bool aEnabled);
+    bool GetChunkModeActive() const { return mChunkModeActive; }
+    PvResult SetChunkModeActive( bool aEnabled ) { mChunkModeActive = aEnabled; return PvResult::Code::OK; }
+    uint32_t GetChunksSize() const { return GetRequiredChunkSize(); }
+
+    uint32_t GetRequiredChunkSize () const;
+    void SetKlvEnabled (gboolean enable = TRUE);
+    gboolean GetKlvEnabled ();
+    GByteArray * GetKlvByteArray (GstBuffer * buf);
+
 private:
     GstPleoraSink * mSink;
     PvBuffer *mAcquisitionBuffer;
@@ -50,4 +62,9 @@ private:
     gint mWidth;
     gint mHeight;
     PvPixelType mPixelType;
+
+    bool mChunkModeActive;
+    bool mChunkKlvEnabled;
+
+    gint mKlvChunkSize;
 };

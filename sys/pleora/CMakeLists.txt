@@ -1,10 +1,12 @@
 add_definitions(-D_XKEYCHECK_H)
 
 set (SOURCES
+  klv.c
   gstpleora.cpp
   gstpleorasrc.cpp)
     
 set (HEADERS
+  klv.h
   gstpleorasrc.h)
 
 if (Pleora_VERSION_MAJOR GREATER 5)
