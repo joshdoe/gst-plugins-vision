@@ -65,6 +65,9 @@ static GstFlowReturn gst_pleorasink_render (GstBaseSink * basesink,
 static gboolean gst_pleorasink_unlock (GstBaseSink * basesink);
 static gboolean gst_pleorasink_unlock_stop (GstBaseSink * basesink);
 
+gboolean gst_pleorasink_start_multicasting (GstPleoraSink * sink);
+void gst_pleorasink_stop_multicasting (GstPleoraSink * sink);
+
 enum
 {
   PROP_0,
@@ -76,7 +79,11 @@ enum
   PROP_INFO,
   PROP_SERIAL,
   PROP_MAC,
-  PROP_OUTPUT_KLV
+  PROP_OUTPUT_KLV,
+  PROP_AUTO_MULTICAST,
+  PROP_MULTICAST_GROUP,
+  PROP_MULTICAST_PORT,
+  PROP_PACKET_SIZE
 };
 
 #define DEFAULT_PROP_NUM_INTERNAL_BUFFERS 3
@@ -88,6 +95,10 @@ enum
 #define DEFAULT_PROP_SERIAL       "0001"
 #define DEFAULT_PROP_MAC          ""
 #define DEFAULT_PROP_OUTPUT_KLV   TRUE
+#define DEFAULT_PROP_AUTO_MULTICAST FALSE
+#define DEFAULT_PROP_MULTICAST_GROUP "239.192.1.1"
+#define DEFAULT_PROP_MULTICAST_PORT 1042
+#define DEFAULT_PROP_PACKET_SIZE  1492
 
 /* pad templates */
 
@@ -192,6 +203,28 @@ gst_pleorasink_class_init (GstPleoraSinkClass * klass)
           DEFAULT_PROP_OUTPUT_KLV,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               GST_PARAM_MUTABLE_READY)));
+  g_object_class_install_property (gobject_class, PROP_AUTO_MULTICAST,
+      g_param_spec_boolean ("auto-multicast", "Auto multicast",
+          "Automatically multicast video, removing the need for a controller",
+          DEFAULT_PROP_AUTO_MULTICAST,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+              GST_PARAM_MUTABLE_READY)));
+  g_object_class_install_property (gobject_class, PROP_MULTICAST_GROUP,
+      g_param_spec_string ("multicast-group", "Multicast group IP address",
+          "The address of the multicast group to stream video (if auto-multicast is TRUE)",
+          DEFAULT_PROP_MULTICAST_GROUP,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+              GST_PARAM_MUTABLE_READY)));
+  g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_MULTICAST_PORT,
+      g_param_spec_int ("port", "Multicast port",
+          "The port of the multicast group to stream video (if auto-multicast is TRUE)",
+          0, 65535, DEFAULT_PROP_MULTICAST_PORT,
+          (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
+  g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_PACKET_SIZE,
+      g_param_spec_int ("packet-size", "Packet size",
+          "Packet size (if auto-multicast is TRUE)", 576, 65535,
+          DEFAULT_PROP_PACKET_SIZE,
+          (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
 }
 
 static void
@@ -207,6 +240,10 @@ gst_pleorasink_init (GstPleoraSink * sink)
   sink->serial = g_strdup (DEFAULT_PROP_SERIAL);
   sink->mac = g_strdup (DEFAULT_PROP_MAC);
   sink->output_klv = DEFAULT_PROP_OUTPUT_KLV;
+  sink->auto_multicast = DEFAULT_PROP_AUTO_MULTICAST;
+  sink->multicast_group = g_strdup (DEFAULT_PROP_MULTICAST_GROUP);
+  sink->multicast_port = DEFAULT_PROP_MULTICAST_PORT;
+  sink->packet_size = DEFAULT_PROP_PACKET_SIZE;
 
   sink->camera_connected = FALSE;
 
@@ -266,6 +303,18 @@ gst_pleorasink_set_property (GObject * object, guint property_id,
       sink->output_klv = g_value_get_boolean (value);
       sink->source->SetKlvEnabled (sink->output_klv);
       break;
+    case PROP_AUTO_MULTICAST:
+      sink->auto_multicast = g_value_get_boolean (value);
+      break;
+    case PROP_MULTICAST_GROUP:
+      g_free (sink->multicast_group);
+      sink->multicast_group = g_strdup (g_value_get_string (value));
+    case PROP_MULTICAST_PORT:
+      sink->multicast_port = g_value_get_int (value);
+      break;
+    case PROP_PACKET_SIZE:
+      sink->packet_size = g_value_get_int (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -308,6 +357,18 @@ gst_pleorasink_get_property (GObject * object, guint property_id,
       break;
     case PROP_OUTPUT_KLV:
       g_value_set_boolean (value, sink->output_klv);
+      break;
+    case PROP_AUTO_MULTICAST:
+      g_value_set_boolean (value, sink->auto_multicast);
+      break;
+    case PROP_MULTICAST_GROUP:
+      g_value_set_string (value, sink->multicast_group);
+      break;
+    case PROP_MULTICAST_PORT:
+      g_value_set_int (value, sink->multicast_port);
+      break;
+    case PROP_PACKET_SIZE:
+      g_value_set_int (value, sink->packet_size);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -459,6 +520,8 @@ gst_pleorasink_stop (GstBaseSink * basesink)
 {
   GstPleoraSink *sink = GST_PLEORASINK (basesink);
 
+  gst_pleorasink_stop_multicasting (sink);
+
   sink->device->Stop ();
 
   sink->camera_connected = FALSE;
@@ -467,6 +530,108 @@ gst_pleorasink_stop (GstBaseSink * basesink)
   sink->stop_requested = FALSE;
 
   return TRUE;
+}
+
+gboolean
+gst_pleorasink_find_registers (GstPleoraSink * sink)
+{
+  sink->register_SCDA0 = NULL;
+  sink->register_SCPS0 = NULL;
+  sink->register_SCP0 = NULL;
+  sink->register_AcquisitionStart0 = NULL;
+  sink->register_AcquisitionStop0 = NULL;
+
+  IPvRegisterMap *regmap = sink->device->GetRegisterMap ();
+  size_t regcount = regmap->GetRegisterCount ();
+  for (size_t i = 0; i < regcount; i++) {
+    IPvRegister *reg = regmap->GetRegisterByIndex (i);
+    const char *reg_name = reg->GetName ().GetAscii ();
+
+    if (g_strcmp0 ("SCDA0", reg_name) == 0) {
+      sink->register_SCDA0 = reg;
+    } else if (g_strcmp0 ("SCPS0", reg_name) == 0) {
+      sink->register_SCPS0 = reg;
+    } else if (g_strcmp0 ("SCP0", reg_name) == 0) {
+      sink->register_SCP0 = reg;
+    } else if (g_strcmp0 ("AcquisitionStart0", reg_name) == 0) {
+      sink->register_AcquisitionStart0 = reg;
+    } else if (g_strcmp0 ("AcquisitionStop0", reg_name) == 0) {
+      sink->register_AcquisitionStop0 = reg;
+    }
+  }
+
+  if (!sink->register_SCDA0 || !sink->register_SCPS0 || !sink->register_SCP0
+      || !sink->register_AcquisitionStart0
+      || !sink->register_AcquisitionStop0) {
+    GST_ELEMENT_ERROR (sink, RESOURCE, SETTINGS,
+        ("Failed to find registers necessary to start auto multicasting"),
+        (NULL));
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+gboolean
+gst_pleorasink_start_multicasting (GstPleoraSink * sink)
+{
+  PvResult pvRes;
+
+  if (!gst_pleorasink_find_registers (sink))
+    return FALSE;
+  gchar **addr_elems = g_strsplit (sink->multicast_group, ".", 4);
+  if (g_strv_length (addr_elems) != 4) {
+    GST_ELEMENT_ERROR (sink, RESOURCE, SETTINGS,
+        ("Multicast-group is not a valid IP address: %s",
+            sink->multicast_group), (NULL));
+    return FALSE;
+  }
+
+  guint8 multiaddr[4] =
+      { atoi (addr_elems[3]), atoi (addr_elems[2]), atoi (addr_elems[1]),
+        atoi (addr_elems[0]) };
+  pvRes = sink->register_SCDA0->Write (multiaddr, 4);
+  if (!pvRes.IsOK ()) {
+    GST_ELEMENT_ERROR (sink, RESOURCE, SETTINGS,
+        ("Failed to set multicast-group address %s as 0x%08x",
+            sink->multicast_group, multiaddr), (NULL));
+    return FALSE;
+  }
+
+  pvRes = sink->register_SCPS0->Write (0x40000000 | sink->packet_size);
+  if (!pvRes.IsOK ()) {
+    GST_ELEMENT_ERROR (sink, RESOURCE, SETTINGS,
+        ("Failed to set packet size %d", sink->packet_size), (NULL));
+    return FALSE;
+  }
+
+  pvRes = sink->register_SCP0->Write (sink->multicast_port);
+  if (!pvRes.IsOK ()) {
+    GST_ELEMENT_ERROR (sink, RESOURCE, SETTINGS,
+        ("Failed to set multicast-port %d", sink->multicast_port), (NULL));
+    return FALSE;
+  }
+
+  pvRes = sink->register_AcquisitionStart0->Write (1);
+  if (!pvRes.IsOK ()) {
+    GST_ELEMENT_ERROR (sink, RESOURCE, SETTINGS,
+        ("Failed to set AcquisitionStart0 register"), (NULL));
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+void
+gst_pleorasink_stop_multicasting (GstPleoraSink * sink)
+{
+  PvResult pvRes;
+  if (sink->register_AcquisitionStop0) {
+    pvRes = sink->register_AcquisitionStop0->Write (1);
+    if (!pvRes.IsOK ()) {
+      GST_ERROR_OBJECT (sink, "Failed to set AcquisitionStop0 register");
+    }
+  }
 }
 
 gboolean
@@ -507,6 +672,12 @@ gst_pleorasink_set_caps (GstBaseSink * basesink, GstCaps * caps)
 
   sink->acquisition_started = TRUE;
   sink->stop_requested = FALSE;
+
+  if (sink->auto_multicast) {
+    if (!gst_pleorasink_start_multicasting (sink)) {
+      return FALSE;
+    }
+  }
 
   return TRUE;
 }

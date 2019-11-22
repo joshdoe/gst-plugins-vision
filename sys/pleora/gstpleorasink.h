@@ -25,6 +25,7 @@
 
 class GstStreamingChannelSource;
 class PvSoftDeviceGEV;
+class IPvRegister;
 
 G_BEGIN_DECLS
 
@@ -53,6 +54,10 @@ struct _GstPleoraSink
   gchar *serial;
   gchar *mac;
   gboolean output_klv;
+  guint32 packet_size;
+  gboolean auto_multicast;
+  gchar *multicast_group;
+  gint multicast_port;
 
   gboolean camera_connected;
   GstVideoInfo vinfo;
@@ -61,6 +66,12 @@ struct _GstPleoraSink
   GCond cond;
   gboolean acquisition_started;
   gboolean stop_requested;
+
+  IPvRegister *register_SCDA0;
+  IPvRegister *register_SCPS0;
+  IPvRegister *register_SCP0;
+  IPvRegister *register_AcquisitionStart0;
+  IPvRegister *register_AcquisitionStop0;
 };
 
 struct _GstPleoraSinkClass
