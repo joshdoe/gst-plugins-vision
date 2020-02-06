@@ -23,7 +23,14 @@
 #include <gst/gst.h>
 
 // FIXME: include this for now until gst-plugins-base MR124 is accepted
-#define GST_TAG_API
+//#define GST_API_EXPORT __declspec(dllexport) extern
+//#define GST_TAG_API GST_API_EXPORT
+#ifdef BUILDING_GST_KLV
+#define GST_KLV_API __declspec(dllexport) extern
+#else
+#define GST_KLV_API __declspec(dllimport) extern
+#endif
+#define GST_TAG_API GST_KLV_API
 
 G_BEGIN_DECLS
 

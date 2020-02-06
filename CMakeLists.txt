@@ -119,6 +119,8 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
         ${PREFIX} CACHE PATH "Directory to install plugins, under lib/gstreamer-1.0" FORCE)
 endif(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 
+add_subdirectory(gst-libs)
+
 # Build the plugins
 add_subdirectory(ext)
 add_subdirectory(gst)

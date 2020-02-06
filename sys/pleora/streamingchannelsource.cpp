@@ -313,16 +313,6 @@ GByteArray * GstStreamingChannelSource::GetKlvByteArray (GstBuffer * buf)
       gpointer iter = NULL;
       GByteArray *byte_array;
 
-      {
-          //FIXME put fake data for testing
-          const guint8 klv_header[18] =
-          { 0x06, 0x0e, 0x2b, 0x34, 0x02, 0x0b, 0x01, 0x01, 0x0e, 0x01, 0x03,
-          0x01, 0x01, 0x00, 0x00, 0x00, 0x01, 0xFF };
-          buf = gst_buffer_make_writable (buf);
-          gst_buffer_add_klv_meta_from_data (buf, klv_header, sizeof (klv_header));
-          gst_buffer_add_klv_meta_from_data (buf, klv_header, sizeof (klv_header));
-      }
-
       /* spec says KLV can all be in one chunk, or multiple chunks, we do one chunk */
       byte_array = g_byte_array_new ();
       while ((klv_meta = (GstKLVMeta *) gst_buffer_iterate_meta_filtered (buf,

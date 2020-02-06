@@ -1,37 +1,23 @@
-add_definitions(-D_XKEYCHECK_H)
-
 set (SOURCES
-  gstpleora.cpp
-  gstpleorasrc.cpp)
+  gstklv.c
+  gstklvinject.c
+  gstklvinspect.c)
     
 set (HEADERS
-  gstpleorasrc.h)
-
-if (Pleora_VERSION_MAJOR GREATER 5)
-  set (SOURCES
-    ${SOURCES}
-    gstpleorasink.cpp
-    streamingchannelsource.cpp)
-  set (HEADERS
-    ${HEADERS}
-    gstpleorasink.h
-    streamingchannelsource.h)
-endif ()
+  gstklvinject.h
+  gstklvinspect.h)
 
 include_directories (AFTER
-  ${Pleora_INCLUDE_DIR}
   ${PROJECT_SOURCE_DIR}/common
   ${PROJECT_SOURCE_DIR}/gst-libs/klv
   )
 
-link_directories(${Pleora_LIBRARY_DIR})
-
-set (libname libgstpleora${Pleora_VERSION_MAJOR})
+set (libname libgstklv)
 
 add_library (${libname} MODULE
   ${SOURCES}
   ${HEADERS})
-
+  
 target_link_libraries (${libname}
   ${GLIB2_LIBRARIES}
   ${GOBJECT_LIBRARIES}
@@ -42,5 +28,5 @@ target_link_libraries (${libname}
 
 set (pdbfile "${CMAKE_CURRENT_BINARY_DIR}/\${CMAKE_INSTALL_CONFIG_NAME}/${libname}.pdb")
 install (FILES ${pdbfile} DESTINATION lib/gstreamer-1.0 COMPONENT pdb)
-install(TARGETS ${libname}
-  LIBRARY DESTINATION lib/gstreamer-1.0)
+install (TARGETS ${libname}
+    LIBRARY DESTINATION lib/gstreamer-1.0)
