@@ -115,7 +115,7 @@ uint32_t GstStreamingChannelSource::GetRequiredChunkSize() const
     }
 }
 
-void GstStreamingChannelSource::SetKlvEnabled (gboolean enable)
+void GstStreamingChannelSource::SetKlvEnabled (bool enable)
 {
     SetChunkEnable (KLV_CHUNKID, enable);
 }
@@ -325,7 +325,7 @@ GByteArray * GstStreamingChannelSource::GetKlvByteArray (GstBuffer * buf)
                   break;
               }
 
-              g_byte_array_append (byte_array, klv_data, klv_size);
+              g_byte_array_append (byte_array, klv_data, (guint)klv_size);
       }
 
       /* chunk length must be multiple of 4 bytes */

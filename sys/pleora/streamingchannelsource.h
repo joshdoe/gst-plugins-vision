@@ -49,7 +49,7 @@ public:
     uint32_t GetChunksSize() const { return GetRequiredChunkSize(); }
 
     uint32_t GetRequiredChunkSize () const;
-    void SetKlvEnabled (gboolean enable = TRUE);
+    void SetKlvEnabled (bool enable = true);
     gboolean GetKlvEnabled ();
     GByteArray * GetKlvByteArray (GstBuffer * buf);
 

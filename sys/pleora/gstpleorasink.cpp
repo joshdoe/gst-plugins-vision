@@ -301,7 +301,7 @@ gst_pleorasink_set_property (GObject * object, guint property_id,
       break;
     case PROP_OUTPUT_KLV:
       sink->output_klv = g_value_get_boolean (value);
-      sink->source->SetKlvEnabled (sink->output_klv);
+      sink->source->SetKlvEnabled ((bool)sink->output_klv);
       break;
     case PROP_AUTO_MULTICAST:
       sink->auto_multicast = g_value_get_boolean (value);
