@@ -25,9 +25,13 @@ Image generation elements
 -------------------------
 - edtpdvsink: Video sink for [EDT PDV Camera Link simulator][2]
 - gigesimsink: Video sink for [A&B Soft GigESim][18] GigE Vision simulator
+- pleorasink: Video sink for [Pleora eBUS SDK][19] GigE Vision transmitter
 
 Other elements
 --------------
+- extractcolor: Extract a single color channel
+- klvinjector: Inject test synchronous KLV metadata
+- klvinspector: Inspect synchronous KLV metadata
 - sfx3dnoise: Applies 3D noise to video
 - videolevels: Scales monochrome 8- or 16-bit video to 8-bit, via manual setpoints or AGC
 
@@ -73,3 +77,4 @@ See also
 [16]: https://kayainstruments.com
 [17]: https://www.pleora.com
 [18]: http://www.ab-soft.com/gigesim.php
+[19]: https://www.pleora.com
