@@ -81,10 +81,16 @@ enum
 /* pad templates */
 
 static GstStaticPadTemplate gst_aptinasrc_src_template =
-GST_STATIC_PAD_TEMPLATE ("src",
+    GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE ("{ BGRx }"))
+    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE
+        ("{ BGR, BGRx }") ";"
+        "video/x-bayer,format=(string){bggr,grbg,gbrg,rggb},"
+        "width=(int)[1,MAX],height=(int)[1,MAX],framerate=(fraction)[0/1,MAX];"
+        "video/x-bayer,format=(string){bggr16,grbg16,gbrg16,rggb16},"
+        "bpp=(int){10,12,14,16},endianness={1234,4321},"
+        "width=(int)[1,MAX],height=(int)[1,MAX],framerate=(fraction)[0/1,MAX]")
     );
 
 /* class initialization */
@@ -143,7 +149,8 @@ static void
 gst_aptinasrc_reset (GstAptinaSrc * src)
 {
   src->raw_framesize = 0;
-  src->rgb_framesize = 0;
+  src->out_framesize = 0;
+  src->convert_to_rgb = FALSE;
 
   src->is_started = FALSE;
 
@@ -281,11 +288,12 @@ static gboolean
 gst_aptinasrc_calculate_caps (GstAptinaSrc * src)
 {
   ap_u32 ret;
-  ap_u32 rgb_width = 0, rgb_height = 0, rgb_depth = 0;
-  guint8 *unpacked;
+  guint32 width, height;
   GstVideoInfo vinfo;
   char image_type[64];
   gint framesize;
+  GstVideoFormat format = GST_VIDEO_FORMAT_UNKNOWN;
+  gint bayer_bpp = 0;
 
   framesize = ap_GrabFrame (src->apbase, NULL, 0);
   if (framesize != src->raw_framesize) {
@@ -303,30 +311,107 @@ gst_aptinasrc_calculate_caps (GstAptinaSrc * src)
     return FALSE;
   }
 
-  ap_GetImageFormat (src->apbase, NULL, NULL, image_type, sizeof (image_type));
-  GST_DEBUG_OBJECT (src, "Image type is '%s', but will be converted to BGRx",
+  ap_GetImageFormat (src->apbase, &width, &height, image_type,
+      sizeof (image_type));
+  GST_DEBUG_OBJECT (src, "Image format is %dx%d '%s'", width, height,
       image_type);
 
-  unpacked =
-      ap_ColorPipe (src->apbase, src->buffer, src->raw_framesize, &rgb_width,
-      &rgb_height, &rgb_depth);
-  if (rgb_depth != 32) {
-    GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
-        ("Depth is %d, but only 32-bit supported currently.", rgb_depth),
-        (NULL));
-    return FALSE;
+  if (g_strcmp0 (image_type, "BAYER-6") == 0) {
+    bayer_bpp = 6;
+  } else if (g_strcmp0 (image_type, "BAYER-8") == 0) {
+    bayer_bpp = 8;
+  } else if (g_strcmp0 (image_type, "BAYER-10") == 0) {
+    bayer_bpp = 10;
+  } else if (g_strcmp0 (image_type, "BAYER-12") == 0) {
+    bayer_bpp = 12;
+  } else if (g_strcmp0 (image_type, "BAYER-14") == 0) {
+    bayer_bpp = 14;
+  } else if (g_strcmp0 (image_type, "BAYER-16") == 0) {
+    bayer_bpp = 16;
+  } else if (g_strcmp0 (image_type, "RGB-24") == 0) {
+    format = GST_VIDEO_FORMAT_BGR;
+  } else if (g_strcmp0 (image_type, "RGB-32") == 0) {
+    format = GST_VIDEO_FORMAT_BGRx;
+  } else {
+    GST_WARNING_OBJECT (src,
+        "Image format not supported yet, will convert to BGRx");
   }
 
-  src->rgb_framesize = rgb_width * rgb_height * rgb_depth / 8;
-  gst_base_src_set_blocksize (GST_BASE_SRC (src), src->rgb_framesize);
-
-  gst_video_info_init (&vinfo);
-  gst_video_info_set_format (&vinfo, GST_VIDEO_FORMAT_BGRx, rgb_width,
-      rgb_height);
-  if (src->caps) {
-    gst_caps_unref (src->caps);
+  if (format == GST_VIDEO_FORMAT_UNKNOWN && bayer_bpp == 0) {
+    ap_u32 rgb_width = 0, rgb_height = 0, rgb_depth = 0;
+    src->convert_to_rgb = TRUE;
+    ap_ColorPipe (src->apbase, src->buffer, src->raw_framesize, &rgb_width,
+        &rgb_height, &rgb_depth);
+    width = rgb_width;
+    height = rgb_height;
+    if (rgb_depth == 24) {
+      format = GST_VIDEO_FORMAT_BGR;
+    } else if (rgb_depth == 32) {
+      format = GST_VIDEO_FORMAT_BGRx;
+    } else {
+      GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
+          ("Depth is %d, but only 24- and 32-bit supported currently.",
+              rgb_depth), (NULL));
+      return FALSE;
+    }
   }
-  src->caps = gst_video_info_to_caps (&vinfo);
+
+  if (format != GST_VIDEO_FORMAT_UNKNOWN) {
+    gst_video_info_init (&vinfo);
+    gst_video_info_set_format (&vinfo, format, width, height);
+    if (src->caps) {
+      gst_caps_unref (src->caps);
+    }
+    src->out_framesize = (guint) GST_VIDEO_INFO_SIZE (&vinfo);
+    src->caps = gst_video_info_to_caps (&vinfo);
+  } else if (bayer_bpp != 0) {
+    gint depth;
+    const char *bay_fmt = NULL;
+    int xoffset, yoffset;
+
+    if (bayer_bpp <= 8)
+      depth = 8;
+    else if (bayer_bpp <= 16)
+      depth = 16;
+    else
+      g_assert_not_reached ();
+
+    xoffset = ap_GetState (src->apbase, "X Offset");
+    yoffset = ap_GetState (src->apbase, "Y Offset");
+    if (xoffset == 0 && yoffset == 0) {
+      bay_fmt = (depth == 16) ? "grbg16" : "grbg";
+    } else if (xoffset == 0 && yoffset == 1) {
+      bay_fmt = (depth == 16) ? "bggr16" : "bggr";
+    } else if (xoffset == 1 && yoffset == 0) {
+      bay_fmt = (depth == 16) ? "rggb16" : "rggb";
+    } else if (xoffset == 1 && yoffset == 1) {
+      bay_fmt = (depth == 16) ? "gbrg16" : "gbrg";
+    }
+
+    if (depth == 8) {
+      src->caps = gst_caps_new_simple ("video/x-bayer",
+          "format", G_TYPE_STRING, bay_fmt,
+          "width", G_TYPE_INT, width,
+          "height", G_TYPE_INT, height,
+          "framerate", GST_TYPE_FRACTION, 30, 1, NULL);
+    } else if (depth == 16) {
+      src->caps = gst_caps_new_simple ("video/x-bayer",
+          "format", G_TYPE_STRING, bay_fmt,
+          "bpp", G_TYPE_INT, bayer_bpp,
+          "endianness", G_TYPE_INT, G_LITTLE_ENDIAN,
+          "width", G_TYPE_INT, width,
+          "height", G_TYPE_INT, height,
+          "framerate", GST_TYPE_FRACTION, 30, 1, NULL);
+    } else {
+      g_assert_not_reached ();
+    }
+    src->out_framesize = width * height * depth / 8;
+  } else {
+    g_assert_not_reached ();
+  }
+
+  gst_base_src_set_blocksize (GST_BASE_SRC (src), src->out_framesize);
+
   gst_base_src_set_caps (GST_BASE_SRC (src), src->caps);
   GST_DEBUG_OBJECT (src, "Created caps %" GST_PTR_FORMAT, src->caps);
 
@@ -489,8 +574,6 @@ gst_aptinasrc_fill (GstPushSrc * psrc, GstBuffer * buf)
   GstClockTime clock_time;
   char *pBuffer = NULL;
   static int temp_ugly_buf_index = 0;
-  guint8 *unpacked;
-  ap_u32 rgb_width = 0, rgb_height = 0, rgb_depth = 0;
 
   GST_LOG_OBJECT (src, "create");
 
@@ -509,16 +592,21 @@ gst_aptinasrc_fill (GstPushSrc * psrc, GstBuffer * buf)
     return GST_FLOW_ERROR;
   }
 
-  unpacked =
-      ap_ColorPipe (src->apbase, src->buffer, src->raw_framesize, &rgb_width,
-      &rgb_height, &rgb_depth);
-
   clock = gst_element_get_clock (GST_ELEMENT (src));
   clock_time = gst_clock_get_time (clock);
   gst_object_unref (clock);
 
   gst_buffer_map (buf, &minfo, GST_MAP_WRITE);
-  orc_memcpy (minfo.data, unpacked, minfo.size);
+  if (src->convert_to_rgb) {
+    guint8 *unpacked;
+    ap_u32 rgb_width = 0, rgb_height = 0, rgb_depth = 0;
+    unpacked =
+        ap_ColorPipe (src->apbase, src->buffer, src->raw_framesize, &rgb_width,
+        &rgb_height, &rgb_depth);
+    orc_memcpy (minfo.data, unpacked, (int) minfo.size);
+  } else {
+    orc_memcpy (minfo.data, src->buffer, (int) minfo.size);
+  }
   gst_buffer_unmap (buf, &minfo);
 
   GST_BUFFER_TIMESTAMP (buf) =

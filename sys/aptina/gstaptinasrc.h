@@ -53,7 +53,8 @@ struct _GstAptinaSrc
 
   GstCaps *caps;
   gint raw_framesize;
-  gint rgb_framesize;
+  guint out_framesize;
+  gboolean convert_to_rgb;
   guint8 *buffer;
 
   gboolean stop_requested;
