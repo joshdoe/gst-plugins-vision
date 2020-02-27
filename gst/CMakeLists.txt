@@ -2,6 +2,7 @@ if (OPENCV_FOUND)
   add_subdirectory (sensorfx)
 endif (OPENCV_FOUND)
 
+add_subdirectory (bayerutils)
 add_subdirectory (extractcolor)
 add_subdirectory (klv)
 add_subdirectory (misb)
