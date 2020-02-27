@@ -16,7 +16,7 @@ if (NOT APTINA_DIR)
 endif ()
 
 if (CMAKE_SIZEOF_VOID_P MATCHES "8")
-    set(_LIB_NAME "apbase_64")
+    set(_LIB_NAME "apbase")
 else ()
     set(_LIB_NAME "apbase")
 endif ()
