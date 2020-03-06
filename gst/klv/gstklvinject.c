@@ -100,6 +100,8 @@ gst_klvinject_dispose (GstKlvInject * filt)
 {
 }
 
+static GstStaticCaps unix_reference = GST_STATIC_CAPS ("timestamp/x-unix");
+
 static void
 gst_klvinject_add_test_meta (GstKlvInject * filt, GstBuffer * buf)
 {
@@ -109,11 +111,22 @@ gst_klvinject_add_test_meta (GstKlvInject * filt, GstBuffer * buf)
   const guint8 klv_header[16] = { 0x06, 0x0e, 0x2b, 0x34, 0x02, 0x0b, 0x01,
     0x01, 0x0e, 0x01, 0x03, 0x01, 0x01, 0x00, 0x00, 0x00
   };
-  GDateTime *dt = g_date_time_new_now_utc ();
-  gint64 ut = g_date_time_to_unix (dt) * 1000000;       /* microseconds */
   GstByteWriter bw;
+  GstReferenceTimestampMeta *time_meta;
+  gint64 utc_us;
 
-  ut += g_date_time_get_microsecond (dt);
+  /* NOTE: MISB defines MISP time, which is NOT UTC, but use UTC for now */
+  time_meta =
+      gst_buffer_get_reference_timestamp_meta (buf,
+      gst_static_caps_get (&unix_reference));
+  if (time_meta) {
+    utc_us = time_meta->timestamp / 1000;
+  } else {
+    GDateTime *dt = g_date_time_new_now_utc ();
+    utc_us = g_date_time_to_unix (dt) * 1000000;        /* microseconds */
+    utc_us += g_date_time_get_microsecond (dt);
+    g_date_time_unref (dt);
+  }
 
   gst_byte_writer_init (&bw);
 
@@ -127,7 +140,7 @@ gst_klvinject_add_test_meta (GstKlvInject * filt, GstBuffer * buf)
   /* Tag 1: unix timestamp */
   gst_byte_writer_put_uint8 (&bw, 2);   /* local tag: unix timestamp    */
   gst_byte_writer_put_uint8 (&bw, 8);   /* data length (BER short form) */
-  gst_byte_writer_put_uint64_be (&bw, ut);
+  gst_byte_writer_put_uint64_be (&bw, utc_us);
 
   /* Tag 2: Image Coordinate System */
   gst_byte_writer_put_uint8 (&bw, 12);  /* local tag: unix timestamp    */
@@ -170,8 +183,6 @@ gst_klvinject_add_test_meta (GstKlvInject * filt, GstBuffer * buf)
 
     gst_buffer_add_klv_meta_take_data (buf, klv_data, klv_size);
   }
-
-  g_date_time_unref (dt);
 }
 
 static GstFlowReturn
