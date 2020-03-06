@@ -46,6 +46,7 @@ struct _GstAptinaSrc
   gint camera_index;
   gchar *config_file;
   gchar *config_preset;
+  gchar *xsdat_file;
 
   GstClockTime acq_start_time;
   guint32 last_frame_count;

@@ -72,11 +72,13 @@ enum
   PROP_DEVICE_INDEX,
   PROP_CONFIG_FILE,
   PROP_CONFIG_PRESET,
+  PROP_XSDAT_FILE
 };
 
 #define DEFAULT_PROP_DEVICE_INDEX 0
 #define DEFAULT_PROP_CONFIG_FILE ""
 #define DEFAULT_PROP_CONFIG_PRESET ""
+#define DEFAULT_PROP_XSDAT_FILE ""
 
 /* pad templates */
 
@@ -137,6 +139,12 @@ gst_aptinasrc_class_init (GstAptinaSrcClass * klass)
           DEFAULT_PROP_CONFIG_FILE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               GST_PARAM_MUTABLE_READY)));
+  g_object_class_install_property (gobject_class, PROP_XSDAT_FILE,
+      g_param_spec_string ("xsdat-file", "xsdat file",
+          "Filepath of the .xsdat file or directory",
+          DEFAULT_PROP_CONFIG_FILE,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+              GST_PARAM_MUTABLE_READY)));
   g_object_class_install_property (gobject_class, PROP_CONFIG_PRESET,
       g_param_spec_string ("config-preset", "Config preset",
           "Name of the preset in the INI file to run",
@@ -181,6 +189,7 @@ gst_aptinasrc_init (GstAptinaSrc * src)
   src->camera_index = DEFAULT_PROP_DEVICE_INDEX;
   src->config_file = g_strdup (DEFAULT_PROP_CONFIG_FILE);
   src->config_preset = g_strdup (DEFAULT_PROP_CONFIG_PRESET);
+  src->xsdat_file = g_strdup (DEFAULT_PROP_XSDAT_FILE);
 
   src->apbase = NULL;
   src->stop_requested = FALSE;
@@ -210,6 +219,10 @@ gst_aptinasrc_set_property (GObject * object, guint property_id,
       g_free (src->config_preset);
       src->config_preset = g_strdup (g_value_get_string (value));
       break;
+    case PROP_XSDAT_FILE:
+      g_free (src->xsdat_file);
+      src->xsdat_file = g_strdup (g_value_get_string (value));
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -234,6 +247,9 @@ gst_aptinasrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_CONFIG_PRESET:
       g_value_set_string (value, src->config_preset);
+      break;
+    case PROP_XSDAT_FILE:
+      g_value_set_string (value, src->xsdat_file);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -427,11 +443,13 @@ gst_aptinasrc_start (GstBaseSrc * bsrc)
 
   GST_DEBUG_OBJECT (src, "start");
 
+  ap_DeviceProbe (src->xsdat_file);
+
   //src->apbase = ap_CreateFromImageFile("C:\\temp\\1.jpg");
   src->apbase = ap_Create (src->camera_index);
   if (!src->apbase) {
     GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
-        ("Failed to open camera"), (NULL));
+        ("Failed to open camera, error=%d", ap_GetLastError ()), (NULL));
     return FALSE;
   }
 
