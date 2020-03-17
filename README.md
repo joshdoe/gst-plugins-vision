@@ -55,6 +55,30 @@ Capture from a CoaXPress camera via a Kaya Komodo frame grabber, apply AGC to co
 Then in another command capture the GigE Vision video via Pleora eBUS and display the video to the screen:
 > `gst-launch-1.0 pleorasrc ! autovideoconvert ! autovideosink`
 
+Compiling
+---------
+- Install [Git](https://git-scm.com/) or download a ZIP archive
+- Install [CMake](https://cmake.org/)
+- Install [GStreamer distribution](https://gstreamer.freedesktop.org/download/)
+  or build from source. The installer should set
+  the installation path via GSTREAMER_1_0_ROOT_X86_64 environment variable. If
+  not set, set GSTREAMER_ROOT to your installation, the directory containing
+  bin, lib, etc.
+- Install any camera or framegrabber software/SDK for those plugins you wish to
+  build. Check cmake/modules for any paths you may need to set.
+- Run the following commands from a terminal or command prompt, assuming CMake
+  and Git are in your `PATH`.
+```
+git clone https://github.com/joshdoe/gst-plugins-vision.git
+cd gst-plugins-vision
+mkdir build
+cd build
+cmake -G "Visual Studio 15 2017 Win64" ..
+```
+- To create a package of all compiled plugins run:
+```
+cmake --build . --target PACKAGE
+```
 See also
 --------
 - [Aravis][13], Linux open source GStreamer plugin for GigE Vision and USB3 Vision cameras
