@@ -455,15 +455,21 @@ gst_pleorasink_select_interface (GstPleoraSink * sink)
       /* set properties */
       g_free (sink->address);
       sink->address = g_strdup (lNIC->GetIPAddress (0).GetAscii ());
-    } else if (g_strcmp0 (sink->address,
-            lNIC->GetIPAddress (0).GetAscii ()) == 0) {
-      GST_DEBUG_OBJECT (sink, "Selecting interface from IP '%s'",
-          sink->address);
-      selected_nic = lNIC;
+    } else {
+      guint32 num_ips = lNIC->GetIPAddressCount ();
+      for (guint32 i = 0; i < num_ips; i++) {
+        if (g_strcmp0 (sink->address, lNIC->GetIPAddress (i).GetAscii ()) == 0) {
+          GST_DEBUG_OBJECT (sink, "Selecting interface from IP '%s'",
+              sink->address);
+          selected_nic = lNIC;
 
-      /* set properties */
-      g_free (sink->mac);
-      sink->mac = g_strdup (lNIC->GetMACAddress ().GetAscii ());
+          /* set properties */
+          g_free (sink->mac);
+          sink->mac = g_strdup (lNIC->GetMACAddress ().GetAscii ());
+
+          break;
+        }
+      }
     }
     g_free (found_mac);
 
