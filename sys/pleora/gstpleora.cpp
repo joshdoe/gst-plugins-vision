@@ -21,14 +21,14 @@ plugin_init (GstPlugin * plugin)
 #if VERSION_MAJOR >= 6
   /* eBUS 6 is needed for this sink element */
   if (!gst_element_register (plugin, "pleorasink", GST_RANK_NONE,
-      gst_pleorasink_get_type ())) {
-          return FALSE;
+          gst_pleorasink_get_type ())) {
+    return FALSE;
   }
 #endif
 
   if (!gst_element_register (plugin, "pleorasrc", GST_RANK_NONE,
-      gst_pleorasrc_get_type ())) {
-          return FALSE;
+          gst_pleorasrc_get_type ())) {
+    return FALSE;
   }
 
   return TRUE;

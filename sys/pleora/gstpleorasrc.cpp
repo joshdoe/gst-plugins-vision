@@ -330,7 +330,7 @@ gst_pleorasrc_set_property (GObject * object, guint property_id,
       src->config_file_connect = g_value_get_boolean (value);
       break;
     case PROP_OUTPUT_KLV:
-      src->output_klv= g_value_get_boolean (value);
+      src->output_klv = g_value_get_boolean (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
