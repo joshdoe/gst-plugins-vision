@@ -58,6 +58,10 @@ if (Pleora_FOUND)
 	add_subdirectory(pleora)
 endif (Pleora_FOUND)
 
+if (PYLON_FOUND)
+	add_subdirectory(pylon)
+endif (PYLON_FOUND)
+
 if (SAPERA_FOUND)
 	add_subdirectory(sapera)
 endif (SAPERA_FOUND)
