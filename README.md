@@ -19,6 +19,7 @@ Image acquisition elements
 - phoenixsrc: Video source for [Active Silicon Phoenix frame grabbers][8] (HD-SDI, LVDS, Camera Link)
 - pixcisrc: Video source for [EPIX PIXCI frame grabbers][4] (analog, LVDS, Camera Link)
 - pleorasrc: Video source for [Pleora eBUS SDK devices][17] (GigE Vision, USB3 Vision)
+- pylonsrc: Video source for [Basler Pylon sources][20] (GigE Vision, USB3 Vision)
 - saperasrc: Video source for [Teledyne DALSA frame grabbers][9] (analog, Camera Link, HSLink, LVDS)
 
 Image generation elements
@@ -102,3 +103,4 @@ See also
 [17]: https://www.pleora.com
 [18]: http://www.ab-soft.com/gigesim.php
 [19]: https://www.pleora.com
+[20]: https://www.baslerweb.com/
