@@ -56,10 +56,7 @@ void pylonc_print_camera_info (GstPylonSrc * src,
 void pylonc_initialize ();
 void pylonc_terminate ();
 
-_Bool deviceConnected = FALSE;
-#define NUM_BUFFERS 10
-unsigned char *buffers[NUM_BUFFERS];
-PYLON_STREAMBUFFER_HANDLE bufferHandle[NUM_BUFFERS];
+
 
 /* debug category */
 GST_DEBUG_CATEGORY_STATIC (gst_pylonsrc_debug_category);
@@ -504,6 +501,8 @@ static void
 gst_pylonsrc_init (GstPylonSrc * src)
 {
   GST_DEBUG_OBJECT (src, "Initialising defaults");
+
+  src->deviceConnected = FALSE;
 
   // Default parameter values
   src->continuousMode = TRUE;
@@ -992,7 +991,7 @@ gst_pylonsrc_get_caps (GstBaseSrc * bsrc, GstCaps * filter)
   GstCaps *caps;
 
   GST_DEBUG_OBJECT (src, "Received a request for caps.");
-  if (!deviceConnected) {
+  if (!src->deviceConnected) {
     GST_DEBUG_OBJECT (src, "Could not send caps - no camera connected.");
     return gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD (bsrc));
   } else {
@@ -2467,9 +2466,9 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
   PYLONC_CHECK_ERROR (src, res);
 
   // Allocate the memory for the frame payloads
-  for (i = 0; i < NUM_BUFFERS; ++i) {
-    buffers[i] = (unsigned char *) malloc (src->payloadSize);
-    if (NULL == buffers[i]) {
+  for (i = 0; i < NUM_CAPTURE_BUFFERS; ++i) {
+    src->buffers[i] = (unsigned char *) malloc (src->payloadSize);
+    if (NULL == src->buffers[i]) {
       GST_ERROR_OBJECT (src, "Memory allocation error.");
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED, ("Memory allocation error"),
           ("Couldn't allocate memory."));
@@ -2478,7 +2477,9 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
   }
 
   // Define buffers 
-  res = PylonStreamGrabberSetMaxNumBuffer (src->streamGrabber, NUM_BUFFERS);
+  res =
+      PylonStreamGrabberSetMaxNumBuffer (src->streamGrabber,
+      NUM_CAPTURE_BUFFERS);
   PYLONC_CHECK_ERROR (src, res);
   res =
       PylonStreamGrabberSetMaxBufferSize (src->streamGrabber, src->payloadSize);
@@ -2488,16 +2489,16 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
   res = PylonStreamGrabberPrepareGrab (src->streamGrabber);
   PYLONC_CHECK_ERROR (src, res);
 
-  for (i = 0; i < NUM_BUFFERS; ++i) {
+  for (i = 0; i < NUM_CAPTURE_BUFFERS; ++i) {
     res =
-        PylonStreamGrabberRegisterBuffer (src->streamGrabber, buffers[i],
-        src->payloadSize, &bufferHandle[i]);
+        PylonStreamGrabberRegisterBuffer (src->streamGrabber, src->buffers[i],
+        src->payloadSize, &src->bufferHandle[i]);
     PYLONC_CHECK_ERROR (src, res);
   }
 
-  for (i = 0; i < NUM_BUFFERS; ++i) {
+  for (i = 0; i < NUM_CAPTURE_BUFFERS; ++i) {
     res =
-        PylonStreamGrabberQueueBuffer (src->streamGrabber, bufferHandle[i],
+        PylonStreamGrabberQueueBuffer (src->streamGrabber, src->bufferHandle[i],
         (void *) i);
     PYLONC_CHECK_ERROR (src, res);
   }
@@ -2706,14 +2707,14 @@ pylonc_terminate ()
 void
 pylonc_disconnect_camera (GstPylonSrc * src)
 {
-  if (deviceConnected) {
+  if (src->deviceConnected) {
     if (strcmp (src->reset, "after") == 0) {
       pylonc_reset_camera (src);
     }
 
     PylonDeviceClose (src->deviceHandle);
     PylonDestroyDevice (src->deviceHandle);
-    deviceConnected = FALSE;
+    src->deviceConnected = FALSE;
     GST_DEBUG_OBJECT (src, "Camera disconnected.");
   }
 }
@@ -2748,7 +2749,7 @@ pylonc_connect_camera (GstPylonSrc * src)
       PYLONC_ACCESS_MODE_CONTROL | PYLONC_ACCESS_MODE_STREAM);
   PYLONC_CHECK_ERROR (src, res);
 
-  deviceConnected = TRUE;
+  src->deviceConnected = TRUE;
   return TRUE;
 
 error:

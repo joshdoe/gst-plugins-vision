@@ -24,6 +24,8 @@
 #include <gst/base/gstpushsrc.h>
 #include "pylonc/PylonC.h"
 
+#define NUM_CAPTURE_BUFFERS 10
+
 G_BEGIN_DECLS
 
 #define GST_TYPE_PYLONSRC   (gst_pylonsrc_get_type())
@@ -43,6 +45,10 @@ struct _GstPylonSrc
   PYLON_DEVICE_HANDLE deviceHandle; // Handle for the camera.
   PYLON_STREAMGRABBER_HANDLE streamGrabber; // Handler for camera's streams.
   PYLON_WAITOBJECT_HANDLE waitObject; // Handles timing out in the main loop.
+  gboolean deviceConnected;
+
+  unsigned char *buffers[NUM_CAPTURE_BUFFERS];
+  PYLON_STREAMBUFFER_HANDLE bufferHandle[NUM_CAPTURE_BUFFERS];
 
   int32_t frameSize; // Size of a frame in bytes.
   int32_t payloadSize; // Size of a frame in bytes.
