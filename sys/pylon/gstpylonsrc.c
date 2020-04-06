@@ -61,7 +61,6 @@ void pylonc_terminate ();
 /* debug category */
 GST_DEBUG_CATEGORY_STATIC (gst_pylonsrc_debug_category);
 #define GST_CAT_DEFAULT gst_pylonsrc_debug_category
-#define GST_MESSAGE_OBJECT(obj, ...) GST_CAT_LEVEL_LOG(GST_CAT_DEFAULT, GST_LEVEL_NONE, obj, __VA_ARGS__)
 #define PYLONC_CHECK_ERROR(obj, res) if (res != GENAPI_E_OK) { char* errMsg; size_t length; GenApiGetLastErrorMessage( NULL, &length ); errMsg = (char*) malloc( length ); GenApiGetLastErrorMessage( errMsg, &length ); GST_CAT_LEVEL_LOG(GST_CAT_DEFAULT, GST_LEVEL_NONE, obj, "PylonC error: %s (%#08x).\n", errMsg, (unsigned int) res); free(errMsg); GenApiGetLastErrorDetail( NULL, &length ); errMsg = (char*) malloc( length ); GenApiGetLastErrorDetail( errMsg, &length ); GST_CAT_LEVEL_LOG(GST_CAT_DEFAULT, GST_LEVEL_NONE, obj, "PylonC error: %s\n", errMsg); free(errMsg); goto error; }
 
 /* prototypes */
@@ -1183,16 +1182,16 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
     goto error;
   } else if (numDevices == 1) {
     if (src->cameraId != 9999) {
-      GST_MESSAGE_OBJECT (src,
+      GST_DEBUG_OBJECT (src,
           "Camera id was set, but was ignored as only one camera was found.");
     }
     src->cameraId = 0;
   } else if (numDevices > 1 && src->cameraId == 9999) {
-    GST_MESSAGE_OBJECT (src,
+    GST_DEBUG_OBJECT (src,
         "Multiple cameras found, and the user didn't specify which camera to use.");
-    GST_MESSAGE_OBJECT (src,
+    GST_DEBUG_OBJECT (src,
         "Please specify the camera using the CAMERA property.");
-    GST_MESSAGE_OBJECT (src, "The camera IDs are as follows: ");
+    GST_DEBUG_OBJECT (src, "The camera IDs are as follows: ");
 
     for (i = 0; i < numDevices; i++) {
       PYLON_DEVICE_HANDLE deviceHandle;
@@ -1206,7 +1205,7 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
 
         pylonc_print_camera_info (src, deviceHandle, i);
       } else {
-        GST_MESSAGE_OBJECT (src,
+        GST_DEBUG_OBJECT (src,
             "ID:%i, Name: Unavailable, Serial No: Unavailable, Status: In use?",
             i);
       }
@@ -1219,7 +1218,7 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
         ("Failed to initialise the camera"), ("No camera selected"));
     goto error;
   } else if (src->cameraId != 9999 && src->cameraId > numDevices) {
-    GST_MESSAGE_OBJECT (src, "No camera found with id %i.", src->cameraId);
+    GST_DEBUG_OBJECT (src, "No camera found with id %i.", src->cameraId);
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Failed to initialise the camera"), ("No camera connected"));
     goto error;
@@ -1251,7 +1250,7 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
       pylonc_disconnect_camera (src);
       pylonc_terminate ();
 
-      GST_MESSAGE_OBJECT (src,
+      GST_DEBUG_OBJECT (src,
           "Camera reset. Waiting 6 seconds for it to fully reboot.");
       g_usleep (6 * G_USEC_PER_SEC);
 
@@ -1323,7 +1322,7 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
   // If custom resolution is set, check if it's even possible and set it
   if (src->height != 0 || src->width != 0) {
     if (src->width > src->maxWidth) {
-      GST_MESSAGE_OBJECT (src, "Set width is above camera's capabilities.");
+      GST_DEBUG_OBJECT (src, "Set width is above camera's capabilities.");
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
           ("Failed to initialise the camera"), ("Wrong width specified"));
       goto error;
@@ -1332,7 +1331,7 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
     }
 
     if (src->height > src->maxHeight) {
-      GST_MESSAGE_OBJECT (src, "Set height is above camera's capabilities.");
+      GST_DEBUG_OBJECT (src, "Set height is above camera's capabilities.");
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
           ("Failed to initialise the camera"), ("Wrong height specified"));
       goto error;
@@ -1349,7 +1348,7 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
   PYLONC_CHECK_ERROR (src, res);
   res = PylonDeviceSetIntegerFeature (src->deviceHandle, "Height", src->height);
   PYLONC_CHECK_ERROR (src, res);
-  GST_MESSAGE_OBJECT (src, "Setting resolution to %dx%d.", src->width,
+  GST_DEBUG_OBJECT (src, "Setting resolution to %dx%d.", src->width,
       src->height);
 
   // Set the offset
@@ -1385,7 +1384,7 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
           PYLONC_CHECK_ERROR (src, res);
           GST_DEBUG_OBJECT (src, "Setting X offset to %d", src->offsetx);
         } else {
-          GST_MESSAGE_OBJECT (src,
+          GST_DEBUG_OBJECT (src,
               "Set X offset is above camera's capabilities. (%d > %d)",
               src->offsetx, maxoffsetx);
           GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
@@ -1404,7 +1403,7 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
           PYLONC_CHECK_ERROR (src, res);
           GST_DEBUG_OBJECT (src, "Setting Y offset to %d", src->offsety);
         } else {
-          GST_MESSAGE_OBJECT (src,
+          GST_DEBUG_OBJECT (src,
               "Set Y offset is above camera's capabilities. (%d > %d)",
               src->offsety, maxoffsety);
           GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
@@ -1516,7 +1515,7 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
         ("Failed to initialise the camera"), ("Invalid parameters provided"));
     goto error;
   }
-  GST_MESSAGE_OBJECT (src, "Using %s image format.", pixelFormat->str);
+  GST_DEBUG_OBJECT (src, "Using %s image format.", pixelFormat->str);
   res =
       PylonDeviceFeatureFromString (src->deviceHandle, "PixelFormat",
       pixelFormat->str);
@@ -1542,7 +1541,7 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
   if (FEATURE_SUPPORTED ("TestImageSelector")) {
     if (src->testImage != 0) {
       char *ImageId;
-      GST_MESSAGE_OBJECT (src, "Test image mode enabled.");
+      GST_DEBUG_OBJECT (src, "Test image mode enabled.");
       ImageId = g_strdup_printf ("Testimage%d", src->testImage);
       res =
           PylonDeviceFeatureFromString (src->deviceHandle, "TestImageSelector",
@@ -2578,7 +2577,7 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
   }
   src->frameNumber = 0;
 
-  GST_MESSAGE_OBJECT (src, "Initialised successfully.");
+  GST_DEBUG_OBJECT (src, "Initialised successfully.");
   return TRUE;
 
 error:
@@ -2600,7 +2599,7 @@ gst_pylonsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   res = PylonWaitObjectWait (src->waitObject, 1000, &bufferReady);
   PYLONC_CHECK_ERROR (src, res);
   if (!bufferReady) {
-    GST_MESSAGE_OBJECT (src,
+    GST_ERROR_OBJECT (src,
         "Camera couldn't prepare the buffer in time. Probably dead.");
     goto error;
   }
@@ -2610,7 +2609,7 @@ gst_pylonsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
       &bufferReady);
   PYLONC_CHECK_ERROR (src, res);
   if (!bufferReady) {
-    GST_MESSAGE_OBJECT (src,
+    GST_ERROR_OBJECT (src,
         "Couldn't get a buffer from the camera. Basler said this should be impossible. You just proved them wrong. Congratulations!");
     goto error;
   }
@@ -2724,7 +2723,7 @@ pylonc_reset_camera (GstPylonSrc * src)
 {
   GENAPIC_RESULT res;
   if (PylonDeviceFeatureIsAvailable (src->deviceHandle, "DeviceReset")) {
-    GST_MESSAGE_OBJECT (src, "Resetting device...");
+    GST_DEBUG_OBJECT (src, "Resetting device...");
     res = PylonDeviceExecuteCommandFeature (src->deviceHandle, "DeviceReset");
     PYLONC_CHECK_ERROR (src, res);
     return TRUE;
@@ -2791,17 +2790,17 @@ pylonc_print_camera_info (GstPylonSrc * src, PYLON_DEVICE_HANDLE deviceHandle,
     }
 
     if (src->cameraId != deviceId) {    // We're listing cameras
-      GST_MESSAGE_OBJECT (src,
+      GST_LOG_OBJECT (src,
           "ID:%i, Name:%s, Serial No:%s, Status: Available. Custom ID: %s",
           deviceId, name, serial, id);
     } else {                    // We've connected to a camera
-      GST_MESSAGE_OBJECT (src,
+      GST_LOG_OBJECT (src,
           "Status: Using camera \"%s\" (serial number: %s, id: %i). Custom ID: %s",
           name, serial, deviceId, id);
     }
   } else {
   error:
-    GST_MESSAGE_OBJECT (src,
+    GST_ERROR_OBJECT (src,
         "ID:%i, Status: Could not properly identify connected camera, the camera might not be compatible with this plugin.",
         deviceId);
   }
