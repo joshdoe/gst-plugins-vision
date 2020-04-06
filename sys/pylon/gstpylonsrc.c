@@ -1017,8 +1017,11 @@ gst_pylonsrc_get_caps (GstBaseSrc * bsrc, GstCaps * filter)
         format = "BGR\0";
       } else if (strcmp (src->imageFormat, "ycbcr422_8") == 0) {
         format = "YUY2\0";
+
       } else if (strcmp (src->imageFormat, "mono8") == 0) {
         format = "GRAY8\0";
+      } else if (strcmp (src->imageFormat, "yuv422packed") == 0) {
+        format = "UYVY\0";
       }
     }
 
@@ -1052,7 +1055,8 @@ gst_pylonsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
         || (!g_str_equal ("YUY2", gst_structure_get_string (s, "format"))
             && !g_str_equal ("RGB", gst_structure_get_string (s, "format"))
             && !g_str_equal ("BGR", gst_structure_get_string (s, "format"))
-            && !g_str_equal ("GRAY8", gst_structure_get_string (s, "format")))) {
+            && !g_str_equal ("GRAY8", gst_structure_get_string (s, "format"))
+            && !g_str_equal ("UYVY", gst_structure_get_string (s, "format")))) {
       goto unsupported_caps;
     }
   }
@@ -1505,6 +1509,16 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
           ("Failed to initialise the camera"),
           ("Camera doesn't support Mono 8"));
+      goto error;
+    }
+  } else if (strcmp (src->imageFormat, "yuv422packed") == 0) {
+    if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
+            "EnumEntry_PixelFormat_YUV422Packed")) {
+      g_string_printf (pixelFormat, "YUV422Packed");
+    } else {
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+          ("Failed to initialise the camera"),
+          ("Camera doesn't support YUV422Packed"));
       goto error;
     }
   } else {
