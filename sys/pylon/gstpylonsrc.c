@@ -53,7 +53,6 @@ _Bool pylonc_connect_camera (GstPylonSrc * src);
 void pylonc_disconnect_camera (GstPylonSrc * src);
 void pylonc_print_camera_info (GstPylonSrc * src,
     PYLON_DEVICE_HANDLE deviceHandle, int deviceId);
-void pylonc_initialize ();
 void pylonc_terminate ();
 
 
@@ -1165,19 +1164,12 @@ error:
 }
 
 static gboolean
-gst_pylonsrc_start (GstBaseSrc * bsrc)
+gst_pylonsrc_select_device (GstPylonSrc * src)
 {
-  GstPylonSrc *src = GST_PYLONSRC (bsrc);
-  GENAPIC_RESULT res;
-  gint i;
+  int i;
   size_t numDevices;
-  int64_t width = 0, height = 0;
-  GString *pixelFormat = g_string_new (NULL);
-  size_t num_streams;
+  GENAPIC_RESULT res;
 
-  pylonc_initialize ();
-
-  // Select a device
   res = PylonEnumerateDevices (&numDevices);
   PYLONC_CHECK_ERROR (src, res);
   GST_DEBUG_OBJECT (src, "src: found %i Basler device(s).", (int) numDevices);
@@ -1229,7 +1221,18 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
         ("Failed to initialise the camera"), ("No camera connected"));
     goto error;
   }
-  // Connect to the camera 
+
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_pylonsrc_connect_device (GstPylonSrc * src)
+{
+  GENAPIC_RESULT res;
+
   if (!pylonc_connect_camera (src)) {
     GST_ERROR_OBJECT (src, "Couldn't initialise the camera");
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
@@ -1252,6 +1255,7 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
   src->reset = g_ascii_strdown (src->reset, -1);
   if (strcmp (src->reset, "before") == 0) {
     if (PylonDeviceFeatureIsAvailable (src->deviceHandle, "DeviceReset")) {
+      size_t numDevices;
       pylonc_reset_camera (src);
       pylonc_disconnect_camera (src);
       pylonc_terminate ();
@@ -1260,7 +1264,7 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
           "Camera reset. Waiting 6 seconds for it to fully reboot.");
       g_usleep (6 * G_USEC_PER_SEC);
 
-      pylonc_initialize ();
+      PylonInitialize ();
       res = PylonEnumerateDevices (&numDevices);
       PYLONC_CHECK_ERROR (src, res);
 
@@ -1280,6 +1284,19 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
       goto error;
     }
   }
+
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_pylonsrc_set_resolution (GstPylonSrc * src)
+{
+  GENAPIC_RESULT res;
+  int64_t width = 0, height = 0;
+
   // set binning of camera
   if (FEATURE_SUPPORTED ("BinningHorizontal") &&
       FEATURE_SUPPORTED ("BinningVertical")) {
@@ -1357,6 +1374,17 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
   GST_DEBUG_OBJECT (src, "Setting resolution to %dx%d.", src->width,
       src->height);
 
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_pylonsrc_set_offset (GstPylonSrc * src)
+{
+  GENAPIC_RESULT res;
+
   // Set the offset
   if (!FEATURE_SUPPORTED ("OffsetX") || !FEATURE_SUPPORTED ("OffsetY")) {
     GST_WARNING_OBJECT (src,
@@ -1421,6 +1449,17 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
     }
   }
 
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_pylonsrc_set_reverse (GstPylonSrc * src)
+{
+  GENAPIC_RESULT res;
+
   // Flip the image
   if (!FEATURE_SUPPORTED ("ReverseX")) {
     src->flipx = FALSE;
@@ -1444,6 +1483,18 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
           src->flipx ? "True" : "False", src->flipy ? "True" : "False");
     }
   }
+
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_pylonsrc_set_pixel_format (GstPylonSrc * src)
+{
+  GENAPIC_RESULT res;
+  GString *pixelFormat = g_string_new (NULL);
 
   // Set pixel format.
   src->imageFormat = g_ascii_strdown (src->imageFormat, -1);
@@ -1562,6 +1613,16 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
   }
   g_string_free (pixelFormat, TRUE);
 
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_pylonsrc_set_test_image (GstPylonSrc * src)
+{
+  GENAPIC_RESULT res;
 
   // Set whether test image will be shown
   if (FEATURE_SUPPORTED ("TestImageSelector")) {
@@ -1582,6 +1643,17 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
   } else {
     GST_WARNING_OBJECT (src, "The camera doesn't support test image mode.");
   }
+
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_pylonsrc_set_readout (GstPylonSrc * src)
+{
+  GENAPIC_RESULT res;
 
   // Set sensor readout mode (default: Normal)
   if (FEATURE_SUPPORTED ("SensorReadoutMode")) {
@@ -1611,6 +1683,17 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
     GST_WARNING_OBJECT (src,
         "Camera does not support changing the readout mode.");
   }
+
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_pylonsrc_set_bandwidth (GstPylonSrc * src)
+{
+  GENAPIC_RESULT res;
 
   // Set bandwidth limit mode (default: on)  
   if (FEATURE_SUPPORTED ("DeviceLinkThroughputLimitMode")) {
@@ -1652,6 +1735,17 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
         "Camera does not support changing the throughput limit.");
   }
 
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_pylonsrc_set_framerate (GstPylonSrc * src)
+{
+  GENAPIC_RESULT res;
+
   // Set framerate
   if (src->setFPS || (src->fps != 0)) {
     if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
@@ -1685,6 +1779,16 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
     }
   }
 
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_pylonsrc_set_lightsource (GstPylonSrc * src)
+{
+  GENAPIC_RESULT res;
   // Set lightsource preset
   if (PylonDeviceFeatureIsAvailable (src->deviceHandle, "LightSourcePreset")) {
     src->lightsource = g_ascii_strdown (src->lightsource, -1);
@@ -1728,6 +1832,17 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
     GST_WARNING_OBJECT (src,
         "This camera doesn't have any lightsource presets");
   }
+
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_pylonsrc_set_auto_exp_gain_wb (GstPylonSrc * src)
+{
+  GENAPIC_RESULT res;
 
   // Enable/disable automatic exposure
   src->autoexposure = g_ascii_strdown (src->autoexposure, -1);
@@ -1934,6 +2049,17 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
     GST_DEBUG_OBJECT (src,
         "Using the auto profile currently saved on the device.");
   }
+
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_pylonsrc_set_color (GstPylonSrc * src)
+{
+  GENAPIC_RESULT res;
 
   // Configure colour balance
   if (PylonDeviceFeatureIsAvailable (src->deviceHandle, "BalanceRatio")) {
@@ -2344,6 +2470,17 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
         "This camera doesn't support transforming colours. Skipping...");
   }
 
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_pylonsrc_set_exposure_gain_level (GstPylonSrc * src)
+{
+  GENAPIC_RESULT res;
+
   // Configure exposure
   if (PylonDeviceFeatureIsAvailable (src->deviceHandle, "ExposureTime")) {
     if (strcmp (src->autoexposure, "off") == 0) {
@@ -2403,6 +2540,17 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
         "This camera doesn't support setting gamma values.");
   }
 
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_pylonsrc_set_pgi (GstPylonSrc * src)
+{
+  GENAPIC_RESULT res;
+
   // Basler PGI
   if (FEATURE_SUPPORTED ("DemosaicingMode")) {
     if (src->demosaicing || src->sharpnessenhancement != 999.0
@@ -2460,7 +2608,42 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
     GST_DEBUG_OBJECT (src, "Basler's PGI is not supported. Skipping.");
   }
 
-  if (!gst_pylonsrc_set_trigger (src))
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_pylonsrc_start (GstBaseSrc * bsrc)
+{
+  GstPylonSrc *src = GST_PYLONSRC (bsrc);
+  GENAPIC_RESULT res;
+  gint i;
+  size_t num_streams;
+
+  if (PylonInitialize () != 0) {
+    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+        ("Failed to initialise the camera"),
+        ("Pylon library initialization failed"));
+    goto error;
+  }
+
+  if (!gst_pylonsrc_select_device (src) ||
+      !gst_pylonsrc_connect_device (src) ||
+      !gst_pylonsrc_set_resolution (src) ||
+      !gst_pylonsrc_set_offset (src) ||
+      !gst_pylonsrc_set_reverse (src) ||
+      !gst_pylonsrc_set_pixel_format (src) ||
+      !gst_pylonsrc_set_test_image (src) ||
+      !gst_pylonsrc_set_readout (src) ||
+      !gst_pylonsrc_set_bandwidth (src) ||
+      !gst_pylonsrc_set_framerate (src) ||
+      !gst_pylonsrc_set_lightsource (src) ||
+      !gst_pylonsrc_set_auto_exp_gain_wb (src) ||
+      !gst_pylonsrc_set_color (src) ||
+      !gst_pylonsrc_set_exposure_gain_level (src) ||
+      !gst_pylonsrc_set_pgi (src) || !gst_pylonsrc_set_trigger (src))
     goto error;
 
   // Create a stream grabber
@@ -2672,7 +2855,8 @@ gst_pylonsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
         (void *) bufferIndex);
     PYLONC_CHECK_ERROR (src, res);
   } else {
-    GST_ERROR_OBJECT (src, "Error in the image processing loop.");
+    GST_ERROR_OBJECT (src, "Error in the image processing loop. Status=%d",
+        grabResult.Status);
     goto error;
   }
 
@@ -2718,12 +2902,6 @@ gst_pylonsrc_finalize (GObject * object)
 
 /* PylonC functions */
 void
-pylonc_initialize ()
-{
-  PylonInitialize ();
-}
-
-void
 pylonc_terminate ()
 {
   PylonTerminate ();
@@ -2764,7 +2942,8 @@ _Bool
 pylonc_connect_camera (GstPylonSrc * src)
 {
   GENAPIC_RESULT res;
-  GST_DEBUG_OBJECT (src, "Connecting to the camera...");
+  GST_DEBUG_OBJECT (src, "Connecting to the camera (index=%d)...",
+      src->cameraId);
 
   res = PylonCreateDeviceByIndex (src->cameraId, &src->deviceHandle);
   PYLONC_CHECK_ERROR (src, res);
