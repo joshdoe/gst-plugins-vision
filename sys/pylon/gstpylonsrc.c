@@ -1022,6 +1022,8 @@ gst_pylonsrc_get_caps (GstBaseSrc * bsrc, GstCaps * filter)
         format = "GRAY8\0";
       } else if (strcmp (src->imageFormat, "yuv422packed") == 0) {
         format = "UYVY\0";
+      } else if (strcmp (src->imageFormat, "yuv422_yuyv_packed") == 0) {
+        format = "YUY2\0";
       }
     }
 
@@ -1519,6 +1521,16 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
           ("Failed to initialise the camera"),
           ("Camera doesn't support YUV422Packed"));
+      goto error;
+    }
+  } else if (strcmp (src->imageFormat, "yuv422_yuyv_packed") == 0) {
+    if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
+            "EnumEntry_PixelFormat_YUV422_YUYV_Packed")) {
+      g_string_printf (pixelFormat, "YUV422_YUYV_Packed");
+    } else {
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+          ("Failed to initialise the camera"),
+          ("Camera doesn't support YUV422_YUYV_Packed"));
       goto error;
     }
   } else {
