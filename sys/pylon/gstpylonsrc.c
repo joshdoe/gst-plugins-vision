@@ -38,16 +38,9 @@
 #include "gstpylonsrc.h"
 #include <gst/gst.h>
 #include <glib.h>
-#include <malloc.h>             //malloc
-#include <string.h>             //memcpy, strcmp
 
 #include "common/genicampixelformat.h"
 
-#ifdef HAVE_ORC
-#include <orc/orc.h>
-#else
-#define orc_memcpy(a,b,c) memcpy(a,b,c)
-#endif
 
 /* PylonC */
 _Bool pylonc_reset_camera (GstPylonSrc * src);
@@ -56,7 +49,6 @@ void pylonc_disconnect_camera (GstPylonSrc * src);
 void pylonc_print_camera_info (GstPylonSrc * src,
     PYLON_DEVICE_HANDLE deviceHandle, int deviceId);
 void pylonc_terminate ();
-
 
 
 /* debug category */
@@ -2726,15 +2718,38 @@ error:
   return FALSE;
 }
 
+typedef struct
+{
+  GstPylonSrc *src;
+  PYLON_STREAMBUFFER_HANDLE buffer_handle;
+} VideoFrame;
+
+
+static void
+video_frame_free (void *data)
+{
+  VideoFrame *frame = (VideoFrame *) data;
+  GstPylonSrc *src = frame->src;
+  GENAPIC_RESULT res;
+
+  // Release frame's memory
+  res =
+      PylonStreamGrabberQueueBuffer (src->streamGrabber, frame->buffer_handle,
+      NULL);
+  PYLONC_CHECK_ERROR (src, res);
+  g_free (frame);
+
+error:
+  return;
+}
+
 static GstFlowReturn
 gst_pylonsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 {
   GstPylonSrc *src = GST_PYLONSRC (psrc);
   GENAPIC_RESULT res;
-  size_t bufferIndex;
   PylonGrabResult_t grabResult;
   _Bool bufferReady;
-  GstMapInfo mapInfo;
 
   if (!src->acquisition_configured) {
     if (!gst_pylonsrc_configure_start_acquisition (src))
@@ -2776,21 +2791,16 @@ gst_pylonsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
     PYLONC_CHECK_ERROR (src, res);
   }
   // Process the current buffer
-  bufferIndex = (size_t) grabResult.Context;
   if (grabResult.Status == Grabbed) {
-    //TODO: See if I can avoid memcopy and record directly into the gst buffer map.
+    VideoFrame *vf = (VideoFrame *) g_malloc0 (sizeof (VideoFrame));
 
-    // Copy the image into the buffer that will be passed onto the next GStreamer element
-    *buf = gst_buffer_new_and_alloc (src->payloadSize);
-    gst_buffer_map (*buf, &mapInfo, GST_MAP_WRITE);
-    orc_memcpy (mapInfo.data, grabResult.pBuffer, mapInfo.size);
-    gst_buffer_unmap (*buf, &mapInfo);
+    *buf =
+        gst_buffer_new_wrapped_full ((GstMemoryFlags) GST_MEMORY_FLAG_READONLY,
+        (gpointer) grabResult.pBuffer, src->payloadSize, 0, src->payloadSize,
+        vf, (GDestroyNotify) video_frame_free);
 
-    // Release frame's memory
-    res =
-        PylonStreamGrabberQueueBuffer (src->streamGrabber, grabResult.hBuffer,
-        (void *) bufferIndex);
-    PYLONC_CHECK_ERROR (src, res);
+    vf->buffer_handle = grabResult.hBuffer;
+    vf->src = src;
   } else {
     GST_ERROR_OBJECT (src, "Error in the image processing loop. Status=%d",
         grabResult.Status);
