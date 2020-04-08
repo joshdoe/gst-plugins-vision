@@ -40,12 +40,15 @@ typedef struct _GstPylonSrcClass GstPylonSrcClass;
 struct _GstPylonSrc
 {
   GstPushSrc base_pylonsrc;
+
+  GstCaps *caps;
   
   gint cameraId;
   PYLON_DEVICE_HANDLE deviceHandle; // Handle for the camera.
   PYLON_STREAMGRABBER_HANDLE streamGrabber; // Handler for camera's streams.
   PYLON_WAITOBJECT_HANDLE waitObject; // Handles timing out in the main loop.
   gboolean deviceConnected;
+  gboolean acquisition_configured;
 
   unsigned char *buffers[NUM_CAPTURE_BUFFERS];
   PYLON_STREAMBUFFER_HANDLE bufferHandle[NUM_CAPTURE_BUFFERS];
@@ -58,7 +61,7 @@ struct _GstPylonSrc
   _Bool setFPS, continuousMode, limitBandwidth, demosaicing, centerx, centery, flipx, flipy;
   double fps, exposure, gain, blacklevel, gamma, balancered, balanceblue, balancegreen, redhue, redsaturation, yellowhue, yellowsaturation, greenhue, greensaturation, cyanhue, cyansaturation, bluehue, bluesaturation, magentahue, magentasaturation, sharpnessenhancement, noisereduction, autoexposureupperlimit, autoexposurelowerlimit, gainupperlimit, gainlowerlimit, brightnesstarget, transformation00, transformation01, transformation02, transformation10, transformation11, transformation12, transformation20, transformation21, transformation22;
   gint height, width, binningh, binningv, maxHeight, maxWidth, maxBandwidth, testImage, offsetx, offsety;
-  gchar *imageFormat, *sensorMode, *lightsource, *autoexposure, *autowhitebalance, *autogain, *reset, *autoprofile, *transformationselector, *userid;
+  gchar *pixel_format, *sensorMode, *lightsource, *autoexposure, *autowhitebalance, *autogain, *reset, *autoprofile, *transformationselector, *userid;
 };
 
 struct _GstPylonSrcClass

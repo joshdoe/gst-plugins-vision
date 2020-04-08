@@ -41,6 +41,8 @@
 #include <malloc.h>             //malloc
 #include <string.h>             //memcpy, strcmp
 
+#include "common/genicampixelformat.h"
+
 #ifdef HAVE_ORC
 #include <orc/orc.h>
 #else
@@ -117,7 +119,7 @@ enum
   PROP_RESET,
   PROP_TESTIMAGE,
   PROP_CONTINUOUSMODE,
-  PROP_IMAGEFORMAT,
+  PROP_PIXEL_FORMAT,
   PROP_USERID,
   PROP_BASLERDEMOSAICING,
   PROP_DEMOSAICINGNOISEREDUCTION,
@@ -145,6 +147,8 @@ enum
   PROP_TRANSFORMATION21,
   PROP_TRANSFORMATION22
 };
+
+#define DEFAULT_PROP_PIXEL_FORMAT "auto"
 
 /* pad templates */
 static GstStaticPadTemplate gst_pylonsrc_src_template =
@@ -355,10 +359,10 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
       g_param_spec_boolean ("continuous", "Continuous mode",
           "(true/false) Used to switch between triggered and continuous mode. To switch to triggered mode this parameter has to be switched to false.",
           TRUE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
-  g_object_class_install_property (gobject_class, PROP_IMAGEFORMAT,
-      g_param_spec_string ("imageformat", "Image format",
-          "(Mono8/Bayer8/Bayer10/Bayer10p/RGB8/BGR8/YCbCr422_8). Determines the pixel format in which to send frames. Note that downstream elements might not support some of these.",
-          "Bayer8",
+  g_object_class_install_property (gobject_class, PROP_PIXEL_FORMAT,
+      g_param_spec_string ("pixel-format", "Pixel format",
+          "Force the pixel format (e.g., Mono8). Default to 'auto', which will use GStreamer negotiation.",
+          DEFAULT_PROP_PIXEL_FORMAT,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_USERID,
       g_param_spec_string ("userid", "Custom Device User ID",
@@ -501,6 +505,8 @@ gst_pylonsrc_init (GstPylonSrc * src)
   GST_DEBUG_OBJECT (src, "Initialising defaults");
 
   src->deviceConnected = FALSE;
+  src->acquisition_configured = FALSE;
+  src->caps = NULL;
 
   // Default parameter values
   src->continuousMode = TRUE;
@@ -526,7 +532,7 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->autowhitebalance = "off\0";
   src->autogain = "off\0";
   src->reset = "off\0";
-  src->imageFormat = "bayer8\0";
+  src->pixel_format = g_strdup (DEFAULT_PROP_PIXEL_FORMAT);
   src->userid = "\0";
   src->autoprofile = "default\0";
   src->transformationselector = "default\0";
@@ -619,8 +625,9 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
     case PROP_AUTOWHITEBALANCE:
       src->autowhitebalance = g_value_dup_string (value + '\0');
       break;
-    case PROP_IMAGEFORMAT:
-      src->imageFormat = g_value_dup_string (value + '\0');
+    case PROP_PIXEL_FORMAT:
+      g_free (src->pixel_format);
+      src->pixel_format = g_value_dup_string (value);
       break;
     case PROP_AUTOGAIN:
       src->autogain = g_value_dup_string (value + '\0');
@@ -823,8 +830,8 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
     case PROP_AUTOWHITEBALANCE:
       g_value_set_string (value, src->autowhitebalance);
       break;
-    case PROP_IMAGEFORMAT:
-      g_value_set_string (value, src->imageFormat);
+    case PROP_PIXEL_FORMAT:
+      g_value_set_string (value, src->pixel_format);
       break;
     case PROP_USERID:
       g_value_set_string (value, src->userid);
@@ -986,56 +993,13 @@ static GstCaps *
 gst_pylonsrc_get_caps (GstBaseSrc * bsrc, GstCaps * filter)
 {
   GstPylonSrc *src = GST_PYLONSRC (bsrc);
-  GstCaps *caps;
 
   GST_DEBUG_OBJECT (src, "Received a request for caps.");
   if (!src->deviceConnected) {
     GST_DEBUG_OBJECT (src, "Could not send caps - no camera connected.");
     return gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD (bsrc));
   } else {
-    // Set caps
-    char *type = "";
-    char *format = "";
-
-    if (strncmp ("bayer", src->imageFormat, 5) == 0) {
-      type = "video/x-bayer\0";
-      format = "rggb\0";
-      if (src->flipx && !src->flipy) {
-        format = "grbg\0";
-      } else if (!src->flipx && src->flipy) {
-        format = "gbrg\0";
-      } else if (src->flipx && src->flipy) {
-        format = "bggr\0";
-      }
-    } else {
-      type = "video/x-raw\0";
-
-      if (strcmp (src->imageFormat, "rgb8") == 0) {
-        format = "RGB\0";
-      } else if (strcmp (src->imageFormat, "bgr8") == 0) {
-        format = "BGR\0";
-      } else if (strcmp (src->imageFormat, "ycbcr422_8") == 0) {
-        format = "YUY2\0";
-
-      } else if (strcmp (src->imageFormat, "mono8") == 0) {
-        format = "GRAY8\0";
-      } else if (strcmp (src->imageFormat, "yuv422packed") == 0) {
-        format = "UYVY\0";
-      } else if (strcmp (src->imageFormat, "yuv422_yuyv_packed") == 0) {
-        format = "YUY2\0";
-      }
-    }
-
-    caps = gst_caps_new_simple (type,
-        "format", G_TYPE_STRING, format,
-        "width", G_TYPE_INT, src->width,
-        "height", G_TYPE_INT, src->height,
-        "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1, NULL);
-
-    GST_DEBUG_OBJECT (src,
-        "The following caps were sent: %s, %s, %dx%d, variable fps.", type,
-        format, src->width, src->height);
-    return caps;
+    return src->caps;
   }
 }
 
@@ -1043,24 +1007,31 @@ static gboolean
 gst_pylonsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 {
   GstPylonSrc *src = GST_PYLONSRC (bsrc);
-  GstStructure *s = gst_caps_get_structure (caps, 0);
+  gint i;
+  GString *format = g_string_new (NULL);
 
   GST_DEBUG_OBJECT (src, "Setting caps to %" GST_PTR_FORMAT, caps);
 
-  if (strncmp ("bayer", src->imageFormat, 5) == 0) {
-    if (!g_str_equal ("video/x-bayer", gst_structure_get_name (s))) {
-      goto unsupported_caps;
-    }
-  } else {
-    if (!g_str_equal ("video/x-raw", gst_structure_get_name (s))
-        || (!g_str_equal ("YUY2", gst_structure_get_string (s, "format"))
-            && !g_str_equal ("RGB", gst_structure_get_string (s, "format"))
-            && !g_str_equal ("BGR", gst_structure_get_string (s, "format"))
-            && !g_str_equal ("GRAY8", gst_structure_get_string (s, "format"))
-            && !g_str_equal ("UYVY", gst_structure_get_string (s, "format")))) {
-      goto unsupported_caps;
+  g_free (src->pixel_format);
+  src->pixel_format = NULL;
+  for (i = 0; i < G_N_ELEMENTS (gst_genicam_pixel_format_infos); i++) {
+    GstCaps *super_caps;
+    GstGenicamPixelFormatInfo *info = &gst_genicam_pixel_format_infos[i];
+    super_caps = gst_caps_from_string (info->gst_caps_string);
+    g_string_printf (format, "EnumEntry_PixelFormat_%s", info->pixel_format);
+    if (gst_caps_is_subset (caps, super_caps)
+        && PylonDeviceFeatureIsAvailable (src->deviceHandle, format->str)) {
+      src->pixel_format = g_strdup (info->pixel_format);
+      GST_DEBUG_OBJECT (src, "Set caps match PixelFormat '%s'",
+          src->pixel_format);
+      break;
     }
   }
+  g_string_free (format, TRUE);
+
+  if (src->pixel_format == NULL)
+    goto unsupported_caps;
+
   return TRUE;
 
 unsupported_caps:
@@ -1490,112 +1461,61 @@ error:
   return FALSE;
 }
 
+static GstCaps *
+gst_pylonsrc_get_supported_caps (GstPylonSrc * src)
+{
+  GstCaps *caps;
+  int i;
+  GString *format = g_string_new (NULL);
+  gboolean auto_format = FALSE;
+
+  if (g_ascii_strncasecmp (src->pixel_format, "auto", -1) == 0) {
+    auto_format = TRUE;
+  }
+
+  caps = gst_caps_new_empty ();
+
+  /* check every pixel format GStreamer supports */
+  for (i = 0; i < G_N_ELEMENTS (gst_genicam_pixel_format_infos); i++) {
+    const GstGenicamPixelFormatInfo *info = &gst_genicam_pixel_format_infos[i];
+
+    if (!auto_format
+        && g_ascii_strncasecmp (src->pixel_format, info->pixel_format,
+            -1) != 0) {
+      continue;
+    }
+
+    g_string_printf (format, "EnumEntry_PixelFormat_%s", info->pixel_format);
+    if (PylonDeviceFeatureIsAvailable (src->deviceHandle, format->str)) {
+      GstCaps *format_caps;
+
+      GST_DEBUG_OBJECT (src, "PixelFormat %s supported, adding to caps",
+          info->pixel_format);
+
+      // TODO: query FPS
+      format_caps =
+          gst_genicam_pixel_format_caps_from_pixel_format (info->pixel_format,
+          G_BYTE_ORDER, src->width, src->height, 30, 1, 1, 1);
+
+      if (format_caps)
+        gst_caps_append (caps, format_caps);
+    }
+  }
+
+  GST_DEBUG_OBJECT (src, "Supported caps are %" GST_PTR_FORMAT, caps);
+
+  return caps;
+}
+
 static gboolean
 gst_pylonsrc_set_pixel_format (GstPylonSrc * src)
 {
   GENAPIC_RESULT res;
-  GString *pixelFormat = g_string_new (NULL);
 
-  // Set pixel format.
-  src->imageFormat = g_ascii_strdown (src->imageFormat, -1);
-  if (strncmp ("bayer", src->imageFormat, 5) == 0) {
-    GString *format = g_string_new (NULL);
-    GString *filter = g_string_new (NULL);
-
-    if (!src->flipx && !src->flipy) {
-      g_string_printf (filter, "RG");
-    } else if (src->flipx && !src->flipy) {
-      g_string_printf (filter, "GR");
-    } else if (!src->flipx && src->flipy) {
-      g_string_printf (filter, "GB");
-    } else {
-      g_string_printf (filter, "BG");
-    }
-    g_string_printf (pixelFormat, "Bayer%s%s", filter->str,
-        &src->imageFormat[5]);
-    g_string_free (filter, TRUE);
-    g_string_printf (format, "EnumEntry_PixelFormat_%s", pixelFormat->str);
-
-    if (!PylonDeviceFeatureIsAvailable (src->deviceHandle, format->str)) {
-      g_string_free (format, TRUE);
-      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          ("Failed to initialise the camera"),
-          ("Camera doesn't support Bayer%s.", &src->imageFormat[5]));
-      goto error;
-    }
-    g_string_free (format, TRUE);
-  } else if (strcmp (src->imageFormat, "rgb8") == 0) {
-    if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
-            "EnumEntry_PixelFormat_RGB8")) {
-      g_string_printf (pixelFormat, "RGB8");
-    } else {
-      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          ("Failed to initialise the camera"),
-          ("Camera doesn't support RGB 8"));
-      goto error;
-    }
-  } else if (strcmp (src->imageFormat, "bgr8") == 0) {
-    if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
-            "EnumEntry_PixelFormat_BGR8")) {
-      g_string_printf (pixelFormat, "RGB8");
-    } else {
-      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          ("Failed to initialise the camera"),
-          ("Camera doesn't support BGR 8"));
-      goto error;
-    }
-  } else if (strcmp (src->imageFormat, "ycbcr422_8") == 0) {
-    if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
-            "EnumEntry_PixelFormat_YCbCr422_8")) {
-      g_string_printf (pixelFormat, "YCbCr422_8");
-    } else {
-      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          ("Failed to initialise the camera"),
-          ("Camera doesn't support YCbCr422 8"));
-      goto error;
-    }
-  } else if (strcmp (src->imageFormat, "mono8") == 0) {
-    if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
-            "EnumEntry_PixelFormat_Mono8")) {
-      g_string_printf (pixelFormat, "Mono8");
-    } else {
-      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          ("Failed to initialise the camera"),
-          ("Camera doesn't support Mono 8"));
-      goto error;
-    }
-  } else if (strcmp (src->imageFormat, "yuv422packed") == 0) {
-    if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
-            "EnumEntry_PixelFormat_YUV422Packed")) {
-      g_string_printf (pixelFormat, "YUV422Packed");
-    } else {
-      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          ("Failed to initialise the camera"),
-          ("Camera doesn't support YUV422Packed"));
-      goto error;
-    }
-  } else if (strcmp (src->imageFormat, "yuv422_yuyv_packed") == 0) {
-    if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
-            "EnumEntry_PixelFormat_YUV422_YUYV_Packed")) {
-      g_string_printf (pixelFormat, "YUV422_YUYV_Packed");
-    } else {
-      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          ("Failed to initialise the camera"),
-          ("Camera doesn't support YUV422_YUYV_Packed"));
-      goto error;
-    }
-  } else {
-    GST_ERROR_OBJECT (src,
-        "Invalid parameter value for imageformat. Available values are: bayer8, bayer10, bayer10p, rgb8, bgr8, ycbcr422_8, mono8. Value provided: \"%s\".",
-        src->imageFormat);
-    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-        ("Failed to initialise the camera"), ("Invalid parameters provided"));
-    goto error;
-  }
-  GST_DEBUG_OBJECT (src, "Using %s image format.", pixelFormat->str);
+  GST_DEBUG_OBJECT (src, "Using %s PixelFormat.", src->pixel_format);
   res =
       PylonDeviceFeatureFromString (src->deviceHandle, "PixelFormat",
-      pixelFormat->str);
+      src->pixel_format);
   PYLONC_CHECK_ERROR (src, res);
 
   // Output the size of a pixel
@@ -1611,7 +1531,6 @@ gst_pylonsrc_set_pixel_format (GstPylonSrc * src)
   } else {
     GST_WARNING_OBJECT (src, "Couldn't read pixel size from the camera");
   }
-  g_string_free (pixelFormat, TRUE);
 
   return TRUE;
 
@@ -2555,7 +2474,7 @@ gst_pylonsrc_set_pgi (GstPylonSrc * src)
   if (FEATURE_SUPPORTED ("DemosaicingMode")) {
     if (src->demosaicing || src->sharpnessenhancement != 999.0
         || src->noisereduction != 999.0) {
-      if (strncmp ("bayer", src->imageFormat, 5) != 0) {
+      if (strncmp ("bayer", src->pixel_format, 5) != 0) {
         GST_DEBUG_OBJECT (src, "Enabling Basler's PGI.");
         res =
             PylonDeviceFeatureFromString (src->deviceHandle, "DemosaicingMode",
@@ -2615,24 +2534,13 @@ error:
 }
 
 static gboolean
-gst_pylonsrc_start (GstBaseSrc * bsrc)
+gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
 {
-  GstPylonSrc *src = GST_PYLONSRC (bsrc);
   GENAPIC_RESULT res;
   gint i;
   size_t num_streams;
 
-  if (PylonInitialize () != 0) {
-    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-        ("Failed to initialise the camera"),
-        ("Pylon library initialization failed"));
-    goto error;
-  }
-
-  if (!gst_pylonsrc_select_device (src) ||
-      !gst_pylonsrc_connect_device (src) ||
-      !gst_pylonsrc_set_resolution (src) ||
-      !gst_pylonsrc_set_offset (src) ||
+  if (!gst_pylonsrc_set_offset (src) ||
       !gst_pylonsrc_set_reverse (src) ||
       !gst_pylonsrc_set_pixel_format (src) ||
       !gst_pylonsrc_set_test_image (src) ||
@@ -2790,6 +2698,30 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
   return TRUE;
 
 error:
+  return FALSE;
+}
+
+static gboolean
+gst_pylonsrc_start (GstBaseSrc * bsrc)
+{
+  GstPylonSrc *src = GST_PYLONSRC (bsrc);
+
+  if (PylonInitialize () != 0) {
+    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+        ("Failed to initialise the camera"),
+        ("Pylon library initialization failed"));
+    goto error;
+  }
+
+  if (!gst_pylonsrc_select_device (src) ||
+      !gst_pylonsrc_connect_device (src) || !gst_pylonsrc_set_resolution (src))
+    goto error;
+
+  src->caps = gst_pylonsrc_get_supported_caps (src);
+
+  return TRUE;
+
+error:
   pylonc_disconnect_camera (src);
   return FALSE;
 }
@@ -2804,6 +2736,11 @@ gst_pylonsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   _Bool bufferReady;
   GstMapInfo mapInfo;
 
+  if (!src->acquisition_configured) {
+    if (!gst_pylonsrc_configure_start_acquisition (src))
+      goto error;
+    src->acquisition_configured = TRUE;
+  }
   // Wait for the buffer to be filled  (up to 1 s)  
   res = PylonWaitObjectWait (src->waitObject, 1000, &bufferReady);
   PYLONC_CHECK_ERROR (src, res);
