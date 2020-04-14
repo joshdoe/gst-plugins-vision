@@ -9,8 +9,8 @@
 # For details see the accompanying COPYING-CMAKE-SCRIPTS file.
 
 if (NOT PHOENIX_DIR)
-	message(WARNING "PHOENIX: WARNING: PHOENIX_DIR not set, set to dir SDKX.XX where X.XX is the version")
-endif (NOT PHOENIX_DIR)
+    set (PHOENIX_DIR "C:/Program Files (x86)/Active Silicon/Phoenix/Win/SDK6.30" CACHE PATH "Directory containing Phoenix SDK includes and libraries")
+endif ()
 
 find_path(PHOENIX_INCLUDE_DIR phx_api.h
     PATHS
@@ -28,10 +28,6 @@ else ()
 		"${PHOENIX_DIR}/Lib/win32"
 		DOC "PHOENIX library to link with")
 endif()
-
-if (NOT PHOENIX_INCLUDE_DIR)
-	message(WARNING "PHOENIX: WARNING: not found, make sure PHOENIX_DIR is set to dir SDKX.XX")
-endif ()
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(PHOENIX  DEFAULT_MSG  PHOENIX_INCLUDE_DIR PHOENIX_LIBRARIES)
