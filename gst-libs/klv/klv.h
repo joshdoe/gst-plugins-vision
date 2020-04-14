@@ -25,10 +25,21 @@
 // FIXME: include this for now until gst-plugins-base MR124 is accepted
 //#define GST_API_EXPORT __declspec(dllexport) extern
 //#define GST_TAG_API GST_API_EXPORT
-#ifdef BUILDING_GST_KLV
-#define GST_KLV_API __declspec(dllexport) extern
+#if defined (_MSC_VER)
+  #define GST_KLV_EXPORT __declspec(dllexport)
+  #define GST_KLV_IMPORT __declspec(dllimport)
+#elif defined (__GNUC__)
+  #define GST_KLV_EXPORT __attribute__((visibility("default")))
+  #define GST_KLV_IMPORT
 #else
-#define GST_KLV_API __declspec(dllimport) extern
+  #define GST_KLV_EXPORT
+  #define GST_KLV_IMPORT
+#endif
+
+#ifdef BUILDING_GST_KLV
+#define GST_KLV_API GST_KLV_EXPORT
+#else
+#define GST_KLV_API GST_KLV_IMPORT
 #endif
 #define GST_TAG_API GST_KLV_API
 
