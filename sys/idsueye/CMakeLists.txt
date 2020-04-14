@@ -7,7 +7,7 @@ set (HEADERS
 include_directories (AFTER
   ${IDSUEYE_INCLUDE_DIR})
 
-set (libname libgstidsueye)
+set (libname gstidsueye)
 
 add_library (${libname} MODULE
   ${SOURCES}
