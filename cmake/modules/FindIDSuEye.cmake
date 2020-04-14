@@ -10,26 +10,39 @@
 #
 # Redistribution and use is allowed according to the terms of the BSD license.
 # For details see the accompanying COPYING-CMAKE-SCRIPTS file.
-
-if (NOT IDSUEYE_DIR)
+if (WIN32)
+    if (NOT IDSUEYE_DIR)
     set (IDSUEYE_DIR "C:/Program Files/IDS/uEye/Develop" CACHE PATH "Directory containing IDS uEye SDK includes and libraries")
-endif ()
+    endif ()
 
-if (CMAKE_SIZEOF_VOID_P MATCHES "8")
+    if (CMAKE_SIZEOF_VOID_P MATCHES "8")
     set(_LIB_NAME "uEye_api_64")
-else ()
+    else ()
     set(_LIB_NAME "uEye_api")
-endif ()
+    endif ()
 
-find_path (IDSUEYE_INCLUDE_DIR uEye.h
+    find_path (IDSUEYE_INCLUDE_DIR uEye.h
     PATHS
     "${IDSUEYE_DIR}/include"
     DOC "Directory containing IDS uEye include files")
+endif (WIN32)
+
+if (UNIX)
+    if (NOT IDSUEYE_DIR)
+        set (IDSUEYE_DIR "/usr" CACHE PATH "Directory containing IDS uEye SDK includes and libraries")
+    endif ()
+
+    set(_LIB_NAME "libueye_api.so")
+
+    find_path (IDSUEYE_INCLUDE_DIR ueye.h
+    PATHS
+    "${IDSUEYE_DIR}/include"
+    DOC "Directory containing IDS uEye include files")
+endif (UNIX)
 
 find_library (_uEyeLib NAMES ${_LIB_NAME}
-    PATHS
-    "${IDSUEYE_DIR}/Lib")
-
+PATHS
+"${IDSUEYE_DIR}/Lib")
 
 set (IDSUEYE_LIBRARIES ${_uEyeLib})
 
