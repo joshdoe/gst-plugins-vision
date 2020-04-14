@@ -23,8 +23,10 @@ target_link_libraries (${libname}
   ${GSTREAMER_BASE_LIBRARY}
   ${GSTREAMER_VIDEO_LIBRARY})
 
-set (pdbfile "${CMAKE_CURRENT_BINARY_DIR}/\${CMAKE_INSTALL_CONFIG_NAME}/${libname}.pdb")
-install (FILES ${pdbfile} DESTINATION lib/gstreamer-1.0 COMPONENT pdb)
+if (WIN32)
+  set (pdbfile "${CMAKE_CURRENT_BINARY_DIR}/\${CMAKE_INSTALL_CONFIG_NAME}/lib${libname}.pdb")
+  install (FILES ${pdbfile} DESTINATION lib/gstreamer-1.0 COMPONENT pdb)
+endif()
 install (TARGETS ${libname}
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib)
