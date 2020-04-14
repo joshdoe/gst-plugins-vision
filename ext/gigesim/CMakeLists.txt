@@ -7,7 +7,7 @@ set (HEADERS
 include_directories (AFTER
   ${GIGESIM_INCLUDE_DIR})
 
-set (libname libgstgigesim)
+set (libname gstgigesim)
 
 add_library (${libname} MODULE
   ${SOURCES}

@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION "2.8.0")
 
 project(gst-plugins-vision)
 
+set(CMAKE_SHARED_MODULE_PREFIX "lib")
+set(CMAKE_SHARED_LIBRARY_PREFIX "lib")
+
 # add local cmake modules
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules)
 

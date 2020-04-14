@@ -8,7 +8,7 @@ set (HEADERS
 include_directories (AFTER
   ${ORC_INCLUDE_DIR})
 
-set (libname libgstextractcolor)
+set (libname gstextractcolor)
 
 add_library (${libname} MODULE
   ${SOURCES}

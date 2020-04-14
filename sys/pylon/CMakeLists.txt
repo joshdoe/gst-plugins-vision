@@ -10,7 +10,7 @@ include_directories (AFTER
   ${PYLON_INCLUDE_DIR}
   )
 
-set (libname libgstpylon)
+set (libname gstpylon)
 
 add_library (${libname} MODULE
   ${SOURCES}

@@ -26,7 +26,7 @@ include_directories (AFTER
 
 link_directories(${Pleora_LIBRARY_DIR})
 
-set (libname libgstpleora${Pleora_VERSION_MAJOR})
+set (libname gstpleora${Pleora_VERSION_MAJOR})
 
 add_library (${libname} MODULE
   ${SOURCES}
@@ -38,7 +38,7 @@ target_link_libraries (${libname}
   ${GSTREAMER_LIBRARY}
   ${GSTREAMER_BASE_LIBRARY}
   ${GSTREAMER_VIDEO_LIBRARY}
-  libgstklv-1.0-0)
+  gstklv-1.0-0)
 
 set (pdbfile "${CMAKE_CURRENT_BINARY_DIR}/\${CMAKE_INSTALL_CONFIG_NAME}/${libname}.pdb")
 install (FILES ${pdbfile} DESTINATION lib/gstreamer-1.0 COMPONENT pdb)

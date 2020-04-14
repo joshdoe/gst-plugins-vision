@@ -7,7 +7,7 @@ set (HEADERS
 include_directories (AFTER
   ${XCLIB_INCLUDE_DIR})
 
-set (libname libgstpixci)
+set (libname gstpixci)
 
 add_library (${libname} MODULE
   ${SOURCES}

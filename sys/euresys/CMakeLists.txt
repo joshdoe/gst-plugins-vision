@@ -7,7 +7,7 @@ set (HEADERS
 include_directories (AFTER
   ${EURESYS_INCLUDE_DIR})
 
-set (libname libgsteuresys)
+set (libname gsteuresys)
 
 add_library (${libname} MODULE
   ${SOURCES}

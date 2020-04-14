@@ -7,7 +7,7 @@ set (HEADERS
 include_directories (AFTER
   ${SAPERA_INCLUDE_DIR})
 
-set (libname libgstsapera)
+set (libname gstsapera)
 
 add_library (${libname} MODULE
   ${SOURCES}

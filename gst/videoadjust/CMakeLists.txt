@@ -9,7 +9,7 @@ include_directories (AFTER
   ${PROJECT_SOURCE_DIR}/common
   )
 
-set (libname libgstvideoadjust)
+set (libname gstvideoadjust)
 
 add_library (${libname} MODULE
   ${SOURCES}

@@ -7,7 +7,7 @@ set (HEADERS
 include_directories (AFTER
   ${PHOENIX_INCLUDE_DIR})
 
-set (libname libgstphoenix)
+set (libname gstphoenix)
 
 add_library (${libname} MODULE
   ${SOURCES}

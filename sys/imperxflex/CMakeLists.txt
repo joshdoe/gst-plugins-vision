@@ -7,7 +7,7 @@ set (HEADERS
 include_directories (AFTER
   ${IMPERX_FLEX_INCLUDE_DIR})
 
-set (libname libgstimperxflex)
+set (libname gstimperxflex)
 
 add_library (${libname} MODULE
   ${SOURCES}

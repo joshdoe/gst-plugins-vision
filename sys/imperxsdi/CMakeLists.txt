@@ -7,7 +7,7 @@ set (HEADERS
 include_directories (AFTER
   ${IMPERX_SDI_INCLUDE_DIR})
 
-set (libname libgstimperxsdi)
+set (libname gstimperxsdi)
 
 add_library (${libname} MODULE
   ${SOURCES}

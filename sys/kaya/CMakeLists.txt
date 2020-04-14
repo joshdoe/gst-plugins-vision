@@ -11,7 +11,7 @@ include_directories (AFTER
   ${PROJECT_SOURCE_DIR}/common
   )
 
-set (libname libgstkaya)
+set (libname gstkaya)
 
 add_library (${libname} MODULE
   ${SOURCES}

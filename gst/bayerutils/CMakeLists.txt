@@ -8,7 +8,7 @@ set (HEADERS
 include_directories (AFTER
   )
 
-set (libname libgstbayerutils)
+set (libname gstbayerutils)
 
 add_library (${libname} MODULE
   ${SOURCES}

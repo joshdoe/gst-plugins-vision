@@ -7,7 +7,7 @@ set (HEADERS
 include_directories (AFTER
   ${MATROX_INCLUDE_DIR})
 
-set (libname libgstmatrox)
+set (libname gstmatrox)
 
 add_library (${libname} MODULE
   ${SOURCES}

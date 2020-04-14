@@ -10,7 +10,7 @@ include_directories (AFTER
   ${PROJECT_SOURCE_DIR}/common
   )
 
-set (libname libgstklv-1.0-0)
+set (libname gstklv-1.0-0)
 
 add_library (${libname} SHARED
   ${SOURCES}

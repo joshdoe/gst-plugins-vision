@@ -7,7 +7,7 @@ set (HEADERS
 include_directories (AFTER
   ${NIIMAQDX_INCLUDE_DIR})
 
-set (libname libgstniimaqdx)
+set (libname gstniimaqdx)
 
 add_library (${libname} MODULE
   ${SOURCES}

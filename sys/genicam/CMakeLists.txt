@@ -11,7 +11,7 @@ include_directories (AFTER
   ${GENICAM_INCLUDE_DIR}
   C:/devel/aravis/src)
 
-set (libname libgstgenicam)
+set (libname gstgenicam)
 
 add_library (${libname} MODULE
   ${SOURCES}

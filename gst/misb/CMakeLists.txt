@@ -11,7 +11,7 @@ set (HEADERS
 include_directories (AFTER
   ${ORC_INCLUDE_DIR})
 
-set (libname libgstmisb)
+set (libname gstmisb)
 
 add_library (${libname} MODULE
   ${SOURCES}

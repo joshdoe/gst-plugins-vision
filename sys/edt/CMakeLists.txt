@@ -10,7 +10,7 @@ set (HEADERS
 include_directories (AFTER
   ${EDT_INCLUDE_DIR})
 
-set (libname libgstedt)
+set (libname gstedt)
 
 add_library (${libname} MODULE
   ${SOURCES}

@@ -10,7 +10,7 @@ include_directories (AFTER
   ${ORC_INCLUDE_DIR}
   ${APTINA_INCLUDE_DIR})
 
-set (libname libgstaptina)
+set (libname gstaptina)
 
 add_library (${libname} MODULE
   ${SOURCES}

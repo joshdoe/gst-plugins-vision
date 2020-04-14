@@ -7,7 +7,7 @@ set (HEADERS
 include_directories (AFTER
   ${BITFLOW_INCLUDE_DIR})
 
-set (libname libgstbitflow)
+set (libname gstbitflow)
 
 add_library (${libname} MODULE
   ${SOURCES}
