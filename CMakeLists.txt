@@ -101,7 +101,7 @@ find_package(Pleora)
 macro_log_feature(Pleora_FOUND "Pleora eBUS" "Required to build Pleora eBUS source element" "http://www.pleora.com/" FALSE)
 
 find_package(Pylon)
-macro_log_feature(Pylon_FOUND "Basler Pylon" "Required to build Basler Pylon source element" "http://www.baslerweb.com/" FALSE)
+macro_log_feature(PYLON_FOUND "Basler Pylon" "Required to build Basler Pylon source element" "http://www.baslerweb.com/" FALSE)
 
 find_package(Sapera)
 macro_log_feature(SAPERA_FOUND "Teledyne DALSA Sapera" "Required to build Teledyne DALSA Sapera source element" "http://www.teledynedalsa.com/" FALSE)

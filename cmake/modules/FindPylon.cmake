@@ -11,18 +11,25 @@
 # For details see the accompanying COPYING-CMAKE-SCRIPTS file.
 
 if (NOT PYLON_DIR)
-    set (PYLON_DIR "C:/Program Files/Basler/pylon 5" CACHE PATH "Directory containing Pylon SDK includes and libraries")
+  if (WIN32)
+    set (_PYLON_DIR "C:/Program Files/Basler/pylon 5")
+  else ()
+    set (_PYLON_DIR "/opt/pylon5")
+  endif ()
+  set (PYLON_DIR ${_PYLON_DIR} CACHE PATH "Directory containing Pylon SDK includes and libraries")
 endif ()
 
 find_path (PYLON_INCLUDE_DIR pylonc/PylonC.h
     PATHS
     "${PYLON_DIR}/Development/include"
-    DOC "Directory containing KYFGLib.h include file")
+    "${PYLON_DIR}/include"
+    DOC "Directory containing PylonC.h include file")
 
 # TODO: support multiple SDK versions
-find_library (_PylonCLib NAMES PylonC_MD_VC120
+find_library (_PylonCLib NAMES PylonC_MD_VC120 pylonc
     PATHS
-    "${PYLON_DIR}/Development/lib/x64")
+    "${PYLON_DIR}/Development/lib/x64"
+    "${PYLON_DIR}/lib64")
 
 set (PYLON_LIBRARIES ${_PylonCLib})
 
