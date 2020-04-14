@@ -16,7 +16,8 @@ if (NOT EURESYS_DIR)
     # 32-bit dir on win32
     file(TO_CMAKE_PATH "$ENV{ProgramFiles}" _PROG_FILES)
     # 32-bit dir on win64
-    file(TO_CMAKE_PATH "$ENV{ProgramFiles(x86)}" _PROG_FILES_X86)
+    set(_PROG_FILES_X86 "ProgramFiles(x86)")
+    file(TO_CMAKE_PATH "$ENV{${_PROG_FILES_X86}}" _PROG_FILES_X86)
 
     # use (x86) dir if exists
     if (_PROG_FILES_X86)

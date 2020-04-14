@@ -13,7 +13,8 @@
 
 if (NOT NIIMAQDX_DIR)
     file(TO_CMAKE_PATH "$ENV{ProgramFiles}" _PROG_FILES)
-    file(TO_CMAKE_PATH "$ENV{ProgramFiles(x86)}" _PROG_FILES_X86)
+    set(_PROG_FILES_X86 "ProgramFiles(x86)")
+    file(TO_CMAKE_PATH "$ENV{${_PROG_FILES_X86}}" _PROG_FILES_X86)
     if (_PROG_FILES_X86)
         set(_PROGFILESDIR "${_PROG_FILES_X86}")
     else ()
