@@ -112,16 +112,20 @@ gst_klvinject_add_test_meta (GstKlvInject * filt, GstBuffer * buf)
     0x01, 0x0e, 0x01, 0x03, 0x01, 0x01, 0x00, 0x00, 0x00
   };
   GstByteWriter bw;
-  GstReferenceTimestampMeta *time_meta;
-  gint64 utc_us;
-
   /* NOTE: MISB defines MISP time, which is NOT UTC, but use UTC for now */
+  gint64 utc_us = -1;
+
+#if GST_CHECK_VERSION(1,14,0)
+  GstReferenceTimestampMeta *time_meta;
   time_meta =
       gst_buffer_get_reference_timestamp_meta (buf,
       gst_static_caps_get (&unix_reference));
   if (time_meta) {
     utc_us = time_meta->timestamp / 1000;
-  } else {
+  }
+#endif
+
+  if (utc_us == -1) {
     GDateTime *dt = g_date_time_new_now_utc ();
     utc_us = g_date_time_to_unix (dt) * 1000000;        /* microseconds */
     utc_us += g_date_time_get_microsecond (dt);
