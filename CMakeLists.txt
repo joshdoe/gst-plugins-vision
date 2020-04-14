@@ -55,7 +55,7 @@ macro_log_feature(BITFLOW_FOUND "BitFlow" "Required to build BitFlow source elem
 find_package(NIIMAQ)
 macro_log_feature(NIIMAQ_FOUND "NI-IMAQ" "Required to build National Instruments IMAQ source element" "http://www.ni.com/" FALSE)
 
-find_package(NIIMAQDX)
+find_package(NIIMAQdx)
 macro_log_feature(NIIMAQDX_FOUND "NI-IMAQdx" "Required to build National Instruments IMAQdx source element" "http://www.ni.com/" FALSE)
 
 find_package(FreeImage)
