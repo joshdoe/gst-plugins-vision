@@ -23,7 +23,7 @@
 #include <gst/base/gstpushsrc.h>
 
 #define _PURE_C
-#include "uEye.h"
+#include "ueye.h"
 
 G_BEGIN_DECLS
 
