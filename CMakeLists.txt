@@ -120,9 +120,13 @@ include_directories(
     ${GLIB2_INCLUDE_DIR})
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-    file(TO_CMAKE_PATH "${GSTREAMER_INCLUDE_DIR}/../.." PREFIX)
-    set(CMAKE_INSTALL_PREFIX
-        ${PREFIX} CACHE PATH "Directory to install plugins, under lib/gstreamer-1.0" FORCE)
+  if (WIN32)
+    file(TO_CMAKE_PATH "${GSTREAMER_INCLUDE_DIR}/../.." _PREFIX)
+  else ()
+    set(_PREFIX "/usr")
+  endif ()
+  set(CMAKE_INSTALL_PREFIX "${_PREFIX}"
+      CACHE PATH "Common prefix for all installed files (e.g., plugins will be installed under CMAKE_INSTALL_PREFIX/lib/gstreamer-1.0)" FORCE)
 endif(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 
 add_subdirectory(gst-libs)
