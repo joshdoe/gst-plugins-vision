@@ -121,13 +121,26 @@ include_directories(
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   if (WIN32)
-    file(TO_CMAKE_PATH "${GSTREAMER_INCLUDE_DIR}/../.." _PREFIX)
+    get_filename_component(_PREFIX "${GSTREAMER_PLUGIN_DIR}/../" REALPATH)
   else ()
-    set(_PREFIX "/usr")
+    set(_PREFIX "/usr/lib")
   endif ()
   set(CMAKE_INSTALL_PREFIX "${_PREFIX}"
-      CACHE PATH "Common prefix for all installed files (e.g., plugins will be installed under CMAKE_INSTALL_PREFIX/lib/gstreamer-1.0)" FORCE)
+      CACHE PATH "Common prefix for all installed files (e.g., plugins will be installed under CMAKE_INSTALL_PREFIX/gstreamer-1.0)" FORCE)
 endif(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+
+if (NOT LIBRARY_INSTALL_DIR)
+  set(LIBRARY_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/"
+      CACHE PATH "Location to install libraries (e.g., libgstklv-1.0-0.so/dll)")
+endif ()
+if (NOT PLUGIN_INSTALL_DIR)
+  set(PLUGIN_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/gstreamer-1.0/"
+      CACHE PATH "Location to install plugins (e.g., libgstpylon.so/dll)")
+endif()
+if (WIN32 AND NOT PDB_INSTALL_DIR)
+  set(PDB_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/gstreamer-1.0/"
+      CACHE PATH "Location to install PDB debug files (e.g., libgstpylon.pdb)")
+endif()
 
 add_subdirectory(gst-libs)
 

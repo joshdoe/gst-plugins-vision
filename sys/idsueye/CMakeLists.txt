@@ -22,8 +22,6 @@ target_link_libraries (${libname}
   ${IDSUEYE_LIBRARIES})
 
 if (WIN32)
-  set (pdbfile "${CMAKE_CURRENT_BINARY_DIR}/\${CMAKE_INSTALL_CONFIG_NAME}/lib${libname}.pdb")
-  install (FILES ${pdbfile} DESTINATION lib/gstreamer-1.0 COMPONENT pdb)
+  install (FILES $<TARGET_PDB_FILE:${libname}> DESTINATION ${PDB_INSTALL_DIR} COMPONENT pdb OPTIONAL)
 endif ()
-install(TARGETS ${libname}
-  LIBRARY DESTINATION lib/gstreamer-1.0)
+install(TARGETS ${libname} LIBRARY DESTINATION ${PLUGIN_INSTALL_DIR})
