@@ -1,3 +1,7 @@
+if (ENABLE_KLV)
+  add_definitions(-DGST_PLUGINS_VISION_ENABLE_KLV)
+endif ()
+
 add_definitions(-D_XKEYCHECK_H)
 
 set (SOURCES
@@ -32,13 +36,21 @@ add_library (${libname} MODULE
   ${SOURCES}
   ${HEADERS})
 
-target_link_libraries (${libname}
+set (LIBRARIES
   ${GLIB2_LIBRARIES}
   ${GOBJECT_LIBRARIES}
   ${GSTREAMER_LIBRARY}
   ${GSTREAMER_BASE_LIBRARY}
   ${GSTREAMER_VIDEO_LIBRARY}
-  gstklv-1.0-0)
+  )
+
+if (ENABLE_KLV)
+  set (LIBRARIES ${LIBRARIES} gstklv-1.0-0)
+endif ()
+
+target_link_libraries (${libname}
+  ${LIBRARIES}
+  )
 
 if (WIN32)
   install (FILES $<TARGET_PDB_FILE:${libname}> DESTINATION ${PDB_INSTALL_DIR} COMPONENT pdb OPTIONAL)

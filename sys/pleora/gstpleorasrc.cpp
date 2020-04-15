@@ -101,7 +101,7 @@ enum
 #define DEFAULT_PROP_PACKET_SIZE 0
 #define DEFAULT_PROP_CONFIG_FILE ""
 #define DEFAULT_PROP_CONFIG_FILE_CONNECT TRUE
-#define DEFAULT_PROP_OUTPUT_KLV TRUE
+#define DEFAULT_PROP_OUTPUT_KLV FALSE
 
 #define VIDEO_CAPS_MAKE_BAYER8(format)                     \
     "video/x-bayer, "                                        \
@@ -226,12 +226,14 @@ gst_pleorasrc_class_init (GstPleoraSrcClass * klass)
           "connects using properties and then restores configuration",
           DEFAULT_PROP_CONFIG_FILE_CONNECT,
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
+#ifdef GST_PLUGINS_VISION_ENABLE_KLV
   g_object_class_install_property (gobject_class, PROP_OUTPUT_KLV,
       g_param_spec_boolean ("output-klv", "Output KLV",
           "Whether to output MISB ST1608 KLV as buffer meta",
           DEFAULT_PROP_OUTPUT_KLV,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               GST_PARAM_MUTABLE_READY)));
+#endif
 }
 
 static void
@@ -1646,6 +1648,7 @@ gst_pleorasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   clock_time = gst_clock_get_time (clock);
   gst_object_unref (clock);
 
+#ifdef GST_PLUGINS_VISION_ENABLE_KLV
   if (src->output_klv && pvbuffer->HasChunks ()) {
     guint32 num_chunks;
     num_chunks = pvbuffer->GetChunkCount ();
@@ -1697,6 +1700,7 @@ gst_pleorasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
       gst_buffer_add_klv_meta_from_data (*buf, chunk_data, chunk_size);
     }
   }
+#endif // GST_PLUGINS_VISION_ENABLE_KLV
 
   if (src->pleora_stride != src->gst_stride) {
     src->pipeline->ReleaseBuffer (pvbuffer);

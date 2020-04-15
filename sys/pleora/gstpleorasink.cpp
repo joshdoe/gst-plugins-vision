@@ -94,7 +94,7 @@ enum
 #define DEFAULT_PROP_INFO         "Pleora eBUS GStreamer Sink"
 #define DEFAULT_PROP_SERIAL       "0001"
 #define DEFAULT_PROP_MAC          ""
-#define DEFAULT_PROP_OUTPUT_KLV   TRUE
+#define DEFAULT_PROP_OUTPUT_KLV   FALSE
 #define DEFAULT_PROP_AUTO_MULTICAST FALSE
 #define DEFAULT_PROP_MULTICAST_GROUP "239.192.1.1"
 #define DEFAULT_PROP_MULTICAST_PORT 1042
@@ -197,12 +197,14 @@ gst_pleorasink_class_init (GstPleoraSinkClass * klass)
           DEFAULT_PROP_MAC,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               GST_PARAM_MUTABLE_READY)));
+#ifdef GST_PLUGINS_VISION_ENABLE_KLV
   g_object_class_install_property (gobject_class, PROP_OUTPUT_KLV,
       g_param_spec_boolean ("output-klv", "Output KLV",
           "Whether to output KLV as chunk data according to MISB ST1608",
           DEFAULT_PROP_OUTPUT_KLV,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               GST_PARAM_MUTABLE_READY)));
+#endif
   g_object_class_install_property (gobject_class, PROP_AUTO_MULTICAST,
       g_param_spec_boolean ("auto-multicast", "Auto multicast",
           "Automatically multicast video, removing the need for a controller",

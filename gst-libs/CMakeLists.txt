@@ -1,1 +1,3 @@
-add_subdirectory (klv)
+if (ENABLE_KLV)
+  add_subdirectory (klv)
+endif ()

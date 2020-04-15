@@ -313,8 +313,10 @@ GByteArray * GstStreamingChannelSource::GetKlvByteArray (GstBuffer * buf)
       gpointer iter = NULL;
       GByteArray *byte_array;
 
-      /* spec says KLV can all be in one chunk, or multiple chunks, we do one chunk */
       byte_array = g_byte_array_new ();
+
+#ifdef GST_PLUGINS_VISION_ENABLE_KLV
+      /* spec says KLV can all be in one chunk, or multiple chunks, we do one chunk */
       while ((klv_meta = (GstKLVMeta *) gst_buffer_iterate_meta_filtered (buf,
           &iter, GST_KLV_META_API_TYPE))) {
               gsize klv_size;
@@ -334,6 +336,7 @@ GByteArray * GstStreamingChannelSource::GetKlvByteArray (GstBuffer * buf)
           const guint padding_len = GST_ROUND_UP_4 (byte_array->len) - byte_array->len;
           g_byte_array_append (byte_array, padding, padding_len);
       }
+#endif // GST_PLUGINS_VISION_ENABLE_KLV
 
       return byte_array;
 }
