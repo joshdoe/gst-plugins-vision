@@ -1,10 +1,10 @@
-gst-plugins-vision
-==================
+# gst-plugins-vision
 
 GStreamer plugins related to the field of machine vision.
 
-Image acquisition elements
---------------------------
+
+## Image acquisition elements
+
 - aptinasrc: Video source for [Aptina Imaging (On Semiconductor) dev kits][14] (USB dev kits)
 - bitflowsrc: Video source for [BitFlow frame grabbers][10] (analog, Camera Link, CoaXPress)
 - edtpdvsrc: Video source for [EDT PDV frame grabbers][1] (Camera Link)
@@ -22,51 +22,54 @@ Image acquisition elements
 - pylonsrc: Video source for [Basler Pylon sources][20] (GigE Vision, USB3 Vision)
 - saperasrc: Video source for [Teledyne DALSA frame grabbers][9] (analog, Camera Link, HSLink, LVDS)
 
-Image generation elements
--------------------------
+## Image generation elements
+
 - edtpdvsink: Video sink for [EDT PDV Camera Link simulator][2]
 - gigesimsink: Video sink for [A&B Soft GigESim][18] GigE Vision simulator
 - pleorasink: Video sink for [Pleora eBUS SDK][19] GigE Vision transmitter
 
-Other elements
---------------
+## Other elements
+
 - extractcolor: Extract a single color channel
 - klvinjector: Inject test synchronous KLV metadata
 - klvinspector: Inspect synchronous KLV metadata
 - sfx3dnoise: Applies 3D noise to video
 - videolevels: Scales monochrome 8- or 16-bit video to 8-bit, via manual setpoints or AGC
 
-Dependencies
-------------
+
+## Dependencies
+
 - GStreamer 1.2.x
 - Specific frame grabber SDKs and/or licenses
 
-Installation
-------------
+## Installation
+
 - Install GStreamer 1.2.x or newer (latest should work)
-- Build project or download [a release from Github](https://github.com/joshdoe/gst-plugins-vision/releases) (ZIP files under Assets)
+- Build project (see below) or download [a release from Github](https://github.com/joshdoe/gst-plugins-vision/releases) (ZIP files under Assets)
 - Extract files somewhere
 - Create an environment variable `GST_PLUGIN_PATH` that points to where you extracted the files
 
-Examples
---------
+## Examples
+
 Capture from a CoaXPress camera via a Kaya Komodo frame grabber, apply AGC to convert it to 8-bit monochrome, then output the video via A&B Software GigESim which generates GigE Vision video:
 > `gst-launch-1.0 kayasrc ! videolevels auto=continuous ! gigesimsink`
 
 Then in another command capture the GigE Vision video via Pleora eBUS and display the video to the screen:
 > `gst-launch-1.0 pleorasrc ! autovideoconvert ! autovideosink`
 
-Compiling
----------
+## Compiling
+
+### Windows
+
 - Install [Git](https://git-scm.com/) or download a ZIP archive
 - Install [CMake](https://cmake.org/)
 - Install [GStreamer distribution](https://gstreamer.freedesktop.org/download/)
   or build from source. The installer should set
-  the installation path via GSTREAMER_1_0_ROOT_X86_64 environment variable. If
-  not set, set GSTREAMER_ROOT to your installation, the directory containing
-  bin, lib, etc.
+  the installation path via the `GSTREAMER_1_0_ROOT_X86_64` environment variable. If
+  not set, set the CMake variable `GSTREAMER_ROOT` to your installation, the directory
+  containing `bin` and `lib`
 - Install any camera or framegrabber software/SDK for those plugins you wish to
-  build. Check cmake/modules for any paths you may need to set.
+  build. Check `cmake/modules` for any paths you may need to set.
 - Run the following commands from a terminal or command prompt, assuming CMake
   and Git are in your `PATH`.
 ```
@@ -76,10 +79,43 @@ mkdir build
 cd build
 cmake -G "Visual Studio 15 2017 Win64" ..
 ```
+
+### Ubuntu
+
+Steps should be similar on other Linux distributions.
+
+```
+apt-get install git cmake libgstreamer-plugins-base1.0-dev liborc-0.4-dev
+git clone https://github.com/joshdoe/gst-plugins-vision.git
+cd gst-plugins-vision
+mkdir build
+cd build
+cmake ..
+make
+```
+
+### Installation and packaging
+
+To install plugins, first make sure you've set `CMAKE_INSTALL_PREFIX` properly,
+the default might not be desired (e.g., system path). For finer grained control
+you can set `PLUGIN_INSTALL_DIR` and related variables to specify exactly where
+you want to install plugins
+```
+cmake --build . --target INSTALL
+# or on Linux
+make install
+```
 - To create a package of all compiled plugins run:
 ```
 cmake --build . --target PACKAGE
+# or on Linux
+make package
 ```
+
+## KLV
+
+KLV support is based on a GStreamer [merge request](https://gitlab.freedesktop.org/gstreamer/gst-plugins-base/-/merge_requests/124) that has yet to be merged, so it is included here in the klv library. By default KLV support is disabled. To enable it set the CMake flag `ENABLE_KLV`. This will create the klv plugin, and make the pleora plugin dependent on the klv library. You'll need to ensure `libgstklv-1.0-1.dll` is in the system `PATH` on Windows, or on Linux make sure `libgstklv-1.0-1.so` is in the `LD_LIBRARY_PATH`.
+
 See also
 --------
 - [Aravis][13], Linux open source GStreamer plugin for GigE Vision and USB3 Vision cameras
