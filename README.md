@@ -39,12 +39,12 @@ GStreamer plugins related to the field of machine vision.
 
 ## Dependencies
 
-- GStreamer 1.2.x
+- GStreamer 1.2.x or newer (1.8 needed for KLV)
 - Specific frame grabber SDKs and/or licenses
 
 ## Installation
 
-- Install GStreamer 1.2.x or newer (latest should work)
+- Install GStreamer 1.2.x or newer (1.8 needed for KLV)
 - Build project (see below) or download [a release from Github](https://github.com/joshdoe/gst-plugins-vision/releases) (ZIP files under Assets)
 - Extract files somewhere
 - Create an environment variable `GST_PLUGIN_PATH` that points to where you extracted the files
