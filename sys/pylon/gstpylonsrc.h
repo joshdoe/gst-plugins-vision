@@ -39,7 +39,7 @@ enum
   GST_PYLONSRC_NUM_CAPTURE_BUFFERS = 10,
   GST_PYLONSRC_NUM_AUTO_FEATURES = 3,
   GST_PYLONSRC_NUM_LIMITED_FEATURES = 2,
-  GST_PYLONSRC_NUM_PROPS = 67
+  GST_PYLONSRC_NUM_PROPS = 68
 };
 
 typedef enum _GST_PYLONSRC_PROPERTY_STATE
@@ -84,6 +84,7 @@ struct _GstPylonSrc
   int32_t frameSize;            // Size of a frame in bytes.
   int32_t payloadSize;          // Size of a frame in bytes.
   guint64 frameNumber;          // Fun note: At 120fps it will take around 4 billion years to overflow this variable.
+  gint failedFrames;            // Count of concecutive frames that have failed.
 
   // Plugin parameters
   _Bool setFPS, continuousMode, limitBandwidth, demosaicing, colorAdjustment;
@@ -99,7 +100,7 @@ struct _GstPylonSrc
 
   GstPylonSrcLimitedFeature limitedFeature[GST_PYLONSRC_NUM_LIMITED_FEATURES];
 
-  gint maxBandwidth, testImage;
+  gint maxBandwidth, testImage, frameDropLimit;
   gint size[2];
   gint binning[2];
   gint maxSize[2];

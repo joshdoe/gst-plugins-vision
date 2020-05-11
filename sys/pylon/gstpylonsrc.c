@@ -38,7 +38,6 @@
 #include "gstpylonsrc.h"
 #include <gst/gst.h>
 #include <glib.h>
-#include <math.h>
 
 #include "common/genicampixelformat.h"
 
@@ -171,6 +170,8 @@ typedef enum _GST_PYLONSRC_PROP
   PROP_TRANSFORMATION20,
   PROP_TRANSFORMATION21,
   PROP_TRANSFORMATION22,
+  PROP_FRAMEDROPLIMIT,
+
   PROP_CONFIGFILE,
   PROP_IGNOREDEFAULTS,
 
@@ -349,6 +350,7 @@ ascii_strdown (gchar * *str, gssize len)
 #define DEFAULT_PROP_CONFIGFILE                       ""
 #define DEFAULT_PROP_IGNOREDEFAULTS                   FALSE
 #define DEFAULT_PROP_COLORADJUSTMENTENABLE            TRUE
+#define DEFAULT_PROP_FRAMEDROPLIMIT                   10
 
 /* pad templates */
 static GstStaticPadTemplate gst_pylonsrc_src_template =
@@ -724,6 +726,11 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
           "(true/false) Apply features only if those are set explicitly. Can only be applied on plugin startup. This property is implicitly set to true if config-file is provided. Setting this to false while config-file is set will lead to strange result and is not recommended",
           DEFAULT_PROP_IGNOREDEFAULTS,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+  g_object_class_install_property (gobject_class, PROP_FRAMEDROPLIMIT,
+      g_param_spec_int ("frame-drop-limit", "Failed frames",
+          "Specifies the number of consecutive frames to fail before failing everything",
+          0, 100, DEFAULT_PROP_FRAMEDROPLIMIT,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 }
 
 static gboolean
@@ -811,6 +818,8 @@ gst_pylonsrc_init (GstPylonSrc * src)
 
   src->configFile = g_strdup (DEFAULT_PROP_CONFIGFILE);
   src->ignoreDefaults = DEFAULT_PROP_IGNOREDEFAULTS;
+
+  src->frameDropLimit = DEFAULT_PROP_FRAMEDROPLIMIT;
 
   for (int i = 0; i < PROP_NUM_PROPERTIES; i++) {
     src->propFlags[i] = GST_PYLONSRC_PROPST_DEFAULT;
@@ -1129,6 +1138,9 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
     case PROP_IGNOREDEFAULTS:
       src->ignoreDefaults = g_value_get_boolean (value);
       break;
+    case PROP_FRAMEDROPLIMIT:
+      src->frameDropLimit = g_value_get_int (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       return;
@@ -1339,6 +1351,9 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_IGNOREDEFAULTS:
       g_value_set_boolean (value, src->ignoreDefaults);
+      break;
+    case PROP_FRAMEDROPLIMIT:
+      g_value_set_int (value, src->frameDropLimit);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -2958,6 +2973,7 @@ gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
         PylonDeviceExecuteCommandFeature (src->deviceHandle, "TriggerSoftware");
     PYLONC_CHECK_ERROR (src, res);
   }
+  src->failedFrames = 0;
   src->frameNumber = 0;
 
   GST_DEBUG_OBJECT (src, "Initialised successfully.");
@@ -3819,7 +3835,7 @@ gst_pylonsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
     PYLONC_CHECK_ERROR (src, res);
   }
   // Process the current buffer
-  if (grabResult.Status == Grabbed) {
+  if (grabResult.Status == Grabbed || src->failedFrames < src->frameDropLimit) {
     VideoFrame *vf = (VideoFrame *) g_malloc0 (sizeof (VideoFrame));
 
     *buf =
@@ -3829,6 +3845,13 @@ gst_pylonsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
     vf->buffer_handle = grabResult.hBuffer;
     vf->src = src;
+
+    if (grabResult.Status != Grabbed) {
+      src->failedFrames += 1;
+      GST_WARNING_OBJECT (src, "Failed capture count=%d. Status=%d",
+          src->failedFrames, grabResult.Status);
+    } else
+      src->failedFrames = 0;
   } else {
     GST_ERROR_OBJECT (src, "Error in the image processing loop. Status=%d",
         grabResult.Status);
