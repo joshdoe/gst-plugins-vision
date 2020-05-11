@@ -2815,7 +2815,7 @@ gst_pylonsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
     vf->buffer_handle = grabResult.hBuffer;
     vf->src = src;
-    
+
     if (grabResult.Status != Grabbed ){
       src->failedFrames += 1;
       GST_WARNING_OBJECT (src,"Failed capture count=%d. Status=%d",src->failedFrames,grabResult.Status);      
@@ -2830,7 +2830,6 @@ gst_pylonsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   GST_BUFFER_OFFSET (*buf) = src->frameNumber;
   src->frameNumber += 1;
   GST_BUFFER_OFFSET_END (*buf) = src->frameNumber;
-  src->failedFrames = 0;
   
   return GST_FLOW_OK;
 error:
