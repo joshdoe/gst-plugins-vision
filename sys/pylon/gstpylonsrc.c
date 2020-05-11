@@ -137,7 +137,8 @@ enum
   PROP_TRANSFORMATION12,
   PROP_TRANSFORMATION20,
   PROP_TRANSFORMATION21,
-  PROP_TRANSFORMATION22
+  PROP_TRANSFORMATION22,
+  PROP_FAILRATE
 };
 
 #define DEFAULT_PROP_PIXEL_FORMAT "auto"
@@ -482,6 +483,11 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
           "(RGBRGB, RGBYUV, YUVRGB) Sets the type of color transformation done by the color transformation selectors.",
           "RGBRGB",
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+  g_object_class_install_property (gobject_class, PROP_FAILRATE,
+      g_param_spec_int ("failrate", "Failed frames",
+          "Specifies the number of consecutive frames to fail before failing everything",
+          0, 100, 10,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 }
 
 static gboolean
@@ -564,6 +570,7 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->transformation20 = 999.0;
   src->transformation21 = 999.0;
   src->transformation22 = 999.0;
+  src->failrate = 10;
 
   // Mark this element as a live source (disable preroll)
   gst_base_src_set_live (GST_BASE_SRC (src), TRUE);
@@ -771,6 +778,9 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
     case PROP_TRANSFORMATION22:
       src->transformation22 = g_value_get_double (value);
       break;
+      case PROP_FAILRATE:
+      src->failrate = g_value_get_int (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -973,6 +983,9 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_TRANSFORMATION22:
       g_value_set_double (value, src->transformation22);
+      break;
+    case PROP_FAILRATE:
+      g_value_set_int (value, src->failrate);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -2684,6 +2697,7 @@ gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
         PylonDeviceExecuteCommandFeature (src->deviceHandle, "TriggerSoftware");
     PYLONC_CHECK_ERROR (src, res);
   }
+  src->failedFrames = 0;
   src->frameNumber = 0;
 
   GST_DEBUG_OBJECT (src, "Initialised successfully.");
@@ -2791,7 +2805,7 @@ gst_pylonsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
     PYLONC_CHECK_ERROR (src, res);
   }
   // Process the current buffer
-  if (grabResult.Status == Grabbed) {
+  if (grabResult.Status == Grabbed || src->failedFrames < src->failrate) {
     VideoFrame *vf = (VideoFrame *) g_malloc0 (sizeof (VideoFrame));
 
     *buf =
@@ -2801,17 +2815,23 @@ gst_pylonsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
     vf->buffer_handle = grabResult.hBuffer;
     vf->src = src;
+    
+    if (grabResult.Status != Grabbed ){
+      src->failedFrames += 1;
+      GST_WARNING_OBJECT (src,"Failed capture count=%d. Status=%d",src->failedFrames,grabResult.Status);      
+    }
+    else src->failedFrames = 0;
   } else {
-    GST_ERROR_OBJECT (src, "Error in the image processing loop. Status=%d",
-        grabResult.Status);
-    goto error;
+      GST_ERROR_OBJECT (src, "Error in the image processing loop. Status=%d", grabResult.Status);
+      goto error;
   }
 
   // Set frame offset
   GST_BUFFER_OFFSET (*buf) = src->frameNumber;
   src->frameNumber += 1;
   GST_BUFFER_OFFSET_END (*buf) = src->frameNumber;
-
+  src->failedFrames = 0;
+  
   return GST_FLOW_OK;
 error:
   return GST_FLOW_ERROR;
