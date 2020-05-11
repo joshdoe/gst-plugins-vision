@@ -447,7 +447,7 @@ gst_idsueyesrc_start (GstBaseSrc * bsrc)
   }
 
   if (strlen (src->config_file)) {
-    gunichar2 *filepath;
+    gunichar *filepath;
     if (!g_file_test (src->config_file, G_FILE_TEST_EXISTS)) {
       GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
           ("Camera file does not exist: %s", src->config_file), (NULL));
@@ -455,11 +455,29 @@ gst_idsueyesrc_start (GstBaseSrc * bsrc)
     }
 
     /* function requires unicode (wide character) */
-    filepath = g_utf8_to_utf16 (src->config_file, -1, NULL, NULL, NULL);
+    filepath = g_utf8_to_ucs4 (src->config_file, -1, NULL, NULL, NULL);
     ret =
         is_ParameterSet (src->hCam, IS_PARAMETERSET_CMD_LOAD_FILE, filepath, 0);
     g_free (filepath);
     if (ret != IS_SUCCESS) {
+      switch (ret) {
+        case IS_INCOMPATIBLE_SETTING:
+          GST_ELEMENT_WARNING (src, RESOURCE, OPEN_READ,
+              ("IS_INCOMPATIBLE_SETTING: incompatible setting"), (NULL));
+          break;
+        case IS_INVALID_CAMERA_TYPE:
+          GST_ELEMENT_WARNING (src, RESOURCE, OPEN_READ,
+              ("IS_INVALID_CAMERA_TYPE: invalid camera type"), (NULL));
+          break;
+        case IS_NO_SUCCESS:
+          GST_ELEMENT_WARNING (src, RESOURCE, OPEN_READ,
+              ("IS_NO_SUCCESS: general error"), (NULL));
+          break;
+        default:
+          GST_ELEMENT_WARNING (src, RESOURCE, OPEN_READ,
+              ("UNKNOWN ERROR: return value=%d", ret), (NULL));
+          break;
+      }
       GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
           ("Failed to load parameter file: %s", src->config_file), (NULL));
       return FALSE;
