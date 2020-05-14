@@ -171,6 +171,7 @@ typedef enum _GST_PYLONSRC_PROP
   PROP_TRANSFORMATION21,
   PROP_TRANSFORMATION22,
   PROP_FRAMEDROPLIMIT,
+  PROP_GRABTIMEOUT,
 
   PROP_CONFIGFILE,
   PROP_IGNOREDEFAULTS,
@@ -351,6 +352,7 @@ ascii_strdown (gchar * *str, gssize len)
 #define DEFAULT_PROP_IGNOREDEFAULTS                   FALSE
 #define DEFAULT_PROP_COLORADJUSTMENTENABLE            TRUE
 #define DEFAULT_PROP_FRAMEDROPLIMIT                   10
+#define DEFAULT_PROP_GRABTIMEOUT                      1000
 
 /* pad templates */
 static GstStaticPadTemplate gst_pylonsrc_src_template =
@@ -731,6 +733,11 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
           "Specifies the number of consecutive frames to fail before failing everything",
           0, 100, DEFAULT_PROP_FRAMEDROPLIMIT,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+  g_object_class_install_property (gobject_class, PROP_GRABTIMEOUT,
+      g_param_spec_int ("grab-timeout", "Initial load timeout",
+          "Specifies the number of miiliseconds to wait for frame to be grabed from the camera.",
+          0, 60000, DEFAULT_PROP_GRABTIMEOUT,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 }
 
 static gboolean
@@ -820,6 +827,7 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->ignoreDefaults = DEFAULT_PROP_IGNOREDEFAULTS;
 
   src->frameDropLimit = DEFAULT_PROP_FRAMEDROPLIMIT;
+  src->grabtimeout = DEFAULT_PROP_GRABTIMEOUT;
 
   for (int i = 0; i < PROP_NUM_PROPERTIES; i++) {
     src->propFlags[i] = GST_PYLONSRC_PROPST_DEFAULT;
@@ -1141,6 +1149,9 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
     case PROP_FRAMEDROPLIMIT:
       src->frameDropLimit = g_value_get_int (value);
       break;
+    case PROP_GRABTIMEOUT:
+      src->grabtimeout = g_value_get_int (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       return;
@@ -1354,6 +1365,9 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_FRAMEDROPLIMIT:
       g_value_set_int (value, src->frameDropLimit);
+      break;
+    case PROP_GRABTIMEOUT:
+      g_value_set_int (value, src->grabtimeout);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -3800,8 +3814,8 @@ gst_pylonsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
       goto error;
     src->acquisition_configured = TRUE;
   }
-  // Wait for the buffer to be filled  (up to 1 s)  
-  res = PylonWaitObjectWait (src->waitObject, 1000, &bufferReady);
+  // Wait for the buffer to be filled  (up to n ms). Can fail on large frames if timeout set too low.
+  res = PylonWaitObjectWait (src->waitObject, src->grabtimeout, &bufferReady);
   PYLONC_CHECK_ERROR (src, res);
   if (!bufferReady) {
     GST_ERROR_OBJECT (src,
@@ -3850,8 +3864,9 @@ gst_pylonsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
       src->failedFrames += 1;
       GST_WARNING_OBJECT (src, "Failed capture count=%d. Status=%d",
           src->failedFrames, grabResult.Status);
-    } else
+    } else {
       src->failedFrames = 0;
+    }
   } else {
     GST_ERROR_OBJECT (src, "Error in the image processing loop. Status=%d",
         grabResult.Status);
