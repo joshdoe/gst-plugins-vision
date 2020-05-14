@@ -138,7 +138,8 @@ enum
   PROP_TRANSFORMATION20,
   PROP_TRANSFORMATION21,
   PROP_TRANSFORMATION22,
-  PROP_FAILRATE
+  PROP_FAILRATE,
+  PROP_GRABTIMEOUT
 };
 
 #define DEFAULT_PROP_PIXEL_FORMAT "auto"
@@ -485,8 +486,13 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_FAILRATE,
       g_param_spec_int ("failrate", "Failed frames",
-          "Specifies the number of consecutive frames to fail before failing everything",
-          0, 100, 10,
+          "Specifies the number of consecutive frames to fail before failing everything.",
+          0, 1000, 10,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+    g_object_class_install_property (gobject_class, PROP_GRABTIMEOUT,
+      g_param_spec_int ("grabtimeout", "Initial load timeout",
+          "Specifies the number of miiliseconds to wait for frame to be grabed from the camera.",
+          0, 60000, 1000,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 }
 
@@ -571,6 +577,7 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->transformation21 = 999.0;
   src->transformation22 = 999.0;
   src->failrate = 10;
+  src->grabtimeout = 1000;
 
   // Mark this element as a live source (disable preroll)
   gst_base_src_set_live (GST_BASE_SRC (src), TRUE);
@@ -778,9 +785,13 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
     case PROP_TRANSFORMATION22:
       src->transformation22 = g_value_get_double (value);
       break;
-      case PROP_FAILRATE:
+    case PROP_FAILRATE:
       src->failrate = g_value_get_int (value);
       break;
+    case PROP_GRABTIMEOUT:
+      src->grabtimeout = g_value_get_int (value);
+      break;
+
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -986,6 +997,9 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_FAILRATE:
       g_value_set_int (value, src->failrate);
+      break;
+    case PROP_GRABTIMEOUT:
+      g_value_set_int (value, src->grabtimeout);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -2770,8 +2784,8 @@ gst_pylonsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
       goto error;
     src->acquisition_configured = TRUE;
   }
-  // Wait for the buffer to be filled  (up to 1 s)  
-  res = PylonWaitObjectWait (src->waitObject, 1000, &bufferReady);
+  // Wait for the buffer to be filled  (up to n ms). Can fail on large frames if timeout set too low.
+  res = PylonWaitObjectWait (src->waitObject, src->grabtimeout, &bufferReady);
   PYLONC_CHECK_ERROR (src, res);
   if (!bufferReady) {
     GST_ERROR_OBJECT (src,
@@ -2818,11 +2832,11 @@ gst_pylonsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
     if (grabResult.Status != Grabbed ){
       src->failedFrames += 1;
-      GST_WARNING_OBJECT (src,"Failed capture count=%d. Status=%d",src->failedFrames,grabResult.Status);      
+      GST_WARNING_OBJECT (src,"Failed capture count=%d. Status=%d, ErrorCode=%d",src->failedFrames,grabResult.Status, grabResult.ErrorCode);      
     }
     else src->failedFrames = 0;
   } else {
-      GST_ERROR_OBJECT (src, "Error in the image processing loop. Status=%d", grabResult.Status);
+      GST_ERROR_OBJECT (src, "Error in the image processing loop. Status=%d, ErrorCode=%d", grabResult.Status, grabResult.ErrorCode);
       goto error;
   }
 
