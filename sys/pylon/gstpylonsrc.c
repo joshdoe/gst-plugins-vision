@@ -139,7 +139,8 @@ enum
   PROP_TRANSFORMATION21,
   PROP_TRANSFORMATION22,
   PROP_FAILRATE,
-  PROP_GRABTIMEOUT
+  PROP_GRABTIMEOUT,
+  PROP_PACKETSIZE,
 };
 
 #define DEFAULT_PROP_PIXEL_FORMAT "auto"
@@ -494,6 +495,11 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
           "Specifies the number of miiliseconds to wait for frame to be grabed from the camera.",
           0, 60000, 1000,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+    g_object_class_install_property (gobject_class, PROP_PACKETSIZE,
+      g_param_spec_int ("packetsize", "Maximum size of data packet",
+          "The packetsize parameter specifies the maximum size of a data packet transmitted via Ethernet. The value is in bytes.",
+          0, 16000, 0,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 }
 
 static gboolean
@@ -578,6 +584,7 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->transformation22 = 999.0;
   src->failrate = 10;
   src->grabtimeout = 1000;
+  src->packetSize = 0;
 
   // Mark this element as a live source (disable preroll)
   gst_base_src_set_live (GST_BASE_SRC (src), TRUE);
@@ -791,6 +798,10 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
     case PROP_GRABTIMEOUT:
       src->grabtimeout = g_value_get_int (value);
       break;
+    case PROP_PACKETSIZE:
+      src->packetSize = g_value_get_int (value);
+      break;
+
 
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -1000,6 +1011,9 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_GRABTIMEOUT:
       g_value_set_int (value, src->grabtimeout);
+      break;
+    case PROP_PACKETSIZE:
+      g_value_set_int (value, src->packetSize);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -2552,6 +2566,29 @@ error:
   return FALSE;
 }
 
+static gboolean gst_pylonsrc_set_packetsize (GstPylonSrc * src)
+{
+ GENAPIC_RESULT res;
+
+  if (src->packetSize != 0) {
+    if (FEATURE_SUPPORTED ("GevSCPSPacketSize")) {
+      GST_DEBUG_OBJECT (src, "Setting packetsize to %d", src->packetSize);
+      res = PylonDeviceSetIntegerFeature (src->deviceHandle,"GevSCPSPacketSize", src->packetSize);
+      PYLONC_CHECK_ERROR (src, res);
+    }
+    else{
+      GST_ERROR_OBJECT (src,"This camera doesn't support changin packetsize.");
+      goto error;
+    }
+  } else {
+      GST_DEBUG_OBJECT (src, "Using camera default packetSize");
+  }
+  return TRUE;
+
+error:
+  return FALSE;  
+}
+
 static gboolean
 gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
 {
@@ -2563,6 +2600,7 @@ gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
       !gst_pylonsrc_set_reverse (src) ||
       !gst_pylonsrc_set_pixel_format (src) ||
       !gst_pylonsrc_set_test_image (src) ||
+      !gst_pylonsrc_set_packetsize(src) ||
       !gst_pylonsrc_set_readout (src) ||
       !gst_pylonsrc_set_bandwidth (src) ||
       !gst_pylonsrc_set_framerate (src) ||
@@ -2570,7 +2608,8 @@ gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
       !gst_pylonsrc_set_auto_exp_gain_wb (src) ||
       !gst_pylonsrc_set_color (src) ||
       !gst_pylonsrc_set_exposure_gain_level (src) ||
-      !gst_pylonsrc_set_pgi (src) || !gst_pylonsrc_set_trigger (src))
+      !gst_pylonsrc_set_pgi (src) || 
+      !gst_pylonsrc_set_trigger (src))
     goto error;
 
   // Create a stream grabber
