@@ -172,6 +172,7 @@ typedef enum _GST_PYLONSRC_PROP
   PROP_TRANSFORMATION22,
   PROP_FRAMEDROPLIMIT,
   PROP_GRABTIMEOUT,
+  PROP_PACKETSIZE,
 
   PROP_CONFIGFILE,
   PROP_IGNOREDEFAULTS,
@@ -353,6 +354,7 @@ ascii_strdown (gchar * *str, gssize len)
 #define DEFAULT_PROP_COLORADJUSTMENTENABLE            TRUE
 #define DEFAULT_PROP_FRAMEDROPLIMIT                   10
 #define DEFAULT_PROP_GRABTIMEOUT                      1000
+#define DEFAULT_PROP_PACKETSIZE                       1500
 
 /* pad templates */
 static GstStaticPadTemplate gst_pylonsrc_src_template =
@@ -738,6 +740,11 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
           "Specifies the number of miiliseconds to wait for frame to be grabed from the camera.",
           0, 60000, DEFAULT_PROP_GRABTIMEOUT,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+  g_object_class_install_property (gobject_class, PROP_PACKETSIZE,
+      g_param_spec_int ("packet-size", "Maximum size of data packet",
+          "The packetsize parameter specifies the maximum size of a data packet transmitted via Ethernet. The value is in bytes.",
+          0, 16000, DEFAULT_PROP_PACKETSIZE,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 }
 
 static gboolean
@@ -828,6 +835,7 @@ gst_pylonsrc_init (GstPylonSrc * src)
 
   src->frameDropLimit = DEFAULT_PROP_FRAMEDROPLIMIT;
   src->grabtimeout = DEFAULT_PROP_GRABTIMEOUT;
+  src->packetSize = DEFAULT_PROP_PACKETSIZE;
 
   for (int i = 0; i < PROP_NUM_PROPERTIES; i++) {
     src->propFlags[i] = GST_PYLONSRC_PROPST_DEFAULT;
@@ -1152,6 +1160,9 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
     case PROP_GRABTIMEOUT:
       src->grabtimeout = g_value_get_int (value);
       break;
+    case PROP_PACKETSIZE:
+      src->packetSize = g_value_get_int (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       return;
@@ -1368,6 +1379,9 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_GRABTIMEOUT:
       g_value_set_int (value, src->grabtimeout);
+      break;
+    case PROP_PACKETSIZE:
+      g_value_set_int (value, src->packetSize);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -2852,6 +2866,29 @@ error:
 }
 
 static gboolean
+gst_pylonsrc_set_packetsize (GstPylonSrc * src)
+{
+  GENAPIC_RESULT res;
+
+  if (is_prop_implicit (src, PROP_PACKETSIZE)) {
+    if (is_prop_set (src, PROP_PACKETSIZE)) {
+      if (feature_supported (src, "GevSCPSPacketSize")) {
+        GST_DEBUG_OBJECT (src, "Setting packetsize to %d", src->packetSize);
+        res =
+            PylonDeviceSetIntegerFeature (src->deviceHandle,
+            "GevSCPSPacketSize", src->packetSize);
+        PYLONC_CHECK_ERROR (src, res);
+      }
+    }
+    reset_prop (src, PROP_PACKETSIZE);
+  }
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
 gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
 {
   GENAPIC_RESULT res;
@@ -3678,6 +3715,7 @@ read_all_features (GstPylonSrc * src)
   gst_pylonsrc_read_reverse (src);
   gst_pylonsrc_read_pixel_format (src);
   gst_pylonsrc_read_test_image (src);
+  //gst_pylonsrc_read_packetsize(src);
   gst_pylonsrc_read_readout (src);
   gst_pylonsrc_read_bandwidth (src);
   gst_pylonsrc_read_framerate (src);
@@ -3734,6 +3772,7 @@ gst_pylonsrc_set_properties (GstPylonSrc * src)
       gst_pylonsrc_set_reverse (src) &&
       gst_pylonsrc_set_pixel_format (src) &&
       gst_pylonsrc_set_test_image (src) &&
+      gst_pylonsrc_set_packetsize (src) &&
       gst_pylonsrc_set_readout (src) &&
       gst_pylonsrc_set_bandwidth (src) &&
       gst_pylonsrc_set_framerate (src) &&
@@ -3862,14 +3901,15 @@ gst_pylonsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
     if (grabResult.Status != Grabbed) {
       src->failedFrames += 1;
-      GST_WARNING_OBJECT (src, "Failed capture count=%d. Status=%d",
-          src->failedFrames, grabResult.Status);
-    } else {
+      GST_WARNING_OBJECT (src,
+          "Failed capture count=%d. Status=%d, ErrorCode=%d", src->failedFrames,
+          grabResult.Status, grabResult.ErrorCode);
+    } else
       src->failedFrames = 0;
-    }
   } else {
-    GST_ERROR_OBJECT (src, "Error in the image processing loop. Status=%d",
-        grabResult.Status);
+    GST_ERROR_OBJECT (src,
+        "Error in the image processing loop. Status=%d, ErrorCode=%d",
+        grabResult.Status, grabResult.ErrorCode);
     goto error;
   }
 
