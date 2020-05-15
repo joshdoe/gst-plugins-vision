@@ -141,6 +141,7 @@ enum
   PROP_FAILRATE,
   PROP_GRABTIMEOUT,
   PROP_PACKETSIZE,
+  PROP_INTERPACKETDELAY
 };
 
 #define DEFAULT_PROP_PIXEL_FORMAT "auto"
@@ -498,7 +499,12 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
     g_object_class_install_property (gobject_class, PROP_PACKETSIZE,
       g_param_spec_int ("packetsize", "Maximum size of data packet",
           "The packetsize parameter specifies the maximum size of a data packet transmitted via Ethernet. The value is in bytes.",
-          0, 16000, 0,
+          0, 16404, 0,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+      g_object_class_install_property (gobject_class, PROP_INTERPACKETDELAY,
+      g_param_spec_int ("interpacketdelay", "Inter-Packet Delay between packet transmissions",
+          "If your network hardware can't handle the incoming packet rate, it is useful to increase the delay between packet transmissions.",
+          0, 3435, -1,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 }
 
@@ -585,6 +591,7 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->failrate = 10;
   src->grabtimeout = 1000;
   src->packetSize = 0;
+  src->interPacketDelay = -1;
 
   // Mark this element as a live source (disable preroll)
   gst_base_src_set_live (GST_BASE_SRC (src), TRUE);
@@ -801,8 +808,9 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
     case PROP_PACKETSIZE:
       src->packetSize = g_value_get_int (value);
       break;
-
-
+    case PROP_INTERPACKETDELAY:
+      src->interPacketDelay = g_value_get_int (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -1014,6 +1022,9 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_PACKETSIZE:
       g_value_set_int (value, src->packetSize);
+      break;
+    case PROP_INTERPACKETDELAY:
+      g_value_set_int (value, src->interPacketDelay);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -2589,6 +2600,30 @@ error:
   return FALSE;  
 }
 
+static gboolean gst_pylonsrc_set_interPacketDelay (GstPylonSrc * src)
+{
+ GENAPIC_RESULT res;
+
+  if (src->interPacketDelay >= 0 ) {
+    if (FEATURE_SUPPORTED ("GevSCPD")) {
+      GST_DEBUG_OBJECT (src, "Setting interPacketDelay to %d", src->interPacketDelay);
+      res = PylonDeviceSetIntegerFeature (src->deviceHandle,"GevSCPD", src->interPacketDelay);
+      PYLONC_CHECK_ERROR (src, res);
+    }
+    else{
+      GST_ERROR_OBJECT (src,"This camera doesn't support changin interPacketDelay.");
+      goto error;
+    }
+  } else {
+      GST_DEBUG_OBJECT (src, "Using camera default interPacketDelay");
+  }
+  return TRUE;
+
+error:
+  return FALSE;  
+}
+
+
 static gboolean
 gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
 {
@@ -2601,6 +2636,7 @@ gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
       !gst_pylonsrc_set_pixel_format (src) ||
       !gst_pylonsrc_set_test_image (src) ||
       !gst_pylonsrc_set_packetsize(src) ||
+      !gst_pylonsrc_set_interPacketDelay(src) ||
       !gst_pylonsrc_set_readout (src) ||
       !gst_pylonsrc_set_bandwidth (src) ||
       !gst_pylonsrc_set_framerate (src) ||
