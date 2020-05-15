@@ -141,7 +141,8 @@ enum
   PROP_FAILRATE,
   PROP_GRABTIMEOUT,
   PROP_PACKETSIZE,
-  PROP_INTERPACKETDELAY
+  PROP_INTERPACKETDELAY,
+  PROP_FRAMETRANSDELAY
 };
 
 #define DEFAULT_PROP_PIXEL_FORMAT "auto"
@@ -506,6 +507,11 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
           "If your network hardware can't handle the incoming packet rate, it is useful to increase the delay between packet transmissions.",
           0, 3435, -1,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+      g_object_class_install_property (gobject_class, PROP_FRAMETRANSDELAY,
+      g_param_spec_int ("frametransdelay", "Delay for begin transmitting frame.",
+          "Sets a delay in ticks between when camera begisn transmitting frame afther acquiring it. By default, one tick equals 8 ns. With PTP enabled, one tick equals 1 ns.",
+          0, 50000000, -1,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));          
 }
 
 static gboolean
@@ -592,6 +598,7 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->grabtimeout = 1000;
   src->packetSize = 0;
   src->interPacketDelay = -1;
+  src->frameTransDelay = -1;
 
   // Mark this element as a live source (disable preroll)
   gst_base_src_set_live (GST_BASE_SRC (src), TRUE);
@@ -811,6 +818,9 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
     case PROP_INTERPACKETDELAY:
       src->interPacketDelay = g_value_get_int (value);
       break;
+    case PROP_FRAMETRANSDELAY:
+      src->frameTransDelay = g_value_get_int (value);
+      break;      
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -1025,6 +1035,9 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_INTERPACKETDELAY:
       g_value_set_int (value, src->interPacketDelay);
+      break;
+    case PROP_FRAMETRANSDELAY:
+      g_value_set_int (value, src->frameTransDelay);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -2623,6 +2636,28 @@ error:
   return FALSE;  
 }
 
+static gboolean gst_pylonsrc_set_frameTransDelay (GstPylonSrc * src)
+{
+ GENAPIC_RESULT res;
+
+  if (src->frameTransDelay >= 0 ) {
+    if (FEATURE_SUPPORTED ("GevSCFTD")) {
+      GST_DEBUG_OBJECT (src, "Setting frameTransDelay to %d", src->frameTransDelay);
+      res = PylonDeviceSetIntegerFeature (src->deviceHandle,"GevSCFTD", src->frameTransDelay);
+      PYLONC_CHECK_ERROR (src, res);
+    }
+    else{
+      GST_ERROR_OBJECT (src,"This camera doesn't support changin frameTransDelay.");
+      goto error;
+    }
+  } else {
+      GST_DEBUG_OBJECT (src, "Using camera default frameTransDelay");
+  }
+  return TRUE;
+
+error:
+  return FALSE;  
+}
 
 static gboolean
 gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
@@ -2637,6 +2672,7 @@ gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
       !gst_pylonsrc_set_test_image (src) ||
       !gst_pylonsrc_set_packetsize(src) ||
       !gst_pylonsrc_set_interPacketDelay(src) ||
+      !gst_pylonsrc_set_frameTransDelay(src) ||
       !gst_pylonsrc_set_readout (src) ||
       !gst_pylonsrc_set_bandwidth (src) ||
       !gst_pylonsrc_set_framerate (src) ||
