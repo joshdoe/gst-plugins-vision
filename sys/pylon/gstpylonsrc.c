@@ -174,6 +174,7 @@ typedef enum _GST_PYLONSRC_PROP
   PROP_GRABTIMEOUT,
   PROP_PACKETSIZE,
   PROP_INTERPACKETDELAY,
+  PROP_FRAMETRANSDELAY,
 
   PROP_CONFIGFILE,
   PROP_IGNOREDEFAULTS,
@@ -357,6 +358,8 @@ ascii_strdown (gchar * *str, gssize len)
 #define DEFAULT_PROP_GRABTIMEOUT                      1000
 #define DEFAULT_PROP_PACKETSIZE                       1500
 #define DEFAULT_PROP_INTERPACKETDELAY                 0
+#define DEFAULT_PROP_FRAMETRANSDELAY                  0
+
 /* pad templates */
 static GstStaticPadTemplate gst_pylonsrc_src_template =
 GST_STATIC_PAD_TEMPLATE ("src",
@@ -752,6 +755,12 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
           "If your network hardware can't handle the incoming packet rate, it is useful to increase the delay between packet transmissions.",
           0, 3435, DEFAULT_PROP_INTERPACKETDELAY,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+  g_object_class_install_property (gobject_class, PROP_FRAMETRANSDELAY,
+      g_param_spec_int ("frame-trans-delay",
+          "Delay for begin transmitting frame.",
+          "Sets a delay in ticks between when camera begisn transmitting frame afther acquiring it. By default, one tick equals 8 ns. With PTP enabled, one tick equals 1 ns.",
+          0, 50000000, DEFAULT_PROP_FRAMETRANSDELAY,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 }
 
 static gboolean
@@ -844,6 +853,7 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->grabtimeout = DEFAULT_PROP_GRABTIMEOUT;
   src->packetSize = DEFAULT_PROP_PACKETSIZE;
   src->interPacketDelay = DEFAULT_PROP_INTERPACKETDELAY;
+  src->frameTransDelay = DEFAULT_PROP_FRAMETRANSDELAY;
 
   for (int i = 0; i < PROP_NUM_PROPERTIES; i++) {
     src->propFlags[i] = GST_PYLONSRC_PROPST_DEFAULT;
@@ -1174,6 +1184,9 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
     case PROP_INTERPACKETDELAY:
       src->interPacketDelay = g_value_get_int (value);
       break;
+    case PROP_FRAMETRANSDELAY:
+      src->frameTransDelay = g_value_get_int (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       return;
@@ -1396,6 +1409,9 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_INTERPACKETDELAY:
       g_value_set_int (value, src->interPacketDelay);
+      break;
+    case PROP_FRAMETRANSDELAY:
+      g_value_set_int (value, src->frameTransDelay);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -2927,6 +2943,30 @@ error:
 }
 
 static gboolean
+gst_pylonsrc_set_frameTransDelay (GstPylonSrc * src)
+{
+  GENAPIC_RESULT res;
+
+  if (is_prop_implicit (src, PROP_FRAMETRANSDELAY)) {
+    if (is_prop_set (src, PROP_FRAMETRANSDELAY)) {
+      if (feature_supported (src, "GevSCFTD")) {
+        GST_DEBUG_OBJECT (src, "Setting frame transmission delay to %d",
+            src->frameTransDelay);
+        res =
+            PylonDeviceSetIntegerFeature (src->deviceHandle, "GevSCFTD",
+            src->frameTransDelay);
+        PYLONC_CHECK_ERROR (src, res);
+      }
+    }
+    reset_prop (src, PROP_FRAMETRANSDELAY);
+  }
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
 gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
 {
   GENAPIC_RESULT res;
@@ -3754,7 +3794,8 @@ read_all_features (GstPylonSrc * src)
   gst_pylonsrc_read_pixel_format (src);
   gst_pylonsrc_read_test_image (src);
   //gst_pylonsrc_read_packetsize(src);
-  //gst_pylonsrc_read_interPacketDelay(src)
+  //gst_pylonsrc_read_interPacketDelay(src);
+  //gst_pylonsrc_read_frameTransDelay(src);
   gst_pylonsrc_read_readout (src);
   gst_pylonsrc_read_bandwidth (src);
   gst_pylonsrc_read_framerate (src);
@@ -3813,6 +3854,7 @@ gst_pylonsrc_set_properties (GstPylonSrc * src)
       gst_pylonsrc_set_test_image (src) &&
       gst_pylonsrc_set_packetsize (src) &&
       gst_pylonsrc_set_interPacketDelay (src) &&
+      gst_pylonsrc_set_frameTransDelay (src) &&
       gst_pylonsrc_set_readout (src) &&
       gst_pylonsrc_set_bandwidth (src) &&
       gst_pylonsrc_set_framerate (src) &&
