@@ -176,6 +176,7 @@ typedef enum _GST_PYLONSRC_PROP
   PROP_INTERPACKETDELAY,
   PROP_FRAMETRANSDELAY,
   PROP_BANDWIDTHRESERVE,
+  PROP_BANDWIDTHRESERVEACC,
 
   PROP_CONFIGFILE,
   PROP_IGNOREDEFAULTS,
@@ -361,6 +362,7 @@ ascii_strdown (gchar * *str, gssize len)
 #define DEFAULT_PROP_INTERPACKETDELAY                 0
 #define DEFAULT_PROP_FRAMETRANSDELAY                  0
 #define DEFAULT_PROP_BANDWIDTHRESERVE                 10
+#define DEFAULT_PROP_BANDWIDTHRESERVEACC              10
 
 /* pad templates */
 static GstStaticPadTemplate gst_pylonsrc_src_template =
@@ -769,6 +771,12 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
           "The setting is expressed as a percentage of the assigned bandwidth.",
           0, 26, DEFAULT_PROP_BANDWIDTHRESERVE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+  g_object_class_install_property (gobject_class, PROP_BANDWIDTHRESERVEACC,
+      g_param_spec_int ("bandwidth-reserve-acc",
+          "Pool of resends for unusual situations",
+          "For situations when the network connection becomes unstable. A larger number of packet resends may be needed to transmit an image",
+          1, 32, DEFAULT_PROP_BANDWIDTHRESERVEACC,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 }
 
 static gboolean
@@ -863,6 +871,7 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->interPacketDelay = DEFAULT_PROP_INTERPACKETDELAY;
   src->frameTransDelay = DEFAULT_PROP_FRAMETRANSDELAY;
   src->bandwidthReserve = DEFAULT_PROP_BANDWIDTHRESERVE;
+  src->bandwidthReserveAcc = DEFAULT_PROP_BANDWIDTHRESERVEACC;
 
   for (int i = 0; i < PROP_NUM_PROPERTIES; i++) {
     src->propFlags[i] = GST_PYLONSRC_PROPST_DEFAULT;
@@ -1199,6 +1208,9 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
     case PROP_BANDWIDTHRESERVE:
       src->bandwidthReserve = g_value_get_int (value);
       break;
+    case PROP_BANDWIDTHRESERVEACC:
+      src->bandwidthReserveAcc = g_value_get_int (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       return;
@@ -1427,6 +1439,9 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_BANDWIDTHRESERVE:
       g_value_set_int (value, src->bandwidthReserve);
+      break;
+    case PROP_BANDWIDTHRESERVEACC:
+      g_value_set_int (value, src->bandwidthReserveAcc);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -3006,6 +3021,30 @@ error:
 }
 
 static gboolean
+gst_pylonsrc_set_bandwidthReserveAcc (GstPylonSrc * src)
+{
+  GENAPIC_RESULT res;
+
+  if (is_prop_implicit (src, PROP_BANDWIDTHRESERVEACC)) {
+    if (is_prop_set (src, PROP_BANDWIDTHRESERVEACC)) {
+      if (feature_supported (src, "GevSCBWRA")) {
+        GST_DEBUG_OBJECT (src, "Setting bandwidth reserve accumulation to %d",
+            src->bandwidthReserveAcc);
+        res =
+            PylonDeviceSetIntegerFeature (src->deviceHandle, "GevSCBWRA",
+            src->bandwidthReserveAcc);
+        PYLONC_CHECK_ERROR (src, res);
+      }
+    }
+    reset_prop (src, PROP_BANDWIDTHRESERVEACC);
+  }
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
 gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
 {
   GENAPIC_RESULT res;
@@ -3836,6 +3875,7 @@ read_all_features (GstPylonSrc * src)
   //gst_pylonsrc_read_interPacketDelay(src);
   //gst_pylonsrc_read_frameTransDelay(src);
   //gst_pylonsrc_read_bandwidthReserve(src);
+  //gst_pylonsrc_read_bandwidthReserveAcc(src);
   gst_pylonsrc_read_readout (src);
   gst_pylonsrc_read_bandwidth (src);
   gst_pylonsrc_read_framerate (src);
@@ -3896,6 +3936,7 @@ gst_pylonsrc_set_properties (GstPylonSrc * src)
       gst_pylonsrc_set_interPacketDelay (src) &&
       gst_pylonsrc_set_frameTransDelay (src) &&
       gst_pylonsrc_set_bandwidthReserve (src) &&
+      gst_pylonsrc_set_bandwidthReserveAcc (src) &&
       gst_pylonsrc_set_readout (src) &&
       gst_pylonsrc_set_bandwidth (src) &&
       gst_pylonsrc_set_framerate (src) &&
