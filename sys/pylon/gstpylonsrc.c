@@ -501,29 +501,29 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
     g_object_class_install_property (gobject_class, PROP_PACKETSIZE,
       g_param_spec_int ("packetsize", "Maximum size of data packet",
-          "The packetsize parameter specifies the maximum size of a data packet transmitted via Ethernet. The value is in bytes.",
+          "The packetsize parameter specifies the maximum size of a data packet transmitted via Ethernet. The value is in bytes. Default value 0 -> Use camera defaults",
           0, 16404, 0,
-          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS))); //TODO: Limits may be co-dependent on other transport layer parameters.
       g_object_class_install_property (gobject_class, PROP_INTERPACKETDELAY,
       g_param_spec_int ("interpacketdelay", "Inter-Packet Delay between packet transmissions",
-          "If your network hardware can't handle the incoming packet rate, it is useful to increase the delay between packet transmissions.",
-          0, 3435, -1,
-          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          "If your network hardware can't handle the incoming packet rate, it is useful to increase the delay between packet transmissions.  Default value -1 -> Use camera defaults",
+          -1, 273331, -1,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS))); //TODO: Limits may be co-dependent on other transport layer parameters
       g_object_class_install_property (gobject_class, PROP_FRAMETRANSDELAY,
       g_param_spec_int ("frametransdelay", "Delay for begin transmitting frame.",
-          "Sets a delay in ticks between when camera begisn transmitting frame afther acquiring it. By default, one tick equals 8 ns. With PTP enabled, one tick equals 1 ns.",
-          0, 50000000, -1,
-          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          "Sets a delay in ticks between when camera begisn transmitting frame afther acquiring it. By default, one tick equals 8 ns. With PTP enabled, one tick equals 1 ns.  Default value -1 -> Use camera defaults",
+          -1, 50000000, -1,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS))); //TODO: Limits may be co-dependent on other transport layer parameters
       g_object_class_install_property (gobject_class, PROP_BANDWIDTHRESERVE,
       g_param_spec_int ("bandwidthreserve", "Portion of bandwidth reserved for packet resends.",
           "The setting is expressed as a percentage of the assigned bandwidth.",
-          0, 26, -1,
-          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          -1, 200, -1,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS))); //TODO: Limits may be co-dependent on other transport layer parameters
       g_object_class_install_property (gobject_class, PROP_BANDWIDTHRESERVEACC,
       g_param_spec_int ("bandwidthreserveacc", "Pool of resends for unusual situations",
-          "For situations when the network connection becomes unstable. A larger number of packet resends may be needed to transmit an image",
-          1, 32, 0,
-          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));        
+          "For situations when the network connection becomes unstable. A larger number of packet resends may be needed to transmit an image.  Default value 0 -> Use camera defaults",
+          0, 200, 0,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));//TODO: Limits may be co-dependent on other transport layer parameters    
 }
 
 static gboolean
@@ -2743,10 +2743,10 @@ gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
       !gst_pylonsrc_set_readout (src) ||
       !gst_pylonsrc_set_bandwidth (src) ||
       !gst_pylonsrc_set_framerate (src) ||
-      !gst_pylonsrc_set_interPacketDelay(src) ||
       !gst_pylonsrc_set_frameTransDelay(src) ||
       !gst_pylonsrc_set_bandwidthReserveAcc(src) ||
       !gst_pylonsrc_set_bandwidthReserve(src) ||
+      !gst_pylonsrc_set_interPacketDelay(src) ||
       !gst_pylonsrc_set_lightsource (src) ||
       !gst_pylonsrc_set_auto_exp_gain_wb (src) ||
       !gst_pylonsrc_set_color (src) ||
