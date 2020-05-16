@@ -143,7 +143,8 @@ enum
   PROP_PACKETSIZE,
   PROP_INTERPACKETDELAY,
   PROP_FRAMETRANSDELAY,
-  PROP_BANDWIDTHRESERVE
+  PROP_BANDWIDTHRESERVE,
+  PROP_BANDWIDTHRESERVEACC
 };
 
 #define DEFAULT_PROP_PIXEL_FORMAT "auto"
@@ -517,7 +518,12 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
       g_param_spec_int ("bandwidthreserve", "Portion of bandwidth reserved for packet resends.",
           "The setting is expressed as a percentage of the assigned bandwidth.",
           0, 26, -1,
-          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));          
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+      g_object_class_install_property (gobject_class, PROP_BANDWIDTHRESERVEACC,
+      g_param_spec_int ("bandwidthreserveacc", "Pool of resends for unusual situations",
+          "For situations when the network connection becomes unstable. A larger number of packet resends may be needed to transmit an image",
+          1, 32, 0,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));        
 }
 
 static gboolean
@@ -829,6 +835,9 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
       break;
     case PROP_BANDWIDTHRESERVE:
       src->bandwidthReserve = g_value_get_int (value);
+      break;
+    case PROP_BANDWIDTHRESERVEACC:
+      src->bandwidthReserveAcc = g_value_get_int (value);
       break;  
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -1050,6 +1059,9 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_BANDWIDTHRESERVE:
       g_value_set_int (value, src->bandwidthReserve);
+      break;
+    case PROP_BANDWIDTHRESERVEACC:
+      g_value_set_int (value, src->bandwidthReserveAcc);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -2694,7 +2706,28 @@ error:
   return FALSE;  
 }
 
+static gboolean gst_pylonsrc_set_bandwidthReserveAcc (GstPylonSrc * src)
+{
+ GENAPIC_RESULT res;
 
+  if (src->bandwidthReserveAcc > 0 ) {
+    if (FEATURE_SUPPORTED ("GevSCBWR")) {
+      GST_DEBUG_OBJECT (src, "Setting bandwidthReserveAcc to %d", src->bandwidthReserveAcc);
+      res = PylonDeviceSetIntegerFeature (src->deviceHandle,"GevSCBWR", src->bandwidthReserveAcc);
+      PYLONC_CHECK_ERROR (src, res);
+    }
+    else{
+      GST_ERROR_OBJECT (src,"This camera doesn't support changin bandwidthReserveAcc.");
+      goto error;
+    }
+  } else {
+      GST_DEBUG_OBJECT (src, "Using camera default bandwidthReserveAcc");
+  }
+  return TRUE;
+
+error:
+  return FALSE;  
+}
 static gboolean
 gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
 {
@@ -2712,6 +2745,7 @@ gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
       !gst_pylonsrc_set_framerate (src) ||
       !gst_pylonsrc_set_interPacketDelay(src) ||
       !gst_pylonsrc_set_frameTransDelay(src) ||
+      !gst_pylonsrc_set_bandwidthReserveAcc(src) ||
       !gst_pylonsrc_set_bandwidthReserve(src) ||
       !gst_pylonsrc_set_lightsource (src) ||
       !gst_pylonsrc_set_auto_exp_gain_wb (src) ||
