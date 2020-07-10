@@ -83,7 +83,7 @@ gst_matroxsrc_callback (MIL_INT HookType, MIL_ID EventId, void *UserDataPtr);
 enum
 {
   PROP_0,
-  PROP_DEVICE,
+  PROP_SYSTEM,
   PROP_BOARD,
   PROP_CHANNEL,
   PROP_CONFIG_FILE,
@@ -92,7 +92,7 @@ enum
   PROP_BAYER_MODE
 };
 
-#define DEFAULT_PROP_DEVICE "M_SYSTEM_DEFAULT"
+#define DEFAULT_PROP_SYSTEM 0
 #define DEFAULT_PROP_BOARD -1
 #define DEFAULT_PROP_CHANNEL -1
 #define DEFAULT_PROP_CONFIG_FILE "M_DEFAULT"
@@ -118,6 +118,40 @@ gst_matrox_bayer_mode_get_type (void)
         g_enum_register_static ("GstMatroxBayerMode", matrox_bayer_mode);
   }
   return matrox_bayer_mode_type;
+}
+
+static const GEnumValue matrox_system_enum[] = {
+  {0, "Default from MilConfig", "M_SYSTEM_DEFAULT"},
+  {1, "Clarity UHD", "M_SYSTEM_CLARITY_UHD"},
+  {2, "GigE Vision", "M_SYSTEM_GIGE_VISION"},
+  {3, "Host", "M_SYSTEM_HOST"},
+  {4, "Iris GTR", "M_SYSTEM_IRIS_GTR"},
+  {5, "Morphis Dual/Quad", "M_SYSTEM_MORPHIS"},
+  {6, "Morphis QxT", "M_SYSTEM_MORPHISQXT"},
+  {7, "Orion HD", "M_SYSTEM_ORION_HD"},
+  {8, "Radient eCL", "M_SYSTEM_RADIENT"},
+  {9, "Radient eV-CL", "M_SYSTEM_RADIENTEVCL"},
+  {10, "Radient eV-CLHS", "M_SYSTEM_RADIENTCLHS"},
+  {11, "Radient eV-CXP", "M_SYSTEM_RADIENTCXP"},
+  {12, "RadientPro CL", "M_SYSTEM_RADIENTPRO"},
+  {13, "Rapixo CXP", "M_SYSTEM_RAPIXOCXP"},
+  {14, "Solios", "M_SYSTEM_SOLIOS"},
+  {15, "USB3 Vision", "M_SYSTEM_USB3_VISION"},
+  {0, NULL, NULL},
+};
+
+#define GST_TYPE_MATROX_SYSTEM (gst_matrox_system_get_type())
+static GType
+gst_matrox_system_get_type (void)
+{
+  static GType matrox_system_type = 0;
+
+
+  if (!matrox_system_type) {
+    matrox_system_type =
+        g_enum_register_static ("GstMatroxSystem", matrox_system_enum);
+  }
+  return matrox_system_type;
 }
 
 
@@ -198,10 +232,10 @@ gst_matroxsrc_class_init (GstMatroxSrcClass * klass)
   gstpushsrc_class->create = GST_DEBUG_FUNCPTR (gst_matroxsrc_create);
 
   /* Install GObject properties */
-  g_object_class_install_property (gobject_class, PROP_DEVICE,
-      g_param_spec_string ("device", "Device",
+  g_object_class_install_property (gobject_class, PROP_SYSTEM,
+      g_param_spec_enum ("system", "System",
           "System descriptor, default is specified in MilConfig",
-          DEFAULT_PROP_DEVICE,
+          GST_TYPE_MATROX_SYSTEM, DEFAULT_PROP_SYSTEM,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_BOARD,
       g_param_spec_int ("board", "Board",
@@ -226,13 +260,13 @@ gst_matroxsrc_class_init (GstMatroxSrcClass * klass)
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_TIMEOUT,
       g_param_spec_int ("timeout", "Timeout (ms)",
           "Timeout in ms (0 to use default)", 0, G_MAXINT, DEFAULT_PROP_TIMEOUT,
-          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_BAYER_MODE,
       g_param_spec_enum ("bayer-mode", "Bayer mode",
           "Pull Bayer frames as raw bayer, grayscale, or demosaiced RGB",
           GST_TYPE_MATROX_BAYER_MODE, DEFAULT_PROP_BAYER_MODE,
-          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE |
-          GST_PARAM_MUTABLE_READY));
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+              GST_PARAM_MUTABLE_READY)));
 }
 
 static void
@@ -285,7 +319,7 @@ gst_matroxsrc_init (GstMatroxSrc * src)
   gst_base_src_set_format (GST_BASE_SRC (src), GST_FORMAT_TIME);
 
   /* initialize member variables */
-  src->device = g_strdup (DEFAULT_PROP_DEVICE);
+  src->system = DEFAULT_PROP_SYSTEM;
   src->board = DEFAULT_PROP_BOARD;
   src->channel = DEFAULT_PROP_CHANNEL;
   src->config_file = g_strdup (DEFAULT_PROP_CONFIG_FILE);
@@ -306,7 +340,9 @@ gst_matroxsrc_init (GstMatroxSrc * src)
 
   gst_matroxsrc_reset (src);
 
-  src->MilApplication = gst_matroxsrc_milapp_get ();
+  if (src->MilApplication == M_NULL) {
+    src->MilApplication = gst_matroxsrc_milapp_get ();
+  }
 }
 
 void
@@ -318,9 +354,8 @@ gst_matroxsrc_set_property (GObject * object, guint property_id,
   src = GST_MATROX_SRC (object);
 
   switch (property_id) {
-    case PROP_DEVICE:
-      g_free (src->device);
-      src->device = g_strdup (g_value_get_string (value));
+    case PROP_SYSTEM:
+      src->system = g_value_get_enum (value);
       break;
     case PROP_NUM_CAPTURE_BUFFERS:
       if (src->acq_started) {
@@ -363,8 +398,8 @@ gst_matroxsrc_get_property (GObject * object, guint property_id,
   src = GST_MATROX_SRC (object);
 
   switch (property_id) {
-    case PROP_DEVICE:
-      g_value_set_string (value, src->device);
+    case PROP_SYSTEM:
+      g_value_set_enum (value, src->system);
       break;
     case PROP_NUM_CAPTURE_BUFFERS:
       g_value_set_uint (value, src->num_capture_buffers);
@@ -415,7 +450,6 @@ gst_matroxsrc_finalize (GObject * object)
   src = GST_MATROX_SRC (object);
 
   /* clean up object here */
-  g_free (src->device);
   g_free (src->config_file);
 
   gst_matroxsrc_reset (src);
@@ -452,11 +486,13 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
   /* create System */
   if (src->board == -1) {
     ret =
-        MsysAlloc (src->MilApplication, src->device, M_DEFAULT, M_DEFAULT,
+        MsysAlloc (src->MilApplication,
+        matrox_system_enum[src->system].value_nick, M_DEFAULT, M_DEFAULT,
         &src->MilSystem);
   } else {
     ret =
-        MsysAlloc (src->MilApplication, src->device, src->board, M_DEFAULT,
+        MsysAlloc (src->MilApplication,
+        matrox_system_enum[src->system].value_nick, src->board, M_DEFAULT,
         &src->MilSystem);
   }
   if (ret == M_NULL) {

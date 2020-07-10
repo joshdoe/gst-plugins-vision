@@ -54,7 +54,7 @@ struct _GstMatroxSrc
   MIL_ID *MilGrabBufferList;
 
   /* properties */
-  gchar *device;
+  gint system;
   gint board;
   gint channel;
   gchar *config_file;
