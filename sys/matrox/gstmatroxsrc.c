@@ -138,6 +138,35 @@ static GstStaticPadTemplate gst_matroxsrc_src_template =
 
 G_DEFINE_TYPE (GstMatroxSrc, gst_matroxsrc, GST_TYPE_PUSH_SRC);
 
+static MIL_ID g_milapp = M_NULL;
+static int g_milapp_use_count = 0;
+
+/* Matrox only wants an Application object to be created once per process,
+ * and it must be freed in the same thread it was created in */
+static MIL_ID
+gst_matroxsrc_milapp_get ()
+{
+  if (g_once_init_enter (&g_milapp)) {
+    MIL_ID setup_value = M_NULL;
+    g_assert (g_milapp_use_count == 0);
+    MappAlloc (M_NULL, M_DEFAULT, &setup_value);
+    g_once_init_leave (&g_milapp, setup_value);
+  }
+  g_milapp_use_count += 1;
+  return g_milapp;
+}
+
+static void
+gst_matroxsrc_milapp_unref ()
+{
+  g_milapp_use_count--;
+  if (g_milapp_use_count == 0) {
+    MappFree (g_milapp);
+    g_milapp = M_NULL;
+  }
+}
+
+
 static void
 gst_matroxsrc_class_init (GstMatroxSrcClass * klass)
 {
@@ -244,11 +273,6 @@ gst_matroxsrc_reset (GstMatroxSrc * src)
     MsysFree (src->MilSystem);
     src->MilSystem = M_NULL;
   }
-
-  if (src->MilApplication) {
-    MappFree (src->MilApplication);
-    src->MilApplication = M_NULL;
-  }
 }
 
 static void
@@ -281,6 +305,8 @@ gst_matroxsrc_init (GstMatroxSrc * src)
   src->MilGrabBufferList = NULL;
 
   gst_matroxsrc_reset (src);
+
+  src->MilApplication = gst_matroxsrc_milapp_get ();
 }
 
 void
@@ -394,6 +420,8 @@ gst_matroxsrc_finalize (GObject * object)
 
   gst_matroxsrc_reset (src);
 
+  gst_matroxsrc_milapp_unref ();
+
   G_OBJECT_CLASS (gst_matroxsrc_parent_class)->finalize (object);
 }
 
@@ -415,9 +443,7 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
 
   GST_DEBUG_OBJECT (src, "start");
 
-  /* create App */
-  ret = MappAlloc (M_NULL, M_DEFAULT, &src->MilApplication);
-  if (ret == M_NULL) {
+  if (src->MilApplication == M_NULL) {
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Failed to allocate a MIL application"), (NULL));
     return FALSE;
