@@ -469,7 +469,6 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
   gint height;
   gint bpp;
   gint n_bands;
-  gint source_format;
   gint bayer_pattern;
   gchar bayer_pattern_format[5];
   gint is_bayer_conversion;
@@ -544,10 +543,6 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
   bpp = MdigInquire (src->MilDigitizer, M_SIZE_BIT, M_NULL);
   n_bands = MdigInquire (src->MilDigitizer, M_SIZE_BAND, M_NULL);
   src->mil_type = MdigInquire (src->MilDigitizer, M_TYPE, M_NULL);
-
-  /* only valid for GigE Vision and USB3 Vision */
-  source_format =
-      MdigInquire (src->MilDigitizer, M_SOURCE_DATA_FORMAT, M_PACKED);
 
   gst_video_info_init (&vinfo);
 
