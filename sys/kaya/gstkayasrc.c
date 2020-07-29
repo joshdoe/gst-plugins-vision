@@ -211,6 +211,8 @@ gst_kayasrc_class_init (GstKayaSrcClass * klass)
 static void
 gst_kayasrc_cleanup (GstKayaSrc * src)
 {
+  GST_LOG_OBJECT (src, "cleanup");
+
   src->frame_size = 0;
   src->frame_count = 0;
   src->dropped_frames = 0;
@@ -241,12 +243,16 @@ gst_kayasrc_cleanup (GstKayaSrc * src)
 
   if (src->fg_data) {
     g_mutex_lock (&src->fg_data->fg_mutex);
+    GST_DEBUG_OBJECT (src, "Framegrabber open with refcount=%d",
+        src->fg_data->ref_count);
     src->fg_data->ref_count--;
     if (src->fg_data->ref_count == 0) {
+      GST_DEBUG_OBJECT (src, "Framegrabber ref dropped to 0, closing");
       KYFG_Close (src->fg_data->fg_handle);
       src->fg_data->fg_handle = INVALID_FGHANDLE;
     }
     g_mutex_unlock (&src->fg_data->fg_mutex);
+    src->fg_data = NULL;
   }
 }
 
