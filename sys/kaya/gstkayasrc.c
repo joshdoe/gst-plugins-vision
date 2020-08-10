@@ -515,8 +515,6 @@ gst_kayasrc_start (GstBaseSrc * bsrc)
     GST_DEBUG_OBJECT (src, "Found %d cameras connected",
         src->fg_data->num_cams);
     if (src->fg_data->num_cams == 0) {
-      KYFG_Close (src->fg_data->fg_handle);
-      src->fg_data->fg_handle = INVALID_FGHANDLE;
       g_mutex_unlock (&src->fg_data->fg_mutex);
       GST_ELEMENT_ERROR (src, LIBRARY, FAILED,
           ("Failed to detect any cameras on interface"), (NULL));
