@@ -184,6 +184,7 @@ gst_matroxsrc_milapp_get ()
     MIL_ID setup_value = M_NULL;
     g_assert (g_milapp_use_count == 0);
     MappAlloc (M_NULL, M_DEFAULT, &setup_value);
+    MappControl (setup_value, M_ERROR, M_PRINT_DISABLE);
     g_once_init_leave (&g_milapp, setup_value);
   }
   g_milapp_use_count += 1;
