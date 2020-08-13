@@ -497,7 +497,7 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
   if (ret == M_NULL) {
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Failed to allocate a MIL system"), (NULL));
-    return FALSE;
+    goto error;
   }
 
   /* create Digitizer */
@@ -511,7 +511,7 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
   if (ret == M_NULL) {
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Failed to allocate a MIL digitizer"), (NULL));
-    return FALSE;
+    goto error;
   }
 
   /* get format info and create caps */
@@ -597,7 +597,7 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
     } else {
       GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
           ("Unknown or unsupported bit depth (%d).", bpp), (NULL));
-      return FALSE;
+      goto error;
     }
   } else if (n_bands == 3) {
     /* TODO: handle non-Solios color formats */
@@ -634,11 +634,16 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
     } else {
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
           ("Failed to allocate a MIL buffer"), (NULL));
-      return FALSE;
+      goto error;
     }
   }
 
   return TRUE;
+
+error:
+  gst_matroxsrc_reset (src);
+
+  return FALSE;
 }
 
 static gboolean
