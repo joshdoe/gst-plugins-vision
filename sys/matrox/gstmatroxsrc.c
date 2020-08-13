@@ -501,8 +501,13 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
   }
 
   /* create Digitizer */
-  ret = MdigAlloc (src->MilSystem, M_DEFAULT, src->config_file, M_DEFAULT,
-      &src->MilDigitizer);
+  if (src->channel == -1) {
+    ret = MdigAlloc (src->MilSystem, M_DEFAULT, src->config_file, M_DEFAULT,
+        &src->MilDigitizer);
+  } else {
+    ret = MdigAlloc (src->MilSystem, src->channel, src->config_file, M_DEFAULT,
+        &src->MilDigitizer);
+  }
   if (ret == M_NULL) {
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Failed to allocate a MIL digitizer"), (NULL));
