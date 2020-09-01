@@ -434,6 +434,7 @@ gst_kayasrc_start (GstBaseSrc * bsrc)
   guint32 str_size;
   KY_DEVICE_INFO devinfo;
   size_t frame_alignment;
+  GstKayaSrcFramegrabber *fg_data;
 
   GST_DEBUG_OBJECT (src, "start");
 
@@ -465,24 +466,25 @@ gst_kayasrc_start (GstBaseSrc * bsrc)
   }
 
   /* lock mutex until we have a camera opened */
-  src->fg_data = &(srcclass->fg_data[src->interface_index]);
-  g_mutex_lock (&src->fg_data->fg_mutex);
+  fg_data = &(srcclass->fg_data[src->interface_index]);
+  g_mutex_lock (&fg_data->fg_mutex);
 
   /* open framegrabber if it isn't already opened */
   if (srcclass->fg_data[src->interface_index].ref_count > 0) {
-    GST_DEBUG_OBJECT (src, "Framegrabber interface already opened");
+    GST_DEBUG_OBJECT (src,
+        "Framegrabber interface already opened in this process, reusing");
     if (src->project_file && strlen (src->project_file) > 0) {
       GST_ELEMENT_WARNING (src, RESOURCE, SETTINGS,
           ("Project file specified, but framegrabber is already opened, so it won't be used."),
           (NULL));
     }
   } else {
-    g_assert (src->fg_data->ref_count == 0);
+    g_assert (fg_data->ref_count == 0);
 
     /* project files are optional */
     if (src->project_file && strlen (src->project_file) > 0) {
       if (!g_file_test (src->project_file, G_FILE_TEST_EXISTS)) {
-        g_mutex_unlock (&src->fg_data->fg_mutex);
+        g_mutex_unlock (&fg_data->fg_mutex);
         GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
             ("Project file specified does not exist: %s", src->project_file),
             (NULL));
@@ -492,16 +494,16 @@ gst_kayasrc_start (GstBaseSrc * bsrc)
       GST_DEBUG_OBJECT (src,
           "About to open interface at index %d with project file '%s'",
           src->interface_index, src->project_file);
-      src->fg_data->fg_handle =
+      fg_data->fg_handle =
           KYFG_OpenEx (src->interface_index, src->project_file);
     } else {
       GST_DEBUG_OBJECT (src, "About to open interface at index %d",
           src->interface_index);
-      src->fg_data->fg_handle = KYFG_Open (src->interface_index);
+      fg_data->fg_handle = KYFG_Open (src->interface_index);
     }
 
-    if (src->fg_data->fg_handle == INVALID_FGHANDLE) {
-      g_mutex_unlock (&src->fg_data->fg_mutex);
+    if (fg_data->fg_handle == INVALID_FGHANDLE) {
+      g_mutex_unlock (&fg_data->fg_mutex);
       GST_ELEMENT_ERROR (src, LIBRARY, FAILED,
           ("Failed to open interface at index %d", src->interface_index),
           (NULL));
@@ -510,19 +512,18 @@ gst_kayasrc_start (GstBaseSrc * bsrc)
 
     /* find and list all cameras */
     ret =
-        KYFG_CameraScan (src->fg_data->fg_handle, src->fg_data->cam_handles,
-        &src->fg_data->num_cams);
-    GST_DEBUG_OBJECT (src, "Found %d cameras connected",
-        src->fg_data->num_cams);
-    if (src->fg_data->num_cams == 0) {
-      g_mutex_unlock (&src->fg_data->fg_mutex);
+        KYFG_CameraScan (fg_data->fg_handle, fg_data->cam_handles,
+        &fg_data->num_cams);
+    GST_DEBUG_OBJECT (src, "Found %d cameras connected", fg_data->num_cams);
+    if (fg_data->num_cams == 0) {
+      g_mutex_unlock (&fg_data->fg_mutex);
       GST_ELEMENT_ERROR (src, LIBRARY, FAILED,
           ("Failed to detect any cameras on interface"), (NULL));
       goto error;
     }
-    for (i = 0; i < src->fg_data->num_cams; ++i) {
+    for (i = 0; i < fg_data->num_cams; ++i) {
       KYFGCAMERA_INFO caminfo;
-      ret = KYFG_CameraInfo (src->fg_data->cam_handles[i], &caminfo);
+      ret = KYFG_CameraInfo (fg_data->cam_handles[i], &caminfo);
       GST_DEBUG_OBJECT (src,
           "Found camera '%s', index=%d, %s, %s %s, %s, ver=%s",
           caminfo.deviceUserID, i, caminfo.deviceID, caminfo.deviceVendorName,
@@ -531,8 +532,8 @@ gst_kayasrc_start (GstBaseSrc * bsrc)
     }
   }
 
-  if (src->device_index >= src->fg_data->num_cams) {
-    g_mutex_unlock (&src->fg_data->fg_mutex);
+  if (src->device_index >= fg_data->num_cams) {
+    g_mutex_unlock (&fg_data->fg_mutex);
     GST_ELEMENT_ERROR (src, LIBRARY, FAILED,
         ("Camera device index provided out of bounds"), (NULL));
     goto error;
@@ -540,24 +541,24 @@ gst_kayasrc_start (GstBaseSrc * bsrc)
   GST_DEBUG_OBJECT (src, "About to open camera at index %d", src->device_index);
   if (src->xml_file && strlen (src->xml_file) > 0) {
     if (!g_file_test (src->xml_file, G_FILE_TEST_EXISTS)) {
-      g_mutex_unlock (&src->fg_data->fg_mutex);
+      g_mutex_unlock (&fg_data->fg_mutex);
       GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
           ("XML file specified does not exist: %s", src->xml_file), (NULL));
       goto error;
     }
   }
   ret =
-      KYFG_CameraOpen2 (src->fg_data->cam_handles[src->device_index],
-      src->xml_file);
+      KYFG_CameraOpen2 (fg_data->cam_handles[src->device_index], src->xml_file);
   if (ret != FGSTATUS_OK) {
-    g_mutex_unlock (&src->fg_data->fg_mutex);
+    g_mutex_unlock (&fg_data->fg_mutex);
     GST_ELEMENT_ERROR (src, LIBRARY, FAILED,
         ("Failed to open camera at index %d", src->device_index), (NULL));
     goto error;
   }
-  src->cam_handle = src->fg_data->cam_handles[src->device_index];
+  src->cam_handle = fg_data->cam_handles[src->device_index];
 
   /* increase refcount since we now have a camera open */
+  src->fg_data = fg_data;
   src->fg_data->ref_count++;
   g_mutex_unlock (&src->fg_data->fg_mutex);
 
