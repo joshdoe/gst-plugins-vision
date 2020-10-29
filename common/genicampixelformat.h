@@ -290,3 +290,43 @@ gst_genicam_pixel_format_caps_from_pixel_format (const char *pixel_format,
 
   return caps;
 }
+
+static GstCaps *
+gst_genicam_pixel_format_caps_from_pixel_format_var (const char *pixel_format,
+    int endianness, int width, int height)
+{
+  const char *caps_string;
+  GstCaps *caps;
+  GstStructure *structure;
+
+  GST_DEBUG
+      ("Trying to create caps from: %s, endianness=%d, %dx%d",
+      pixel_format, endianness, width, height);
+
+  caps_string =
+      gst_genicam_pixel_format_to_caps_string (pixel_format, endianness);
+  if (caps_string == NULL)
+    return NULL;
+
+  GST_DEBUG ("Got caps string: %s", caps_string);
+
+  structure = gst_structure_from_string (caps_string, NULL);
+  if (structure == NULL)
+    return NULL;
+
+  gst_structure_set (structure,
+      "width", G_TYPE_INT, width,
+      "height", G_TYPE_INT, height,
+      "framerate", GST_TYPE_FRACTION_RANGE, 0, 1, G_MAXINT, 1, NULL);
+
+  if (g_str_has_prefix (pixel_format, "Bayer")) {
+      const GstGenicamPixelFormatInfo *info = gst_genicam_pixel_format_get_info(pixel_format, endianness);
+      g_assert (info);
+      gst_structure_set(structure, "bpp", G_TYPE_INT, (gint)info->bpp, NULL);
+  }
+
+  caps = gst_caps_new_empty ();
+  gst_caps_append_structure (caps, structure);
+
+  return caps;
+}
