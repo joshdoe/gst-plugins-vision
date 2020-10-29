@@ -991,7 +991,9 @@ gst_pylonsrc_get_caps (GstBaseSrc * bsrc, GstCaps * filter)
     GST_DEBUG_OBJECT (src, "Could not send caps - no camera connected.");
     return gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD (bsrc));
   } else {
-    return src->caps;
+    GstCaps* result = gst_caps_copy(src->caps);
+
+    return result;
   }
 }
 
@@ -1486,8 +1488,8 @@ gst_pylonsrc_get_supported_caps (GstPylonSrc * src)
 
       // TODO: query FPS
       format_caps =
-          gst_genicam_pixel_format_caps_from_pixel_format (info->pixel_format,
-          G_BYTE_ORDER, src->width, src->height, 30, 1, 1, 1);
+          gst_genicam_pixel_format_caps_from_pixel_format_var (info->pixel_format,
+          G_BYTE_ORDER, src->width, src->height);
 
       if (format_caps)
         gst_caps_append (caps, format_caps);
