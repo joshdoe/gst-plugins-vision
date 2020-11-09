@@ -41,6 +41,34 @@
 
 #include "common/genicampixelformat.h"
 
+static int plugin_counter = 0;
+
+int gst_pylonsrc_ref_pylon_environment()
+{
+  if(plugin_counter == 0) {
+    GST_DEBUG("pylonsrc: Initializing Pylon environment");
+    if(PylonInitialize() != GENAPI_E_OK) {
+      return -1;
+    }
+  }
+  return ++plugin_counter;
+}
+
+int gst_pylonsrc_unref_pylon_environment()
+{
+  if(plugin_counter == 1) {
+    GST_DEBUG("pylonsrc: Terminating Pylon environment");
+    if(PylonTerminate() != GENAPI_E_OK) {
+      return -1;
+    }
+  }
+  
+  if(plugin_counter > 0) {
+    plugin_counter--;
+  }
+
+  return plugin_counter;
+}
 
 /* PylonC */
 _Bool pylonc_reset_camera (GstPylonSrc * src);
@@ -48,8 +76,6 @@ _Bool pylonc_connect_camera (GstPylonSrc * src);
 void pylonc_disconnect_camera (GstPylonSrc * src);
 void pylonc_print_camera_info (GstPylonSrc * src,
     PYLON_DEVICE_HANDLE deviceHandle, int deviceId);
-void pylonc_terminate ();
-
 
 /* debug category */
 GST_DEBUG_CATEGORY_STATIC (gst_pylonsrc_debug_category);
@@ -1240,13 +1266,13 @@ gst_pylonsrc_connect_device (GstPylonSrc * src)
       size_t numDevices;
       pylonc_reset_camera (src);
       pylonc_disconnect_camera (src);
-      pylonc_terminate ();
+      gst_pylonsrc_unref_pylon_environment ();
 
       GST_DEBUG_OBJECT (src,
           "Camera reset. Waiting 6 seconds for it to fully reboot.");
       g_usleep (6 * G_USEC_PER_SEC);
 
-      PylonInitialize ();
+      gst_pylonsrc_ref_pylon_environment();
       res = PylonEnumerateDevices (&numDevices);
       PYLONC_CHECK_ERROR (src, res);
 
@@ -2718,12 +2744,16 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
 {
   GstPylonSrc *src = GST_PYLONSRC (bsrc);
 
-  if (PylonInitialize () != 0) {
+  const int count = gst_pylonsrc_ref_pylon_environment();
+  if (count <= 0) {
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Failed to initialise the camera"),
         ("Pylon library initialization failed"));
     goto error;
+  } else if (count == 1) {
+    GST_DEBUG_OBJECT(src, "First object created");
   }
+
 
   if (!gst_pylonsrc_select_device (src) ||
       !gst_pylonsrc_connect_device (src) || !gst_pylonsrc_set_resolution (src))
@@ -2874,17 +2904,13 @@ gst_pylonsrc_finalize (GObject * object)
   g_free(src->userid);
 
 
-  pylonc_terminate ();
+  if(gst_pylonsrc_unref_pylon_environment () == 0) {
+    GST_DEBUG_OBJECT(src, "Last object finalized");
+  }
 
   G_OBJECT_CLASS (gst_pylonsrc_parent_class)->finalize (object);
 }
 
-/* PylonC functions */
-void
-pylonc_terminate ()
-{
-  PylonTerminate ();
-}
 
 void
 pylonc_disconnect_camera (GstPylonSrc * src)
