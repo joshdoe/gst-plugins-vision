@@ -140,6 +140,14 @@ enum
   PROP_TRANSFORMATION22
 };
 
+static inline void
+ascii_strdown(gchar* * str, gssize len)
+{
+  gchar* temp = g_ascii_strdown(*str, len);
+  g_free(*str);
+  *str = temp;
+}
+
 #define DEFAULT_PROP_PIXEL_FORMAT "auto"
 
 /* pad templates */
@@ -518,16 +526,16 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->width = 0;
   src->maxBandwidth = 0;
   src->testImage = 0;
-  src->sensorMode = "normal\0";
-  src->lightsource = "5000k\0";
-  src->autoexposure = "off\0";
-  src->autowhitebalance = "off\0";
-  src->autogain = "off\0";
-  src->reset = "off\0";
+  src->sensorMode = g_strdup ("normal");
+  src->lightsource = g_strdup ("5000k");
+  src->autoexposure = g_strdup ("off");
+  src->autowhitebalance = g_strdup ("off");
+  src->autogain = g_strdup ("off");
+  src->reset = g_strdup ("off");
   src->pixel_format = g_strdup (DEFAULT_PROP_PIXEL_FORMAT);
-  src->userid = "\0";
-  src->autoprofile = "default\0";
-  src->transformationselector = "default\0";
+  src->userid = g_strdup ("");
+  src->autoprofile = g_strdup ("default");
+  src->transformationselector = g_strdup ("default");
   src->fps = 0.0;
   src->exposure = 0.0;
   src->gain = 0.0;
@@ -578,7 +586,7 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
 {
   GstPylonSrc *src = GST_PYLONSRC (object);
 
-  GST_DEBUG_OBJECT (src, "Setting a property.");
+  GST_DEBUG_OBJECT (src, "Setting a property: %u", property_id);
 
   switch (property_id) {
     case PROP_CAMERA:
@@ -606,35 +614,44 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
       src->testImage = g_value_get_int (value);
       break;
     case PROP_SENSORREADOUTMODE:
-      src->sensorMode = g_value_dup_string (value + '\0');
+      g_free(src->sensorMode);
+      src->sensorMode = g_value_dup_string (value);
       break;
     case PROP_LIGHTSOURCE:
-      src->lightsource = g_value_dup_string (value + '\0');
+      g_free(src->lightsource);
+      src->lightsource = g_value_dup_string (value);
       break;
     case PROP_AUTOEXPOSURE:
-      src->autoexposure = g_value_dup_string (value + '\0');
+      g_free(src->autoexposure);
+      src->autoexposure = g_value_dup_string (value);
       break;
     case PROP_AUTOWHITEBALANCE:
-      src->autowhitebalance = g_value_dup_string (value + '\0');
+      g_free(src->autowhitebalance);
+      src->autowhitebalance = g_value_dup_string (value);
       break;
     case PROP_PIXEL_FORMAT:
       g_free (src->pixel_format);
       src->pixel_format = g_value_dup_string (value);
       break;
     case PROP_AUTOGAIN:
-      src->autogain = g_value_dup_string (value + '\0');
+      g_free(src->autogain);
+      src->autogain = g_value_dup_string (value);
       break;
     case PROP_RESET:
-      src->reset = g_value_dup_string (value + '\0');
+      g_free(src->reset);
+      src->reset = g_value_dup_string (value);
       break;
     case PROP_AUTOPROFILE:
-      src->autoprofile = g_value_dup_string (value + '\0');
+      g_free(src->autoprofile);
+      src->autoprofile = g_value_dup_string (value);
       break;
     case PROP_TRANSFORMATIONSELECTOR:
-      src->transformationselector = g_value_dup_string (value + '\0');
+      g_free(src->transformationselector);
+      src->transformationselector = g_value_dup_string (value);
       break;
     case PROP_USERID:
-      src->userid = g_value_dup_string (value + '\0');
+      g_free(src->userid);
+      src->userid = g_value_dup_string (value);
       break;
     case PROP_BALANCERED:
       src->balancered = g_value_get_double (value);
@@ -986,13 +1003,13 @@ gst_pylonsrc_get_caps (GstBaseSrc * bsrc, GstCaps * filter)
 {
   GstPylonSrc *src = GST_PYLONSRC (bsrc);
 
-  GST_DEBUG_OBJECT (src, "Received a request for caps.");
+  GST_DEBUG_OBJECT (src, "Received a request for caps. Filter:\n%" GST_PTR_FORMAT, filter);
   if (!src->deviceConnected) {
     GST_DEBUG_OBJECT (src, "Could not send caps - no camera connected.");
     return gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD (bsrc));
   } else {
     GstCaps* result = gst_caps_copy(src->caps);
-
+    GST_DEBUG_OBJECT (src, "Return caps:\n%" GST_PTR_FORMAT, result);
     return result;
   }
 }
@@ -1217,7 +1234,7 @@ gst_pylonsrc_connect_device (GstPylonSrc * src)
   pylonc_print_camera_info (src, src->deviceHandle, src->cameraId);
 
   // Reset the camera if required.
-  src->reset = g_ascii_strdown (src->reset, -1);
+  ascii_strdown (&src->reset, -1);
   if (strcmp (src->reset, "before") == 0) {
     if (PylonDeviceFeatureIsAvailable (src->deviceHandle, "DeviceReset")) {
       size_t numDevices;
@@ -1374,7 +1391,7 @@ gst_pylonsrc_set_offset (GstPylonSrc * src)
           src->centerx ? "True" : "False", src->centery ? "True" : "False");
 
       if (!src->centerx && src->offsetx != 99999) {
-        int64_t maxoffsetx = src->maxWidth - src->width;
+        gint maxoffsetx = src->maxWidth - src->width;
 
         if (maxoffsetx >= src->offsetx) {
           res =
@@ -1394,7 +1411,7 @@ gst_pylonsrc_set_offset (GstPylonSrc * src)
       }
 
       if (!src->centery && src->offsety != 99999) {
-        int64_t maxoffsety = src->maxHeight - src->height;
+        gint maxoffsety = src->maxHeight - src->height;
         if (maxoffsety >= src->offsety) {
           res =
               PylonDeviceSetIntegerFeature (src->deviceHandle, "OffsetY",
@@ -1498,6 +1515,7 @@ gst_pylonsrc_get_supported_caps (GstPylonSrc * src)
 
   GST_DEBUG_OBJECT (src, "Supported caps are %" GST_PTR_FORMAT, caps);
 
+  g_string_free(format, TRUE);
   return caps;
 }
 
@@ -1546,6 +1564,7 @@ gst_pylonsrc_set_test_image (GstPylonSrc * src)
       res =
           PylonDeviceFeatureFromString (src->deviceHandle, "TestImageSelector",
           ImageId);
+        g_free(ImageId);
       PYLONC_CHECK_ERROR (src, res);
     } else {
       res =
@@ -1570,7 +1589,7 @@ gst_pylonsrc_set_readout (GstPylonSrc * src)
 
   // Set sensor readout mode (default: Normal)
   if (FEATURE_SUPPORTED ("SensorReadoutMode")) {
-    src->sensorMode = g_ascii_strdown (src->sensorMode, -1);
+    ascii_strdown (&src->sensorMode, -1);
 
     if (strcmp (src->sensorMode, "normal") == 0) {
       GST_DEBUG_OBJECT (src, "Setting the sensor readout mode to normal.");
@@ -1704,7 +1723,7 @@ gst_pylonsrc_set_lightsource (GstPylonSrc * src)
   GENAPIC_RESULT res;
   // Set lightsource preset
   if (PylonDeviceFeatureIsAvailable (src->deviceHandle, "LightSourcePreset")) {
-    src->lightsource = g_ascii_strdown (src->lightsource, -1);
+    ascii_strdown (&src->lightsource, -1);
 
     if (strcmp (src->lightsource, "off") == 0) {
       GST_DEBUG_OBJECT (src, "Not using a lightsource preset.");
@@ -1758,7 +1777,7 @@ gst_pylonsrc_set_auto_exp_gain_wb (GstPylonSrc * src)
   GENAPIC_RESULT res;
 
   // Enable/disable automatic exposure
-  src->autoexposure = g_ascii_strdown (src->autoexposure, -1);
+  ascii_strdown (&src->autoexposure, -1);
   if (PylonDeviceFeatureIsAvailable (src->deviceHandle, "ExposureAuto")) {
     if (strcmp (src->autoexposure, "off") == 0) {
       GST_DEBUG_OBJECT (src, "Disabling automatic exposure.");
@@ -1792,7 +1811,7 @@ gst_pylonsrc_set_auto_exp_gain_wb (GstPylonSrc * src)
   }
 
   // Enable/disable automatic gain
-  src->autogain = g_ascii_strdown (src->autogain, -1);
+  ascii_strdown (&src->autogain, -1);
   if (PylonDeviceFeatureIsAvailable (src->deviceHandle, "GainAuto")) {
     if (strcmp (src->autogain, "off") == 0) {
       GST_DEBUG_OBJECT (src, "Disabling automatic gain.");
@@ -1824,7 +1843,7 @@ gst_pylonsrc_set_auto_exp_gain_wb (GstPylonSrc * src)
   }
 
   // Enable/disable automatic white balance
-  src->autowhitebalance = g_ascii_strdown (src->autowhitebalance, -1);
+  ascii_strdown (&src->autowhitebalance, -1);
   if (PylonDeviceFeatureIsAvailable (src->deviceHandle, "BalanceWhiteAuto")) {
     if (strcmp (src->autowhitebalance, "off") == 0) {
       GST_DEBUG_OBJECT (src, "Disabling automatic white balance.");
@@ -1936,7 +1955,7 @@ gst_pylonsrc_set_auto_exp_gain_wb (GstPylonSrc * src)
           "This camera doesn't support changing the brightness target.");
     }
   }
-  src->autoprofile = g_ascii_strdown (src->autoprofile, -1);
+  ascii_strdown (&src->autoprofile, -1);
   if (strcmp (src->autoprofile, "default") != 0) {
     GST_DEBUG_OBJECT (src, "Setting automatic profile to minimise %s.",
         src->autoprofile);
@@ -2213,8 +2232,7 @@ gst_pylonsrc_set_color (GstPylonSrc * src)
   }
 
   // Configure colour transformation
-  src->transformationselector =
-      g_ascii_strdown (src->transformationselector, -1);
+  ascii_strdown (&src->transformationselector, -1);
   if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
           "ColorTransformationSelector")) {
     if (strcmp (src->transformationselector, "default") != 0) {
@@ -2576,7 +2594,7 @@ gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
   PYLONC_CHECK_ERROR (src, res);
 
   // Allocate the memory for the frame payloads
-  for (i = 0; i < NUM_CAPTURE_BUFFERS; ++i) {
+  for (i = 0; i < GST_PYLONSRC_NUM_CAPTURE_BUFFERS; ++i) {
     src->buffers[i] = (unsigned char *) malloc (src->payloadSize);
     if (NULL == src->buffers[i]) {
       GST_ERROR_OBJECT (src, "Memory allocation error.");
@@ -2589,7 +2607,7 @@ gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
   // Define buffers 
   res =
       PylonStreamGrabberSetMaxNumBuffer (src->streamGrabber,
-      NUM_CAPTURE_BUFFERS);
+      GST_PYLONSRC_NUM_CAPTURE_BUFFERS);
   PYLONC_CHECK_ERROR (src, res);
   res =
       PylonStreamGrabberSetMaxBufferSize (src->streamGrabber, src->payloadSize);
@@ -2599,14 +2617,14 @@ gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
   res = PylonStreamGrabberPrepareGrab (src->streamGrabber);
   PYLONC_CHECK_ERROR (src, res);
 
-  for (i = 0; i < NUM_CAPTURE_BUFFERS; ++i) {
+  for (i = 0; i < GST_PYLONSRC_NUM_CAPTURE_BUFFERS; ++i) {
     res =
         PylonStreamGrabberRegisterBuffer (src->streamGrabber, src->buffers[i],
         src->payloadSize, &src->bufferHandle[i]);
     PYLONC_CHECK_ERROR (src, res);
   }
 
-  for (i = 0; i < NUM_CAPTURE_BUFFERS; ++i) {
+  for (i = 0; i < GST_PYLONSRC_NUM_CAPTURE_BUFFERS; ++i) {
     res =
         PylonStreamGrabberQueueBuffer (src->streamGrabber, src->bufferHandle[i],
         (void *) i);
@@ -2843,6 +2861,18 @@ gst_pylonsrc_finalize (GObject * object)
 {
   GstPylonSrc *src = GST_PYLONSRC (object);
   GST_DEBUG_OBJECT (src, "finalize");
+
+  g_free(src->pixel_format);
+  g_free(src->sensorMode);
+  g_free(src->lightsource);
+  g_free(src->autoexposure);
+  g_free(src->autowhitebalance);
+  g_free(src->autogain);
+  g_free(src->reset);
+  g_free(src->autoprofile);
+  g_free(src->transformationselector);
+  g_free(src->userid);
+
 
   pylonc_terminate ();
 
