@@ -24,6 +24,16 @@
 #include <gst/base/gstpushsrc.h>
 #include "pylonc/PylonC.h"
 
+// pylonsrc plugin calls PylonInitialize when first plugin is created
+// and PylonTerminate when the last plugin is finalized.
+// Static variable is used to keep count of existing plugins
+// These functions can be used to increase or decrease this counter,
+// if pylon environment is needed beyond lifetime of plugins.
+// On success return value is the new value of counter
+// On failure return value is negative
+int gst_pylonsrc_ref_pylon_environment();
+int gst_pylonsrc_unref_pylon_environment();
+
 enum {
   GST_PYLONSRC_NUM_CAPTURE_BUFFERS = 10
 };
