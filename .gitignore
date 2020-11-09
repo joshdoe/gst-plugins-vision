@@ -4,7 +4,7 @@
 #ignore thumbnails created by windows
 Thumbs.db
 #ignore build folder
-[Bb]uild
+[Bb]uild*/
 #Ignore files build by Visual Studio
 *.obj
 *.exe
