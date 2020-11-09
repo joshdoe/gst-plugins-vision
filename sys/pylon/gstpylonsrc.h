@@ -24,7 +24,9 @@
 #include <gst/base/gstpushsrc.h>
 #include "pylonc/PylonC.h"
 
-#define NUM_CAPTURE_BUFFERS 10
+enum {
+  GST_PYLONSRC_NUM_CAPTURE_BUFFERS = 10
+};
 
 G_BEGIN_DECLS
 
@@ -50,8 +52,8 @@ struct _GstPylonSrc
   gboolean deviceConnected;
   gboolean acquisition_configured;
 
-  unsigned char *buffers[NUM_CAPTURE_BUFFERS];
-  PYLON_STREAMBUFFER_HANDLE bufferHandle[NUM_CAPTURE_BUFFERS];
+  unsigned char *buffers[GST_PYLONSRC_NUM_CAPTURE_BUFFERS];
+  PYLON_STREAMBUFFER_HANDLE bufferHandle[GST_PYLONSRC_NUM_CAPTURE_BUFFERS];
 
   int32_t frameSize; // Size of a frame in bytes.
   int32_t payloadSize; // Size of a frame in bytes.
