@@ -171,6 +171,8 @@ typedef enum _GST_PYLONSRC_AXIS {
   AXIS_Y
 } GST_PYLONSRC_AXIS;
 
+static const GST_PYLONSRC_AXIS otherAxis[2] = {AXIS_Y, AXIS_X};
+
 typedef enum _GST_PYLONSRC_COLOUR {
   COLOUR_RED,
   COLOUR_GREEN,
@@ -180,7 +182,7 @@ typedef enum _GST_PYLONSRC_COLOUR {
   COLOUR_YELLOW
 } GST_PYLONSRC_COLOUR;
 
-static const GST_PYLONSRC_AXIS otherAxis[2] = {AXIS_Y, AXIS_X};
+static const char* featColour[6] = {"Red", "Green", "Blue", "Cyan", "Magenta", "Yellow"};
 
 static inline const char*
 boolalpha(_Bool arg)
@@ -561,19 +563,17 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->limitBandwidth = TRUE;
   src->setFPS = FALSE;
   src->demosaicing = FALSE;
-  src->binning[AXIS_X] = 1;
-  src->binning[AXIS_Y] = 1;
-  src->center[AXIS_X] = FALSE;
-  src->center[AXIS_Y] = FALSE;
-  src->flip[AXIS_X] = FALSE;
-  src->flip[AXIS_Y] = FALSE;
-  src->offset[AXIS_X] = 99999;
-  src->offset[AXIS_Y] = 99999;
+
+  for(int i = 0; i < 2; i++) {
+    src->binning[i] = 1;
+    src->center[i] = FALSE;
+    src->flip[i] = FALSE;
+    src->offset[i] = 99999;
+    src->size[i] = 0;
+    src->maxSize[i] = G_MAXINT;
+  }
+
   src->cameraId = 9999;
-  src->size[AXIS_Y] = 0;
-  src->size[AXIS_X] = 0;
-  src->maxSize[AXIS_Y] = G_MAXINT;
-  src->maxSize[AXIS_X] = G_MAXINT;
   src->maxBandwidth = 0;
   src->testImage = 0;
   src->sensorMode = g_strdup ("normal");
@@ -591,21 +591,16 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->gain = 0.0;
   src->blacklevel = 0.0;
   src->gamma = 1.0;
-  src->balance[COLOUR_RED] = 999.0;
-  src->balance[COLOUR_GREEN] = 999.0;
-  src->balance[COLOUR_BLUE] = 999.0;
-  src->hue[COLOUR_RED] = 999.0;
-  src->saturation[COLOUR_RED] = 999.0;
-  src->hue[COLOUR_YELLOW] = 999.0;
-  src->saturation[COLOUR_YELLOW] = 999.0;
-  src->hue[COLOUR_GREEN] = 999.0;
-  src->saturation[COLOUR_GREEN] = 999.0;
-  src->hue[COLOUR_CYAN] = 999.0;
-  src->saturation[COLOUR_CYAN] = 999.0;
-  src->hue[COLOUR_BLUE] = 999.0;
-  src->saturation[COLOUR_BLUE] = 999.0;
-  src->hue[COLOUR_MAGENTA] = 999.0;
-  src->saturation[COLOUR_MAGENTA] = 999.0;
+
+  for(int i = 0; i < 3; i++) {
+    src->balance[i] = 999.0;
+  }
+
+  for(int i = 0; i < 6; i++) {
+    src->hue[i] = 999.0;
+    src->saturation[i] = 999.0;
+  }
+ 
   src->sharpnessenhancement = 999.0;
   src->noisereduction = 999.0;
   src->autoexposureupperlimit = 9999999.0;
@@ -613,15 +608,11 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->gainupperlimit = 999.0;
   src->gainlowerlimit = 999.0;
   src->brightnesstarget = 999.0;
-  src->transformation[0][0] = 999.0;
-  src->transformation[0][1] = 999.0;
-  src->transformation[0][2] = 999.0;
-  src->transformation[1][0] = 999.0;
-  src->transformation[1][1] = 999.0;
-  src->transformation[1][2] = 999.0;
-  src->transformation[2][0] = 999.0;
-  src->transformation[2][1] = 999.0;
-  src->transformation[2][2] = 999.0;
+  for(int j = 0; j < 3; j++) {
+    for(int i = 0; i < 3; i++) {
+      src->transformation[i][j] = 999.0;
+    }
+  }
 
   // Mark this element as a live source (disable preroll)
   gst_base_src_set_live (GST_BASE_SRC (src), TRUE);
@@ -1323,28 +1314,26 @@ error:
   return FALSE;
 }
 
-static gboolean
-gst_pylonsrc_set_resolution (GstPylonSrc * src)
+static _Bool 
+gst_pylonsrc_set_resolution_axis(GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
 {
   GENAPIC_RESULT res;
-  int64_t width = 0, height = 0;
+  int64_t size = 0;
+
+  static const char* const featBinning[2]       = {"BinningHorizontal", "BinningVertical"};
+  static const char* const featSize[2]          = {"Width", "Height"};
+  static const char* const featMaxSize[2]       = {"WidthMax", "HeightMax"};
 
   // set binning of camera
-  if (FEATURE_SUPPORTED ("BinningHorizontal") &&
-      FEATURE_SUPPORTED ("BinningVertical")) {
-    GST_DEBUG_OBJECT (src, "Setting horizontal binning to %d", src->binning[AXIS_X]);
+  if (FEATURE_SUPPORTED (featBinning[axis])) {
+    GST_DEBUG_OBJECT (src, "Setting %s to %d", featBinning[axis], src->binning[axis]);
     res =
-        PylonDeviceSetIntegerFeature (src->deviceHandle, "BinningHorizontal",
-        src->binning[AXIS_X]);
-    PYLONC_CHECK_ERROR (src, res);
-    GST_DEBUG_OBJECT (src, "Setting vertical binning to %d", src->binning[AXIS_Y]);
-    res =
-        PylonDeviceSetIntegerFeature (src->deviceHandle, "BinningVertical",
-        src->binning[AXIS_Y]);
+        PylonDeviceSetIntegerFeature (src->deviceHandle, featBinning[axis],
+        src->binning[axis]);
     PYLONC_CHECK_ERROR (src, res);
   }
   // Get the camera's resolution
-  if (!FEATURE_SUPPORTED ("Width") || !FEATURE_SUPPORTED ("Height")) {
+  if (!FEATURE_SUPPORTED (featSize[axis])) {
     GST_ERROR_OBJECT (src,
         "The camera doesn't seem to be reporting it's resolution.");
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
@@ -1353,58 +1342,33 @@ gst_pylonsrc_set_resolution (GstPylonSrc * src)
     goto error;
   }
   // Default height/width
-  res = PylonDeviceGetIntegerFeature (src->deviceHandle, "Width", &width);
-  PYLONC_CHECK_ERROR (src, res);
-  res = PylonDeviceGetIntegerFeature (src->deviceHandle, "Height", &height);
+  res = PylonDeviceGetIntegerFeature (src->deviceHandle, featSize[axis], &size);
   PYLONC_CHECK_ERROR (src, res);
 
   // Max Width and Height.
-  if (FEATURE_SUPPORTED ("WidthMax") && FEATURE_SUPPORTED ("HeightMax")) {
-    int64_t maxWidth, maxHeight;
+  if (FEATURE_SUPPORTED (featMaxSize[axis])) {
+    int64_t maxSize;
     res =
-        PylonDeviceGetIntegerFeature (src->deviceHandle, "WidthMax", &maxWidth);
-    src->maxSize[AXIS_X] = (gint) maxWidth;
-    PYLONC_CHECK_ERROR (src, res);
-    res =
-        PylonDeviceGetIntegerFeature (src->deviceHandle, "HeightMax",
-        &maxHeight);
-    src->maxSize[AXIS_Y] = (gint) maxHeight;
+        PylonDeviceGetIntegerFeature (src->deviceHandle, featMaxSize[axis], &maxSize);
+    src->maxSize[axis] = (gint) maxSize;
     PYLONC_CHECK_ERROR (src, res);
   }
-  GST_DEBUG_OBJECT (src, "Max resolution is %dx%d.", src->maxSize[AXIS_X],
-      src->maxSize[AXIS_Y]);
 
   // If custom resolution is set, check if it's even possible and set it
-  if (src->size[AXIS_Y] != 0 || src->size[AXIS_X] != 0) {
-    if (src->size[AXIS_X] > src->maxSize[AXIS_X]) {
-      GST_DEBUG_OBJECT (src, "Set width is above camera's capabilities.");
+  if (src->size[axis] != 0) {
+    if (src->size[axis] > src->maxSize[axis]) {
+      GST_DEBUG_OBJECT (src, "Set %s is above camera's capabilities.", featSize[axis]);
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          ("Failed to initialise the camera"), ("Wrong width specified"));
+          ("Failed to initialise the camera"), ("Wrong %s specified", featSize[axis]));
       goto error;
-    } else if (src->size[AXIS_X] == 0) {
-      src->size[AXIS_X] = (gint) width;
-    }
-
-    if (src->size[AXIS_Y] > src->maxSize[AXIS_Y]) {
-      GST_DEBUG_OBJECT (src, "Set height is above camera's capabilities.");
-      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          ("Failed to initialise the camera"), ("Wrong height specified"));
-      goto error;
-    } else if (src->size[AXIS_Y] == 0) {
-      src->size[AXIS_Y] = (gint) height;
     }
   } else {
-    src->size[AXIS_Y] = (gint) height;
-    src->size[AXIS_X] = (gint) width;
+    src->size[axis] = (gint) size;
   }
 
   // Set the final resolution
-  res = PylonDeviceSetIntegerFeature (src->deviceHandle, "Width", src->size[AXIS_X]);
+  res = PylonDeviceSetIntegerFeature (src->deviceHandle, featSize[axis], src->size[axis]);
   PYLONC_CHECK_ERROR (src, res);
-  res = PylonDeviceSetIntegerFeature (src->deviceHandle, "Height", src->size[AXIS_Y]);
-  PYLONC_CHECK_ERROR (src, res);
-  GST_DEBUG_OBJECT (src, "Setting resolution to %dx%d.", src->size[AXIS_X],
-      src->size[AXIS_Y]);
 
   return TRUE;
 
@@ -1412,69 +1376,62 @@ error:
   return FALSE;
 }
 
+static _Bool
+gst_pylonsrc_set_resolution (GstPylonSrc * src)
+{
+  const _Bool result = gst_pylonsrc_set_resolution_axis(src, AXIS_X) &&
+      gst_pylonsrc_set_resolution_axis(src, AXIS_Y);
+ 
+  GST_DEBUG_OBJECT (src, "Max resolution is %dx%d.", src->maxSize[AXIS_X],
+      src->maxSize[AXIS_Y]);
+  GST_DEBUG_OBJECT (src, "Setting resolution to %dx%d.", src->size[AXIS_X],
+      src->size[AXIS_Y]);
+
+  return result;
+}
+
 static gboolean
-gst_pylonsrc_set_offset (GstPylonSrc * src)
+gst_pylonsrc_set_offset_axis (GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
 {
   GENAPIC_RESULT res;
 
+  static const char* featOffset[2] = {"OffsetX", "OffsetY"};
+  static const char* featCenter[2] = {"CenterX", "CenterY"};
+
   // Set the offset
-  if (!FEATURE_SUPPORTED ("OffsetX") || !FEATURE_SUPPORTED ("OffsetY")) {
+  if (!FEATURE_SUPPORTED (featOffset[axis])) {
     GST_WARNING_OBJECT (src,
         "The camera doesn't seem to allow setting offsets. Skipping...");
   } else {
     // Check if the user wants to center image first
-    _Bool cameraSupportsCenterX = FEATURE_SUPPORTED ("CenterX");
-    _Bool cameraSupportsCenterY = FEATURE_SUPPORTED ("CenterY");
-    if (!cameraSupportsCenterX || !cameraSupportsCenterY) {
+    _Bool cameraSupportsCenter = FEATURE_SUPPORTED (featCenter[axis]);
+    if (!cameraSupportsCenter) {
       GST_WARNING_OBJECT (src,
           "The camera doesn't seem to allow offset centering. Skipping...");
     } else {
       res =
-          PylonDeviceSetBooleanFeature (src->deviceHandle, "CenterX",
-          src->center[AXIS_X]);
+          PylonDeviceSetBooleanFeature (src->deviceHandle, featCenter[axis],
+          src->center[axis]);
       PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetBooleanFeature (src->deviceHandle, "CenterY",
-          src->center[AXIS_Y]);
-      PYLONC_CHECK_ERROR (src, res);
-      GST_DEBUG_OBJECT (src, "Centering X: %s, Centering Y: %s.",
-          src->center[AXIS_X] ? "True" : "False", src->center[AXIS_Y] ? "True" : "False");
 
-      if (!src->center[AXIS_X] && src->offset[AXIS_X] != 99999) {
-        gint maxoffsetx = src->maxSize[AXIS_X] - src->size[AXIS_X];
+      GST_DEBUG_OBJECT (src, "%s: %s", featCenter[axis], boolalpha(src->center[axis]));
 
-        if (maxoffsetx >= src->offset[AXIS_X]) {
+      if (!src->center[axis] && src->offset[axis] != 99999) {
+        gint maxoffset = src->maxSize[axis] - src->size[axis];
+
+        if (maxoffset >= src->offset[axis]) {
           res =
-              PylonDeviceSetIntegerFeature (src->deviceHandle, "OffsetX",
-              src->offset[AXIS_X]);
+              PylonDeviceSetIntegerFeature (src->deviceHandle, featOffset[axis],
+              src->offset[axis]);
           PYLONC_CHECK_ERROR (src, res);
-          GST_DEBUG_OBJECT (src, "Setting X offset to %d", src->offset[AXIS_X]);
+          GST_DEBUG_OBJECT (src, "Setting %s to %d", featOffset[axis], src->offset[axis]);
         } else {
           GST_DEBUG_OBJECT (src,
-              "Set X offset is above camera's capabilities. (%d > %d)",
-              src->offset[AXIS_X], maxoffsetx);
+              "Set %s is above camera's capabilities. (%d > %d)", featOffset[axis],
+              src->offset[axis], maxoffset);
           GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
               ("Failed to initialise the camera"),
-              ("Wrong offset for X axis specified"));
-          goto error;
-        }
-      }
-
-      if (!src->center[AXIS_Y] && src->offset[AXIS_Y] != 99999) {
-        gint maxoffsety = src->maxSize[AXIS_Y] - src->size[AXIS_Y];
-        if (maxoffsety >= src->offset[AXIS_Y]) {
-          res =
-              PylonDeviceSetIntegerFeature (src->deviceHandle, "OffsetY",
-              src->offset[AXIS_Y]);
-          PYLONC_CHECK_ERROR (src, res);
-          GST_DEBUG_OBJECT (src, "Setting Y offset to %d", src->offset[AXIS_Y]);
-        } else {
-          GST_DEBUG_OBJECT (src,
-              "Set Y offset is above camera's capabilities. (%d > %d)",
-              src->offset[AXIS_Y], maxoffsety);
-          GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-              ("Failed to initialise the camera"),
-              ("Wrong offset for Y axis specified"));
+              ("Wrong %s specified", featOffset[axis]));
           goto error;
         }
       }
@@ -1487,39 +1444,45 @@ error:
   return FALSE;
 }
 
-static gboolean
-gst_pylonsrc_set_reverse (GstPylonSrc * src)
+static _Bool
+gst_pylonsrc_set_offset (GstPylonSrc * src)
+{
+  return gst_pylonsrc_set_offset_axis(src, AXIS_X) &&
+    gst_pylonsrc_set_offset_axis(src, AXIS_Y);
+}
+
+static _Bool
+gst_pylonsrc_set_reverse_axis (GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
 {
   GENAPIC_RESULT res;
 
+  static const char* featReverse[2] = {"ReverseX", "ReverseY"};
+
   // Flip the image
-  if (!FEATURE_SUPPORTED ("ReverseX")) {
-    src->flip[AXIS_X] = FALSE;
+  if (!FEATURE_SUPPORTED (featReverse[axis])) {
+    src->flip[axis] = FALSE;
     GST_WARNING_OBJECT (src,
-        "Camera doesn't support reversing the X axis. Skipping...");
+        "Camera doesn't support %s. Skipping...", featReverse[axis]);
   } else {
-    if (!FEATURE_SUPPORTED ("ReverseY")) {
-      src->flip[AXIS_Y] = FALSE;
-      GST_WARNING_OBJECT (src,
-          "Camera doesn't support reversing the Y axis. Skipping...");
-    } else {
       res =
-          PylonDeviceSetBooleanFeature (src->deviceHandle, "ReverseX",
-          src->flip[AXIS_X]);
+          PylonDeviceSetBooleanFeature (src->deviceHandle, featReverse[axis],
+          src->flip[axis]);
       PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetBooleanFeature (src->deviceHandle, "ReverseY",
-          src->flip[AXIS_Y]);
-      PYLONC_CHECK_ERROR (src, res);
-      GST_DEBUG_OBJECT (src, "Flipping X: %s, Flipping Y: %s.",
-          src->flip[AXIS_X] ? "True" : "False", src->flip[AXIS_Y] ? "True" : "False");
-    }
+      
+      GST_DEBUG_OBJECT (src, "%s: %s", featReverse[axis], boolalpha(src->flip[axis]));
   }
 
   return TRUE;
 
 error:
   return FALSE;
+}
+
+static _Bool
+gst_pylonsrc_set_reverse (GstPylonSrc * src)
+{
+  return gst_pylonsrc_set_reverse_axis(src, AXIS_X) && 
+    gst_pylonsrc_set_reverse_axis(src, AXIS_Y);
 }
 
 static GstCaps *
@@ -2038,7 +2001,113 @@ error:
   return FALSE;
 }
 
-static gboolean
+static _Bool 
+gst_pylonsrc_set_colour_balance(GstPylonSrc* src, GST_PYLONSRC_COLOUR colour)
+{
+  GENAPIC_RESULT res;
+
+  if (src->balance[colour] != 999.0) {
+    res =
+        PylonDeviceFeatureFromString (src->deviceHandle,
+        "BalanceRatioSelector", featColour[colour]);
+    PYLONC_CHECK_ERROR (src, res);
+    res =
+        PylonDeviceSetFloatFeature (src->deviceHandle, "BalanceRatio",
+        src->balance[colour]);
+    PYLONC_CHECK_ERROR (src, res);
+
+    GST_DEBUG_OBJECT (src, "%s balance set to %.2lf", featColour[colour], src->balance[colour]);
+  } else {
+    GST_DEBUG_OBJECT (src, "Using current settings for the colour %s.", featColour[colour]);
+  }
+
+  return TRUE;
+error:
+  return FALSE;
+}
+
+static _Bool 
+gst_pylonsrc_set_colour_hue(GstPylonSrc* src, GST_PYLONSRC_COLOUR colour)
+{
+  GENAPIC_RESULT res;
+
+  if (src->hue[colour] != 999.0) {
+    res =
+        PylonDeviceFeatureFromString (src->deviceHandle,
+        "ColorAdjustmentSelector", featColour[colour]);
+    PYLONC_CHECK_ERROR (src, res);
+    res =
+        PylonDeviceSetFloatFeature (src->deviceHandle, "ColorAdjustmentHue",
+        src->hue[colour]);
+    PYLONC_CHECK_ERROR (src, res);
+
+    GST_DEBUG_OBJECT (src, "%s hue set to %.2lf", featColour[colour], src->hue[colour]);
+  } else {
+    GST_DEBUG_OBJECT (src, "Using saved %s hue.", featColour[colour]);
+  }
+
+  return TRUE;
+error:
+  return FALSE;
+}
+
+static _Bool 
+gst_pylonsrc_set_colour_saturation(GstPylonSrc* src, GST_PYLONSRC_COLOUR colour)
+{
+  GENAPIC_RESULT res;
+
+  if (src->saturation[colour] != 999.0) {
+    res =
+        PylonDeviceFeatureFromString (src->deviceHandle,
+        "ColorAdjustmentSelector", featColour[colour]);
+    PYLONC_CHECK_ERROR (src, res);
+    res =
+        PylonDeviceSetFloatFeature (src->deviceHandle,
+        "ColorAdjustmentSaturation", src->saturation[colour]);
+    PYLONC_CHECK_ERROR (src, res);
+
+    GST_DEBUG_OBJECT (src, "%s saturation set to %.2lf", featColour[colour], src->saturation[colour]);
+  } else {
+    GST_DEBUG_OBJECT (src, "Using saved %s saturation.", featColour[colour]);
+  }
+
+  return TRUE;
+error:
+  return FALSE;
+}
+
+static _Bool 
+gst_pylonsrc_set_colour_transformation(GstPylonSrc* src, int i, int j)
+{
+  GENAPIC_RESULT res;
+
+  static const char* featGain[3][3] = {
+    {"Gain00", "Gain01", "Gain02"},
+    {"Gain10", "Gain11", "Gain12"},
+    {"Gain20", "Gain21", "Gain22"}
+  };
+
+  if (src->transformation[i][j] != 999.0) {
+    res =
+        PylonDeviceFeatureFromString (src->deviceHandle,
+        "ColorTransformationSelector", featGain[i][j]);
+    PYLONC_CHECK_ERROR (src, res);
+    res =
+        PylonDeviceSetFloatFeature (src->deviceHandle,
+        "ColorTransformationValueSelector", src->transformation[i][j]);
+    PYLONC_CHECK_ERROR (src, res);
+
+    GST_DEBUG_OBJECT (src, "%s set to %.2lf", featGain[i][j], src->transformation[i][j]);
+  } else {
+    GST_DEBUG_OBJECT (src, "Using saved %s transformation value.", featGain[i][j]);
+  }
+
+  return TRUE;
+error:
+  return FALSE;
+}
+
+static _Bool
 gst_pylonsrc_set_color (GstPylonSrc * src)
 {
   GENAPIC_RESULT res;
@@ -2046,50 +2115,11 @@ gst_pylonsrc_set_color (GstPylonSrc * src)
   // Configure colour balance
   if (PylonDeviceFeatureIsAvailable (src->deviceHandle, "BalanceRatio")) {
     if (strcmp (src->autowhitebalance, "off") == 0) {
-      if (src->balance[COLOUR_RED] != 999.0) {
-        res =
-            PylonDeviceFeatureFromString (src->deviceHandle,
-            "BalanceRatioSelector", "Red");
-        PYLONC_CHECK_ERROR (src, res);
-        res =
-            PylonDeviceSetFloatFeature (src->deviceHandle, "BalanceRatio",
-            src->balance[COLOUR_RED]);
-        PYLONC_CHECK_ERROR (src, res);
-
-        GST_DEBUG_OBJECT (src, "Red balance set to %.2lf", src->balance[COLOUR_RED]);
-      } else {
-        GST_DEBUG_OBJECT (src, "Using current settings for the colour red.");
-      }
-
-      if (src->balance[COLOUR_GREEN] != 999.0) {
-        res =
-            PylonDeviceFeatureFromString (src->deviceHandle,
-            "BalanceRatioSelector", "Green");
-        PYLONC_CHECK_ERROR (src, res);
-        res =
-            PylonDeviceSetFloatFeature (src->deviceHandle, "BalanceRatio",
-            src->balance[COLOUR_GREEN]);
-        PYLONC_CHECK_ERROR (src, res);
-
-        GST_DEBUG_OBJECT (src, "Green balance set to %.2lf", src->balance[COLOUR_GREEN]);
-      } else {
-        GST_DEBUG_OBJECT (src, "Using current settings for the colour green.");
-      }
-
-      if (src->balance[COLOUR_BLUE] != 999.0) {
-        res =
-            PylonDeviceFeatureFromString (src->deviceHandle,
-            "BalanceRatioSelector", "Blue");
-        PYLONC_CHECK_ERROR (src, res);
-        res =
-            PylonDeviceSetFloatFeature (src->deviceHandle, "BalanceRatio",
-            src->balance[COLOUR_BLUE]);
-        PYLONC_CHECK_ERROR (src, res);
-
-        GST_DEBUG_OBJECT (src, "Blue balance set to %.2lf", src->balance[COLOUR_BLUE]);
-      } else {
-        GST_DEBUG_OBJECT (src, "Using current settings for the colour blue.");
-      }
+      if(!gst_pylonsrc_set_colour_balance(src, COLOUR_RED) ||
+          !gst_pylonsrc_set_colour_balance(src, COLOUR_GREEN) ||
+          !gst_pylonsrc_set_colour_balance(src, COLOUR_BLUE)) {
+            goto error;
+          }
     } else {
       GST_DEBUG_OBJECT (src,
           "Auto White Balance is enabled. Not setting Balance Ratio.");
@@ -2098,183 +2128,12 @@ gst_pylonsrc_set_color (GstPylonSrc * src)
   // Configure colour adjustment
   if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
           "ColorAdjustmentSelector")) {
-    if (src->hue[COLOUR_RED] != 999.0) {
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "ColorAdjustmentSelector", "Red");
-      PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle, "ColorAdjustmentHue",
-          src->hue[COLOUR_RED]);
-      PYLONC_CHECK_ERROR (src, res);
-
-      GST_DEBUG_OBJECT (src, "Red hue set to %.2lf", src->hue[COLOUR_RED]);
-    } else {
-      GST_DEBUG_OBJECT (src, "Using saved colour red's hue.");
-    }
-    if (src->saturation[COLOUR_RED] != 999.0) {
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "ColorAdjustmentSelector", "Red");
-      PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle,
-          "ColorAdjustmentSaturation", src->saturation[COLOUR_RED]);
-      PYLONC_CHECK_ERROR (src, res);
-
-      GST_DEBUG_OBJECT (src, "Red saturation set to %.2lf", src->saturation[COLOUR_RED]);
-    } else {
-      GST_DEBUG_OBJECT (src, "Using saved colour red's saturation.");
-    }
-
-    if (src->hue[COLOUR_YELLOW] != 999.0) {
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "ColorAdjustmentSelector", "Yellow");
-      PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle, "ColorAdjustmentHue",
-          src->hue[COLOUR_YELLOW]);
-      PYLONC_CHECK_ERROR (src, res);
-
-      GST_DEBUG_OBJECT (src, "Yellow hue set to %.2lf", src->hue[COLOUR_YELLOW]);
-    } else {
-      GST_DEBUG_OBJECT (src, "Using saved colour yellow's hue.");
-    }
-    if (src->saturation[COLOUR_YELLOW] != 999.0) {
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "ColorAdjustmentSelector", "Yellow");
-      PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle,
-          "ColorAdjustmentSaturation", src->saturation[COLOUR_YELLOW]);
-      PYLONC_CHECK_ERROR (src, res);
-
-      GST_DEBUG_OBJECT (src, "Yellow saturation set to %.2lf",
-          src->saturation[COLOUR_YELLOW]);
-    } else {
-      GST_DEBUG_OBJECT (src, "Using saved colour yellow's saturation.");
-    }
-
-    if (src->hue[COLOUR_GREEN] != 999.0) {
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "ColorAdjustmentSelector", "Green");
-      PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle, "ColorAdjustmentHue",
-          src->hue[COLOUR_GREEN]);
-      PYLONC_CHECK_ERROR (src, res);
-
-      GST_DEBUG_OBJECT (src, "Green hue set to %.2lf", src->hue[COLOUR_GREEN]);
-    } else {
-      GST_DEBUG_OBJECT (src, "Using saved colour green's hue.");
-    }
-    if (src->saturation[COLOUR_GREEN] != 999.0) {
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "ColorAdjustmentSelector", "Green");
-      PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle,
-          "ColorAdjustmentSaturation", src->saturation[COLOUR_GREEN]);
-      PYLONC_CHECK_ERROR (src, res);
-
-      GST_DEBUG_OBJECT (src, "Green saturation set to %.2lf",
-          src->saturation[COLOUR_GREEN]);
-    } else {
-      GST_DEBUG_OBJECT (src, "Using saved colour green's saturation.");
-    }
-
-    if (src->hue[COLOUR_CYAN] != 999.0) {
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "ColorAdjustmentSelector", "Cyan");
-      PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle, "ColorAdjustmentHue",
-          src->hue[COLOUR_CYAN]);
-      PYLONC_CHECK_ERROR (src, res);
-
-      GST_DEBUG_OBJECT (src, "Cyan hue set to %.2lf", src->hue[COLOUR_CYAN]);
-    } else {
-      GST_DEBUG_OBJECT (src, "Using saved colour cyan's hue.");
-    }
-    if (src->saturation[COLOUR_CYAN] != 999.0) {
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "ColorAdjustmentSelector", "Cyan");
-      PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle,
-          "ColorAdjustmentSaturation", src->saturation[COLOUR_CYAN]);
-      PYLONC_CHECK_ERROR (src, res);
-
-      GST_DEBUG_OBJECT (src, "Cyan saturation set to %.2lf",
-          src->saturation[COLOUR_CYAN]);
-    } else {
-      GST_DEBUG_OBJECT (src, "Using saved colour cyan's saturation.");
-    }
-
-    if (src->hue[COLOUR_BLUE] != 999.0) {
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "ColorAdjustmentSelector", "Blue");
-      PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle, "ColorAdjustmentHue",
-          src->hue[COLOUR_BLUE]);
-      PYLONC_CHECK_ERROR (src, res);
-
-      GST_DEBUG_OBJECT (src, "Blue hue set to %.2lf", src->hue[COLOUR_BLUE]);
-    } else {
-      GST_DEBUG_OBJECT (src, "Using saved colour blue's hue.");
-    }
-    if (src->saturation[COLOUR_BLUE] != 999.0) {
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "ColorAdjustmentSelector", "Blue");
-      PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle,
-          "ColorAdjustmentSaturation", src->saturation[COLOUR_BLUE]);
-      PYLONC_CHECK_ERROR (src, res);
-
-      GST_DEBUG_OBJECT (src, "Blue saturation set to %.2lf",
-          src->saturation[COLOUR_BLUE]);
-    } else {
-      GST_DEBUG_OBJECT (src, "Using saved colour blue's saturation.");
-    }
-
-    if (src->hue[COLOUR_MAGENTA] != 999.0) {
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "ColorAdjustmentSelector", "Magenta");
-      PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle, "ColorAdjustmentHue",
-          src->hue[COLOUR_MAGENTA]);
-      PYLONC_CHECK_ERROR (src, res);
-
-      GST_DEBUG_OBJECT (src, "Magenta hue set to %.2lf", src->hue[COLOUR_MAGENTA]);
-    } else {
-      GST_DEBUG_OBJECT (src, "Using saved colour magenta's hue.");
-    }
-    if (src->saturation[COLOUR_MAGENTA] != 999.0) {
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "ColorAdjustmentSelector", "Magenta");
-      PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle,
-          "ColorAdjustmentSaturation", src->saturation[COLOUR_MAGENTA]);
-      PYLONC_CHECK_ERROR (src, res);
-
-      GST_DEBUG_OBJECT (src, "Magenta saturation set to %.2lf",
-          src->saturation[COLOUR_MAGENTA]);
-    } else {
-      GST_DEBUG_OBJECT (src, "Using saved colour magenta's saturation.");
+    for(int i = 0; i < 6; i++) {
+      const GST_PYLONSRC_COLOUR colour = (GST_PYLONSRC_COLOUR) i;
+      if(!gst_pylonsrc_set_colour_hue(src, colour) ||
+          !gst_pylonsrc_set_colour_saturation(src, colour)) {
+          goto error;
+        }
     }
   } else {
     GST_DEBUG_OBJECT (src,
@@ -2296,14 +2155,14 @@ gst_pylonsrc_set_color (GstPylonSrc * src)
             PylonDeviceFeatureFromString (src->deviceHandle,
             "ColorTransformationSelector", "RGBtoYUV");
         PYLONC_CHECK_ERROR (src, res);
-      } else if (strcmp (src->transformationselector, "rgbyuv") == 0) {
+      } else if (strcmp (src->transformationselector, "yuvrgb") == 0) {
         res =
             PylonDeviceFeatureFromString (src->deviceHandle,
             "ColorTransformationSelector", "YUVtoRGB");
         PYLONC_CHECK_ERROR (src, res);
       } else {
         GST_ERROR_OBJECT (src,
-            "Invalid parameter value for transformationselector. Available values are: RGBtoRGB, RGBtoYUV, YUVtoRGB. Value provided: \"%s\".",
+            "Invalid parameter value for transformationselector. Available values are: RGBRGB, RGBYUV, YUVRGB. Value provided: \"%s\".",
             src->transformationselector);
         GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
             ("Failed to initialise the camera"),
@@ -2312,139 +2171,12 @@ gst_pylonsrc_set_color (GstPylonSrc * src)
       }
     }
 
-    if (src->transformation[0][0] != 999.0) {
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "ColorTransformationSelector", "Gain00");
-      PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle,
-          "ColorTransformationValueSelector", src->transformation[0][0]);
-      PYLONC_CHECK_ERROR (src, res);
-
-      GST_DEBUG_OBJECT (src, "Gain00 set to %.2lf", src->transformation[0][0]);
-    } else {
-      GST_DEBUG_OBJECT (src, "Using saved Gain00 transformation value.");
-    }
-
-    if (src->transformation[0][1] != 999.0) {
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "ColorTransformationValueSelector", "Gain01");
-      PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle,
-          "ColorTransformationValue", src->transformation[0][1]);
-      PYLONC_CHECK_ERROR (src, res);
-
-      GST_DEBUG_OBJECT (src, "Gain01 set to %.2lf", src->transformation[0][1]);
-    } else {
-      GST_DEBUG_OBJECT (src, "Using saved Gain01 transformation value.");
-    }
-
-    if (src->transformation[0][2] != 999.0) {
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "ColorTransformationValueSelector", "Gain02");
-      PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle,
-          "ColorTransformationValue", src->transformation[0][2]);
-      PYLONC_CHECK_ERROR (src, res);
-
-      GST_DEBUG_OBJECT (src, "Gain02 set to %.2lf", src->transformation[0][2]);
-    } else {
-      GST_DEBUG_OBJECT (src, "Using saved Gain02 transformation value.");
-    }
-
-    if (src->transformation[1][0] != 999.0) {
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "ColorTransformationValueSelector", "Gain10");
-      PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle,
-          "ColorTransformationValue", src->transformation[1][0]);
-      PYLONC_CHECK_ERROR (src, res);
-
-      GST_DEBUG_OBJECT (src, "Gain10 set to %.2lf", src->transformation[1][0]);
-    } else {
-      GST_DEBUG_OBJECT (src, "Using saved Gain10 transformation value.");
-    }
-
-    if (src->transformation[1][1] != 999.0) {
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "ColorTransformationValueSelector", "Gain11");
-      PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle,
-          "ColorTransformationValue", src->transformation[1][1]);
-      PYLONC_CHECK_ERROR (src, res);
-
-      GST_DEBUG_OBJECT (src, "Gain11 set to %.2lf", src->transformation[1][1]);
-    } else {
-      GST_DEBUG_OBJECT (src, "Using saved Gain11 transformation value.");
-    }
-
-    if (src->transformation[1][2] != 999.0) {
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "ColorTransformationValueSelector", "Gain12");
-      PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle,
-          "ColorTransformationValue", src->transformation[1][2]);
-      PYLONC_CHECK_ERROR (src, res);
-
-      GST_DEBUG_OBJECT (src, "Gain12 set to %.2lf", src->transformation[1][2]);
-    } else {
-      GST_DEBUG_OBJECT (src, "Using saved Gain12 transformation value.");
-    }
-
-    if (src->transformation[2][0] != 999.0) {
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "ColorTransformationValueSelector", "Gain20");
-      PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle,
-          "ColorTransformationValue", src->transformation[2][0]);
-      PYLONC_CHECK_ERROR (src, res);
-
-      GST_DEBUG_OBJECT (src, "Gain20 set to %.2lf", src->transformation[2][0]);
-    } else {
-      GST_DEBUG_OBJECT (src, "Using saved Gain20 transformation value.");
-    }
-
-    if (src->transformation[2][1] != 999.0) {
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "ColorTransformationValueSelector", "Gain21");
-      PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle,
-          "ColorTransformationValue", src->transformation[2][1]);
-      PYLONC_CHECK_ERROR (src, res);
-
-      GST_DEBUG_OBJECT (src, "Gain21 set to %.2lf", src->transformation[2][1]);
-    } else {
-      GST_DEBUG_OBJECT (src, "Using saved Gain21 transformation value.");
-    }
-
-    if (src->transformation[2][2] != 999.0) {
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "ColorTransformationValueSelector", "Gain22");
-      PYLONC_CHECK_ERROR (src, res);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle,
-          "ColorTransformationValue", src->transformation[2][2]);
-      PYLONC_CHECK_ERROR (src, res);
-
-      GST_DEBUG_OBJECT (src, "Gain22 set to %.2lf", src->transformation[2][2]);
-    } else {
-      GST_DEBUG_OBJECT (src, "Using saved Gain22 transformation value.");
+    for(int j = 0; j < 3; j++) {
+      for(int i = 0; i < 3; i++) {
+        if(!gst_pylonsrc_set_colour_transformation(src, i, j)) {
+          goto error;
+        }
+      }
     }
   } else {
     GST_DEBUG_OBJECT (src,
