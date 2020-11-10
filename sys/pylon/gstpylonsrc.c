@@ -38,6 +38,7 @@
 #include "gstpylonsrc.h"
 #include <gst/gst.h>
 #include <glib.h>
+#include <math.h>
 
 #include "common/genicampixelformat.h"
 
@@ -166,6 +167,37 @@ typedef enum _GST_PYLONSRC_PROP
   PROP_TRANSFORMATION22
 } GST_PYLONSRC_PROP;
 
+typedef enum _GST_PYLONSRC_AUTOFATURE {
+  AUTOF_GAIN,
+  AUTOF_EXPOSURE,
+  AUTOF_WHITEBALANCE,
+
+  AUTOF_NUM_FEATURES,
+
+  AUTOF_NUM_MANUAL = 2
+} GST_PYLONSRC_AUTOFATURE;
+
+G_STATIC_ASSERT(AUTOF_NUM_FEATURES == GST_PYLONSRC_NUM_AUTO_FEATURES);
+G_STATIC_ASSERT(AUTOF_NUM_MANUAL == GST_PYLONSRC_NUM_MANUAL_FEATURES);
+
+static const char* const featAutoFeature[AUTOF_NUM_FEATURES] = {"GainAuto", "ExposureAuto", "BalanceWhiteAuto"};
+// Yes,there is no "WhiteBalance" feature, it is only used for logging
+static const char* const featManualFeature[AUTOF_NUM_FEATURES] = {"Gain", "ExposureTime", "WhiteBalance"}; 
+
+typedef enum _GST_PYLONSRC_LIMFEATURE {
+  LIMF_GAIN,
+  LIMF_EXPOSURE,
+
+  LIMF_NUM_FEATURES
+} GST_PYLONSRC_LIMFEATURE;
+
+G_STATIC_ASSERT(LIMF_NUM_FEATURES == GST_PYLONSRC_NUM_LIMITED_FEATURES);
+
+static const char* const featLimitedLower[LIMF_NUM_FEATURES] = {"AutoGainLowerLimit", "AutoExposureTimeLowerLimit"};
+static const char* const featLimitedUpper[LIMF_NUM_FEATURES] = {"AutoGainUpperLimit", "AutoExposureTimeUpperLimit"};
+
+static const double defaultLimitedValue[LIMF_NUM_FEATURES] = {999.0, 9999999.0};
+
 typedef enum _GST_PYLONSRC_AXIS {
   AXIS_X,
   AXIS_Y
@@ -182,7 +214,7 @@ typedef enum _GST_PYLONSRC_COLOUR {
   COLOUR_YELLOW
 } GST_PYLONSRC_COLOUR;
 
-static const char* featColour[6] = {"Red", "Green", "Blue", "Cyan", "Magenta", "Yellow"};
+static const char* const featColour[6] = {"Red", "Green", "Blue", "Cyan", "Magenta", "Yellow"};
 
 static inline const char*
 boolalpha(_Bool arg)
@@ -196,6 +228,12 @@ ascii_strdown(gchar* * str, gssize len)
   gchar* temp = g_ascii_strdown(*str, len);
   g_free(*str);
   *str = temp;
+}
+
+static inline _Bool
+fnequal(double val, double def)
+{
+  return fabs(val / def - 1.0) > 0.01;
 }
 
 #define DEFAULT_PROP_PIXEL_FORMAT "auto"
@@ -578,17 +616,19 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->testImage = 0;
   src->sensorMode = g_strdup ("normal");
   src->lightsource = g_strdup ("5000k");
-  src->autoexposure = g_strdup ("off");
-  src->autowhitebalance = g_strdup ("off");
-  src->autogain = g_strdup ("off");
+
+  for(int i = 0; i < AUTOF_NUM_FEATURES; i++) {
+    src->autoFeature[i] = g_strdup ("off");
+  }
+
   src->reset = g_strdup ("off");
   src->pixel_format = g_strdup (DEFAULT_PROP_PIXEL_FORMAT);
   src->userid = g_strdup ("");
   src->autoprofile = g_strdup ("default");
   src->transformationselector = g_strdup ("default");
   src->fps = 0.0;
-  src->exposure = 0.0;
-  src->gain = 0.0;
+  src->manualFeature[AUTOF_EXPOSURE] = 0.0;
+  src->manualFeature[AUTOF_GAIN] = 0.0;
   src->blacklevel = 0.0;
   src->gamma = 1.0;
 
@@ -603,10 +643,12 @@ gst_pylonsrc_init (GstPylonSrc * src)
  
   src->sharpnessenhancement = 999.0;
   src->noisereduction = 999.0;
-  src->autoexposureupperlimit = 9999999.0;
-  src->autoexposurelowerlimit = 9999999.0;
-  src->gainupperlimit = 999.0;
-  src->gainlowerlimit = 999.0;
+
+  for(int i = 0; i < LIMF_NUM_FEATURES; i++) {
+    src->limitedFeature[i].upper = defaultLimitedValue[i];
+    src->limitedFeature[i].lower = defaultLimitedValue[i];
+  }
+
   src->brightnesstarget = 999.0;
   for(int j = 0; j < 3; j++) {
     for(int i = 0; i < 3; i++) {
@@ -663,20 +705,20 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
       src->lightsource = g_value_dup_string (value);
       break;
     case PROP_AUTOEXPOSURE:
-      g_free(src->autoexposure);
-      src->autoexposure = g_value_dup_string (value);
+      g_free(src->autoFeature[AUTOF_EXPOSURE]);
+      src->autoFeature[AUTOF_EXPOSURE] = g_value_dup_string (value);
       break;
     case PROP_AUTOWHITEBALANCE:
-      g_free(src->autowhitebalance);
-      src->autowhitebalance = g_value_dup_string (value);
+      g_free(src->autoFeature[AUTOF_WHITEBALANCE]);
+      src->autoFeature[AUTOF_WHITEBALANCE] = g_value_dup_string (value);
       break;
     case PROP_PIXEL_FORMAT:
       g_free (src->pixel_format);
       src->pixel_format = g_value_dup_string (value);
       break;
     case PROP_AUTOGAIN:
-      g_free(src->autogain);
-      src->autogain = g_value_dup_string (value);
+      g_free(src->autoFeature[AUTOF_GAIN]);
+      src->autoFeature[AUTOF_GAIN] = g_value_dup_string (value);
       break;
     case PROP_RESET:
       g_free(src->reset);
@@ -770,10 +812,10 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
       src->fps = g_value_get_double (value);
       break;
     case PROP_EXPOSURE:
-      src->exposure = g_value_get_double (value);
+      src->manualFeature[AUTOF_EXPOSURE] = g_value_get_double (value);
       break;
     case PROP_GAIN:
-      src->gain = g_value_get_double (value);
+      src->manualFeature[AUTOF_GAIN] = g_value_get_double (value);
       break;
     case PROP_BLACKLEVEL:
       src->blacklevel = g_value_get_double (value);
@@ -785,16 +827,16 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
       src->noisereduction = g_value_get_double (value);
       break;
     case PROP_AUTOEXPOSUREUPPERLIMIT:
-      src->autoexposureupperlimit = g_value_get_double (value);
+      src->limitedFeature[LIMF_EXPOSURE].upper = g_value_get_double (value);
       break;
     case PROP_AUTOEXPOSURELOWERLIMIT:
-      src->autoexposurelowerlimit = g_value_get_double (value);
+      src->limitedFeature[LIMF_EXPOSURE].lower = g_value_get_double (value);
       break;
     case PROP_GAINLOWERLIMIT:
-      src->gainlowerlimit = g_value_get_double (value);
+      src->limitedFeature[LIMF_GAIN].lower = g_value_get_double (value);
       break;
     case PROP_GAINUPPERLIMIT:
-      src->gainupperlimit = g_value_get_double (value);
+      src->limitedFeature[LIMF_GAIN].upper = g_value_get_double (value);
       break;
     case PROP_AUTOBRIGHTNESSTARGET:
       src->brightnesstarget = g_value_get_double (value);
@@ -875,10 +917,10 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
       g_value_set_string (value, src->lightsource);
       break;
     case PROP_AUTOEXPOSURE:
-      g_value_set_string (value, src->autoexposure);
+      g_value_set_string (value, src->autoFeature[AUTOF_EXPOSURE]);
       break;
     case PROP_AUTOWHITEBALANCE:
-      g_value_set_string (value, src->autowhitebalance);
+      g_value_set_string (value, src->autoFeature[AUTOF_WHITEBALANCE]);
       break;
     case PROP_PIXEL_FORMAT:
       g_value_set_string (value, src->pixel_format);
@@ -887,7 +929,7 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
       g_value_set_string (value, src->userid);
       break;
     case PROP_AUTOGAIN:
-      g_value_set_string (value, src->autogain);
+      g_value_set_string (value, src->autoFeature[AUTOF_GAIN]);
       break;
     case PROP_RESET:
       g_value_set_string (value, src->reset);
@@ -973,10 +1015,10 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
       g_value_set_double (value, src->fps);
       break;
     case PROP_EXPOSURE:
-      g_value_set_double (value, src->exposure);
+      g_value_set_double (value, src->manualFeature[AUTOF_EXPOSURE]);
       break;
     case PROP_GAIN:
-      g_value_set_double (value, src->gain);
+      g_value_set_double (value, src->manualFeature[AUTOF_GAIN]);
       break;
     case PROP_BLACKLEVEL:
       g_value_set_double (value, src->blacklevel);
@@ -1395,8 +1437,8 @@ gst_pylonsrc_set_offset_axis (GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
 {
   GENAPIC_RESULT res;
 
-  static const char* featOffset[2] = {"OffsetX", "OffsetY"};
-  static const char* featCenter[2] = {"CenterX", "CenterY"};
+  static const char* const featOffset[2] = {"OffsetX", "OffsetY"};
+  static const char* const featCenter[2] = {"CenterX", "CenterY"};
 
   // Set the offset
   if (!FEATURE_SUPPORTED (featOffset[axis])) {
@@ -1456,7 +1498,7 @@ gst_pylonsrc_set_reverse_axis (GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
 {
   GENAPIC_RESULT res;
 
-  static const char* featReverse[2] = {"ReverseX", "ReverseY"};
+  static const char* const featReverse[2] = {"ReverseX", "ReverseY"};
 
   // Flip the image
   if (!FEATURE_SUPPORTED (featReverse[axis])) {
@@ -1784,179 +1826,114 @@ error:
   return FALSE;
 }
 
-static gboolean
+static _Bool
+gst_pylonsrc_set_auto_feature (GstPylonSrc * src, GST_PYLONSRC_AUTOFATURE feature)
+{
+  GENAPIC_RESULT res;
+
+  // Enable/disable automatic feature
+  ascii_strdown (&src->autoFeature[feature], -1);
+  if (PylonDeviceFeatureIsAvailable (src->deviceHandle, featAutoFeature[feature])) {
+    if (strcmp (src->autoFeature[feature], "off") == 0) {
+      GST_DEBUG_OBJECT (src, "Disabling %s.", featAutoFeature[feature]);
+      res =
+          PylonDeviceFeatureFromString (src->deviceHandle, featAutoFeature[feature],
+          "Off");
+      PYLONC_CHECK_ERROR (src, res);
+    } else if (strcmp (src->autoFeature[feature], "once") == 0) {
+      GST_DEBUG_OBJECT (src, "Making the camera only calibrate %s once.", featManualFeature[feature]);
+      res =
+          PylonDeviceFeatureFromString (src->deviceHandle, featAutoFeature[feature],
+          "Once");
+      PYLONC_CHECK_ERROR (src, res);
+    } else if (strcmp (src->autoFeature[feature], "continuous") == 0) {
+      GST_DEBUG_OBJECT (src,
+          "Making the camera calibrate %s automatically all the time.", featManualFeature[feature]);
+      res =
+          PylonDeviceFeatureFromString (src->deviceHandle, featAutoFeature[feature],
+          "Continuous");
+      PYLONC_CHECK_ERROR (src, res);
+    } else {
+      GST_ERROR_OBJECT (src,
+          "Invalid parameter value for %s. Available values are off/once/continuous, while the value provided was \"%s\".",
+          featAutoFeature[feature], 
+          src->autoFeature[feature]);
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+          ("Failed to initialise the camera"), ("Invalid parameters provided"));
+      goto error;
+    }
+  } else {
+    GST_WARNING_OBJECT (src, "This camera doesn't support %s.", featAutoFeature[feature]);
+  }
+
+  return TRUE;
+error:
+  return FALSE;
+}
+
+static _Bool
+gst_pylonsrc_set_limited_feature (GstPylonSrc * src, GST_PYLONSRC_LIMFEATURE feature)
+{
+  GENAPIC_RESULT res;
+
+  // Configure automatic exposure and gain settings
+  if (fnequal(src->limitedFeature[feature].upper, defaultLimitedValue[feature])) {
+    if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
+            featLimitedUpper[feature])) {
+      res =
+          PylonDeviceSetFloatFeature (src->deviceHandle,
+          featLimitedUpper[feature], src->limitedFeature[feature].upper);
+      PYLONC_CHECK_ERROR (src, res);
+    } else {
+      GST_WARNING_OBJECT (src,
+          "This camera doesn't support changing %s.", featLimitedUpper[feature]);
+    }
+  }
+  if (fnequal(src->limitedFeature[feature].lower, defaultLimitedValue[feature])) {
+    if (src->limitedFeature[feature].lower >= src->limitedFeature[feature].upper) {
+      GST_ERROR_OBJECT (src,
+          "Invalid parameter value for %s. It seems like you're trying to set a lower limit (%.2f) that's higher than the upper limit (%.2f).",
+          featLimitedLower[feature], src->limitedFeature[feature].lower, src->limitedFeature[feature].upper);
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+          ("Failed to initialise the camera"), ("Invalid parameters provided"));
+      goto error;
+    }
+
+    if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
+            featLimitedLower[feature])) {
+      res =
+          PylonDeviceSetFloatFeature (src->deviceHandle,
+          featLimitedLower[feature], src->limitedFeature[feature].lower);
+      PYLONC_CHECK_ERROR (src, res);
+    } else {
+      GST_WARNING_OBJECT (src,
+          "This camera doesn't support changing the %s.", featLimitedLower[feature]);
+    }
+  }
+
+  return TRUE;
+error:
+  return FALSE;
+}
+
+static _Bool
 gst_pylonsrc_set_auto_exp_gain_wb (GstPylonSrc * src)
 {
   GENAPIC_RESULT res;
 
-  // Enable/disable automatic exposure
-  ascii_strdown (&src->autoexposure, -1);
-  if (PylonDeviceFeatureIsAvailable (src->deviceHandle, "ExposureAuto")) {
-    if (strcmp (src->autoexposure, "off") == 0) {
-      GST_DEBUG_OBJECT (src, "Disabling automatic exposure.");
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle, "ExposureAuto",
-          "Off");
-      PYLONC_CHECK_ERROR (src, res);
-    } else if (strcmp (src->autoexposure, "once") == 0) {
-      GST_DEBUG_OBJECT (src, "Making the camera only calibrate exposure once.");
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle, "ExposureAuto",
-          "Once");
-      PYLONC_CHECK_ERROR (src, res);
-    } else if (strcmp (src->autoexposure, "continuous") == 0) {
-      GST_DEBUG_OBJECT (src,
-          "Making the camera calibrate exposure automatically all the time.");
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle, "ExposureAuto",
-          "Continuous");
-      PYLONC_CHECK_ERROR (src, res);
-    } else {
-      GST_ERROR_OBJECT (src,
-          "Invalid parameter value for autoexposure. Available values are off/once/continuous, while the value provided was \"%s\".",
-          src->autoexposure);
-      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          ("Failed to initialise the camera"), ("Invalid parameters provided"));
+  for(int i = 0; i < AUTOF_NUM_FEATURES; i++) {
+    if(!gst_pylonsrc_set_auto_feature (src, (GST_PYLONSRC_AUTOFATURE) i)) {
       goto error;
     }
-  } else {
-    GST_WARNING_OBJECT (src, "This camera doesn't support automatic exposure.");
   }
 
-  // Enable/disable automatic gain
-  ascii_strdown (&src->autogain, -1);
-  if (PylonDeviceFeatureIsAvailable (src->deviceHandle, "GainAuto")) {
-    if (strcmp (src->autogain, "off") == 0) {
-      GST_DEBUG_OBJECT (src, "Disabling automatic gain.");
-      res = PylonDeviceFeatureFromString (src->deviceHandle, "GainAuto", "Off");
-      PYLONC_CHECK_ERROR (src, res);
-    } else if (strcmp (src->autogain, "once") == 0) {
-      GST_DEBUG_OBJECT (src,
-          "Making the camera only calibrate it's gain once.");
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle, "GainAuto", "Once");
-      PYLONC_CHECK_ERROR (src, res);
-    } else if (strcmp (src->autogain, "continuous") == 0) {
-      GST_DEBUG_OBJECT (src,
-          "Making the camera calibrate gain settings automatically.");
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle, "GainAuto",
-          "Continuous");
-      PYLONC_CHECK_ERROR (src, res);
-    } else {
-      GST_ERROR_OBJECT (src,
-          "Invalid parameter value for autogain. Available values are off/once/continuous, while the value provided was \"%s\".",
-          src->autogain);
-      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          ("Failed to initialise the camera"), ("Invalid parameters provided"));
+  for(int i = 0; i < LIMF_NUM_FEATURES; i++) {
+    if(!gst_pylonsrc_set_limited_feature (src, (GST_PYLONSRC_LIMFEATURE) i)) {
       goto error;
     }
-  } else {
-    GST_WARNING_OBJECT (src, "This camera doesn't support automatic gain.");
   }
 
-  // Enable/disable automatic white balance
-  ascii_strdown (&src->autowhitebalance, -1);
-  if (PylonDeviceFeatureIsAvailable (src->deviceHandle, "BalanceWhiteAuto")) {
-    if (strcmp (src->autowhitebalance, "off") == 0) {
-      GST_DEBUG_OBJECT (src, "Disabling automatic white balance.");
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle, "BalanceWhiteAuto",
-          "Off");
-      PYLONC_CHECK_ERROR (src, res);
-    } else if (strcmp (src->autowhitebalance, "once") == 0) {
-      GST_DEBUG_OBJECT (src,
-          "Making the camera only calibrate it's colour balance once.");
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle, "BalanceWhiteAuto",
-          "Once");
-      PYLONC_CHECK_ERROR (src, res);
-    } else if (strcmp (src->autowhitebalance, "continuous") == 0) {
-      GST_DEBUG_OBJECT (src,
-          "Making the camera calibrate white balance settings automatically.");
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle, "BalanceWhiteAuto",
-          "Continuous");
-      PYLONC_CHECK_ERROR (src, res);
-    } else {
-      GST_ERROR_OBJECT (src,
-          "Invalid parameter value for autowhitebalance. Available values are off/once/continuous, while the value provided was \"%s\".",
-          src->autowhitebalance);
-      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          ("Failed to initialise the camera"), ("Invalid parameters provided"));
-      goto error;
-    }
-  } else {
-    GST_WARNING_OBJECT (src,
-        "This camera doesn't support automatic white balance.");
-  }
-
-  // Configure automatic exposure and gain settings
-  if (src->autoexposureupperlimit != 9999999.0) {
-    if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
-            "AutoExposureTimeUpperLimit")) {
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle,
-          "AutoExposureTimeUpperLimit", src->autoexposureupperlimit);
-      PYLONC_CHECK_ERROR (src, res);
-    } else {
-      GST_WARNING_OBJECT (src,
-          "This camera doesn't support changing the auto exposure limits.");
-    }
-  }
-  if (src->autoexposurelowerlimit != 9999999.0) {
-    if (src->autoexposurelowerlimit >= src->autoexposureupperlimit) {
-      GST_ERROR_OBJECT (src,
-          "Invalid parameter value for autoexposurelowerlimit. It seems like you're trying to set a lower limit (%.2f) that's higher than the upper limit (%.2f).",
-          src->autoexposurelowerlimit, src->autoexposureupperlimit);
-      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          ("Failed to initialise the camera"), ("Invalid parameters provided"));
-      goto error;
-    }
-
-    if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
-            "AutoExposureTimeLowerLimit")) {
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle,
-          "AutoExposureTimeLowerLimit", src->autoexposurelowerlimit);
-      PYLONC_CHECK_ERROR (src, res);
-    } else {
-      GST_WARNING_OBJECT (src,
-          "This camera doesn't support changing the auto exposure limits.");
-    }
-  }
-  if (src->gainlowerlimit != 999.0) {
-    if (PylonDeviceFeatureIsAvailable (src->deviceHandle, "AutoGainLowerLimit")) {
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle, "AutoGainLowerLimit",
-          src->gainlowerlimit);
-      PYLONC_CHECK_ERROR (src, res);
-    } else {
-      GST_WARNING_OBJECT (src,
-          "This camera doesn't support changing the auto gain limits.");
-    }
-  }
-  if (src->gainupperlimit != 999.0) {
-    if (src->gainlowerlimit >= src->gainupperlimit) {
-      GST_ERROR_OBJECT (src,
-          "Invalid parameter value for gainupperlimit. It seems like you're trying to set a lower limit (%.5f) that's higher than the upper limit (%.5f).",
-          src->gainlowerlimit, src->gainupperlimit);
-      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          ("Failed to initialise the camera"), ("Invalid parameters provided"));
-      goto error;
-    }
-
-    if (PylonDeviceFeatureIsAvailable (src->deviceHandle, "AutoGainUpperLimit")) {
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle, "AutoGainUpperLimit",
-          src->gainupperlimit);
-      PYLONC_CHECK_ERROR (src, res);
-    } else {
-      GST_WARNING_OBJECT (src,
-          "This camera doesn't support changing the auto gain limits.");
-    }
-  }
-  if (src->brightnesstarget != 999.0) {
+  if (fnequal(src->brightnesstarget, 999.0)) {
     if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
             "AutoTargetBrightness")) {
       res =
@@ -1968,6 +1945,7 @@ gst_pylonsrc_set_auto_exp_gain_wb (GstPylonSrc * src)
           "This camera doesn't support changing the brightness target.");
     }
   }
+
   ascii_strdown (&src->autoprofile, -1);
   if (strcmp (src->autoprofile, "default") != 0) {
     GST_DEBUG_OBJECT (src, "Setting automatic profile to minimise %s.",
@@ -2006,7 +1984,7 @@ gst_pylonsrc_set_colour_balance(GstPylonSrc* src, GST_PYLONSRC_COLOUR colour)
 {
   GENAPIC_RESULT res;
 
-  if (src->balance[colour] != 999.0) {
+  if (fnequal(src->balance[colour], 999.0)) {
     res =
         PylonDeviceFeatureFromString (src->deviceHandle,
         "BalanceRatioSelector", featColour[colour]);
@@ -2031,7 +2009,7 @@ gst_pylonsrc_set_colour_hue(GstPylonSrc* src, GST_PYLONSRC_COLOUR colour)
 {
   GENAPIC_RESULT res;
 
-  if (src->hue[colour] != 999.0) {
+  if (fnequal(src->hue[colour], 999.0)) {
     res =
         PylonDeviceFeatureFromString (src->deviceHandle,
         "ColorAdjustmentSelector", featColour[colour]);
@@ -2056,7 +2034,7 @@ gst_pylonsrc_set_colour_saturation(GstPylonSrc* src, GST_PYLONSRC_COLOUR colour)
 {
   GENAPIC_RESULT res;
 
-  if (src->saturation[colour] != 999.0) {
+  if (fnequal(src->saturation[colour], 999.0)) {
     res =
         PylonDeviceFeatureFromString (src->deviceHandle,
         "ColorAdjustmentSelector", featColour[colour]);
@@ -2081,13 +2059,13 @@ gst_pylonsrc_set_colour_transformation(GstPylonSrc* src, int i, int j)
 {
   GENAPIC_RESULT res;
 
-  static const char* featGain[3][3] = {
+  static const char* const featGain[3][3] = {
     {"Gain00", "Gain01", "Gain02"},
     {"Gain10", "Gain11", "Gain12"},
     {"Gain20", "Gain21", "Gain22"}
   };
 
-  if (src->transformation[i][j] != 999.0) {
+  if (fnequal(src->transformation[i][j], 999.0)) {
     res =
         PylonDeviceFeatureFromString (src->deviceHandle,
         "ColorTransformationSelector", featGain[i][j]);
@@ -2114,7 +2092,7 @@ gst_pylonsrc_set_color (GstPylonSrc * src)
 
   // Configure colour balance
   if (PylonDeviceFeatureIsAvailable (src->deviceHandle, "BalanceRatio")) {
-    if (strcmp (src->autowhitebalance, "off") == 0) {
+    if (strcmp (src->autoFeature[AUTOF_WHITEBALANCE], "off") == 0) {
       if(!gst_pylonsrc_set_colour_balance(src, COLOUR_RED) ||
           !gst_pylonsrc_set_colour_balance(src, COLOUR_GREEN) ||
           !gst_pylonsrc_set_colour_balance(src, COLOUR_BLUE)) {
@@ -2189,48 +2167,55 @@ error:
   return FALSE;
 }
 
-static gboolean
+static _Bool
+gst_pylonsrc_set_manual_feature (GstPylonSrc * src, GST_PYLONSRC_AUTOFATURE feature)
+{
+  GENAPIC_RESULT res;
+
+  if(feature >= AUTOF_NUM_MANUAL ) {
+    GST_WARNING_OBJECT (src,
+          "Trying to set manual value for unsupported autofeature: %d", (int) feature);
+  } else {
+    // Configure exposure/gain
+    if (PylonDeviceFeatureIsAvailable (src->deviceHandle, featManualFeature[feature])) {
+      if (strcmp (src->autoFeature[feature], "off") == 0) {
+        if (src->manualFeature[feature] != 0.0) {
+          GST_DEBUG_OBJECT (src, "Setting %s to %0.2lf", featManualFeature[feature], src->manualFeature[feature]);
+          res =
+              PylonDeviceSetFloatFeature (src->deviceHandle, featManualFeature[feature],
+              src->manualFeature[feature]);
+          PYLONC_CHECK_ERROR (src, res);
+        } else {
+          GST_DEBUG_OBJECT (src,
+              "%s property not set, using the saved setting.", featManualFeature[feature]);
+        }
+      } else {
+        GST_WARNING_OBJECT (src,
+            "%s has been enabled, skipping setting manual %s.", featAutoFeature[feature], featManualFeature[feature]);
+      }
+    } else {
+      GST_WARNING_OBJECT (src,
+          "This camera doesn't support setting manual %s.", featManualFeature[feature]);
+    }
+  }
+
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static _Bool
 gst_pylonsrc_set_exposure_gain_level (GstPylonSrc * src)
 {
   GENAPIC_RESULT res;
 
-  // Configure exposure
-  if (PylonDeviceFeatureIsAvailable (src->deviceHandle, "ExposureTime")) {
-    if (strcmp (src->autoexposure, "off") == 0) {
-      if (src->exposure != 0.0) {
-        GST_DEBUG_OBJECT (src, "Setting exposure to %0.2lf", src->exposure);
-        res =
-            PylonDeviceSetFloatFeature (src->deviceHandle, "ExposureTime",
-            src->exposure);
-        PYLONC_CHECK_ERROR (src, res);
-      } else {
-        GST_DEBUG_OBJECT (src,
-            "Exposure property not set, using the saved exposure setting.");
-      }
-    } else {
-      GST_WARNING_OBJECT (src,
-          "Automatic exposure has been enabled, skipping setting manual exposure times.");
+  for(int i = 0; i < AUTOF_NUM_MANUAL; i++) {
+    if(!gst_pylonsrc_set_manual_feature (src, (GST_PYLONSRC_AUTOFATURE) i)) {
+      goto error;
     }
-  } else {
-    GST_WARNING_OBJECT (src,
-        "This camera doesn't support setting manual exposure.");
   }
-
-  // Configure gain
-  if (PylonDeviceFeatureIsAvailable (src->deviceHandle, "Gain")) {
-    if (strcmp (src->autogain, "off") == 0) {
-      GST_DEBUG_OBJECT (src, "Setting gain to %0.2lf", src->gain);
-      res = PylonDeviceSetFloatFeature (src->deviceHandle, "Gain", src->gain);
-      PYLONC_CHECK_ERROR (src, res);
-    } else {
-      GST_WARNING_OBJECT (src,
-          "Automatic gain has been enabled, skipping setting gain.");
-    }
-  } else {
-    GST_WARNING_OBJECT (src,
-        "This camera doesn't support setting manual gain.");
-  }
-
+ 
   // Configure black level
   if (PylonDeviceFeatureIsAvailable (src->deviceHandle, "BlackLevel")) {
     GST_DEBUG_OBJECT (src, "Setting black level to %0.2lf", src->blacklevel);
@@ -2266,8 +2251,8 @@ gst_pylonsrc_set_pgi (GstPylonSrc * src)
 
   // Basler PGI
   if (FEATURE_SUPPORTED ("DemosaicingMode")) {
-    if (src->demosaicing || src->sharpnessenhancement != 999.0
-        || src->noisereduction != 999.0) {
+    if (src->demosaicing || fnequal(src->sharpnessenhancement, 999.0)
+        || fnequal(src->noisereduction, 999.0)) {
       if (strncmp ("bayer", src->pixel_format, 5) != 0) {
         GST_DEBUG_OBJECT (src, "Enabling Basler's PGI.");
         res =
@@ -2276,7 +2261,7 @@ gst_pylonsrc_set_pgi (GstPylonSrc * src)
         PYLONC_CHECK_ERROR (src, res);
 
         // PGI Modules (Noise reduction and Sharpness enhancement).
-        if (src->noisereduction != 999.0) {
+        if (fnequal(src->noisereduction, 999.0)) {
           if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
                   "NoiseReduction")) {
             GST_DEBUG_OBJECT (src, "Setting PGI noise reduction to %0.2lf",
@@ -2291,7 +2276,7 @@ gst_pylonsrc_set_pgi (GstPylonSrc * src)
         } else {
           GST_DEBUG_OBJECT (src, "Using the stored value for noise reduction.");
         }
-        if (src->sharpnessenhancement != 999.0) {
+        if (fnequal(src->sharpnessenhancement, 999.0)) {
           if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
                   "SharpnessEnhancement")) {
             GST_DEBUG_OBJECT (src,
@@ -2651,9 +2636,11 @@ gst_pylonsrc_finalize (GObject * object)
   g_free(src->pixel_format);
   g_free(src->sensorMode);
   g_free(src->lightsource);
-  g_free(src->autoexposure);
-  g_free(src->autowhitebalance);
-  g_free(src->autogain);
+
+  for(int i = 0; i < AUTOF_NUM_FEATURES; i++) {
+    g_free(src->autoFeature[i]);
+  }
+
   g_free(src->reset);
   g_free(src->autoprofile);
   g_free(src->transformationselector);

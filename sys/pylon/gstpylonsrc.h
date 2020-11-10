@@ -35,8 +35,16 @@ int gst_pylonsrc_ref_pylon_environment();
 int gst_pylonsrc_unref_pylon_environment();
 
 enum {
-  GST_PYLONSRC_NUM_CAPTURE_BUFFERS = 10
+  GST_PYLONSRC_NUM_CAPTURE_BUFFERS = 10,
+  GST_PYLONSRC_NUM_AUTO_FEATURES = 3,
+  GST_PYLONSRC_NUM_MANUAL_FEATURES = 2,
+  GST_PYLONSRC_NUM_LIMITED_FEATURES = 2
 };
+
+typedef struct _GstPylonSrcLimitedFeature {
+  double lower;
+  double upper;
+} GstPylonSrcLimitedFeature;
 
 G_BEGIN_DECLS
 
@@ -73,18 +81,22 @@ struct _GstPylonSrc
   _Bool setFPS, continuousMode, limitBandwidth, demosaicing;
   _Bool center[2];
   _Bool flip[2];
-  double fps, exposure, gain, blacklevel, gamma, sharpnessenhancement, noisereduction, autoexposureupperlimit, autoexposurelowerlimit, gainupperlimit, gainlowerlimit, brightnesstarget;
+  double fps, blacklevel, gamma, sharpnessenhancement, noisereduction, brightnesstarget;
   double balance[3];
   double hue[6];
   double saturation[6];
   double transformation[3][3];
+
+  double manualFeature[GST_PYLONSRC_NUM_MANUAL_FEATURES];
+  GstPylonSrcLimitedFeature limitedFeature[GST_PYLONSRC_NUM_LIMITED_FEATURES];
 
   gint maxBandwidth, testImage;
   gint size[2];
   gint binning[2];
   gint maxSize[2];
   gint offset[2];
-  gchar *pixel_format, *sensorMode, *lightsource, *autoexposure, *autowhitebalance, *autogain, *reset, *autoprofile, *transformationselector, *userid;
+  gchar *pixel_format, *sensorMode, *lightsource, *reset, *autoprofile, *transformationselector, *userid;
+  gchar* autoFeature[GST_PYLONSRC_NUM_AUTO_FEATURES];
 };
 
 struct _GstPylonSrcClass
