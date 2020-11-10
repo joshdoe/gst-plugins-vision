@@ -70,9 +70,20 @@ struct _GstPylonSrc
   guint64 frameNumber; // Fun note: At 120fps it will take around 4 billion years to overflow this variable.
   
   // Plugin parameters
-  _Bool setFPS, continuousMode, limitBandwidth, demosaicing, centerx, centery, flipx, flipy;
-  double fps, exposure, gain, blacklevel, gamma, balancered, balanceblue, balancegreen, redhue, redsaturation, yellowhue, yellowsaturation, greenhue, greensaturation, cyanhue, cyansaturation, bluehue, bluesaturation, magentahue, magentasaturation, sharpnessenhancement, noisereduction, autoexposureupperlimit, autoexposurelowerlimit, gainupperlimit, gainlowerlimit, brightnesstarget, transformation00, transformation01, transformation02, transformation10, transformation11, transformation12, transformation20, transformation21, transformation22;
-  gint height, width, binningh, binningv, maxHeight, maxWidth, maxBandwidth, testImage, offsetx, offsety;
+  _Bool setFPS, continuousMode, limitBandwidth, demosaicing;
+  _Bool center[2];
+  _Bool flip[2];
+  double fps, exposure, gain, blacklevel, gamma, sharpnessenhancement, noisereduction, autoexposureupperlimit, autoexposurelowerlimit, gainupperlimit, gainlowerlimit, brightnesstarget;
+  double balance[3];
+  double hue[6];
+  double saturation[6];
+  double transformation[3][3];
+
+  gint maxBandwidth, testImage;
+  gint size[2];
+  gint binning[2];
+  gint maxSize[2];
+  gint offset[2];
   gchar *pixel_format, *sensorMode, *lightsource, *autoexposure, *autowhitebalance, *autogain, *reset, *autoprofile, *transformationselector, *userid;
 };
 
