@@ -1124,7 +1124,16 @@ unsupported_caps:
   return FALSE;
 }
 
-#define FEATURE_SUPPORTED(feat) PylonDeviceFeatureIsImplemented(src->deviceHandle, feat)
+static inline _Bool
+feature_supported(const GstPylonSrc* src, const char* feature)
+{
+  if(PylonDeviceFeatureIsImplemented(src->deviceHandle, feature)) {
+    return TRUE;
+  } else {
+    GST_WARNING_OBJECT (src, "Camera does not implement feature: %s", feature);
+    return FALSE;
+  }
+}
 
 static gboolean
 gst_pylonsrc_set_trigger (GstPylonSrc * src)
@@ -1358,7 +1367,7 @@ gst_pylonsrc_set_resolution_axis(GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
   static const char* const featMaxSize[2]       = {"WidthMax", "HeightMax"};
 
   // set binning of camera
-  if (FEATURE_SUPPORTED (featBinning[axis])) {
+  if (feature_supported(src, featBinning[axis])) {
     GST_DEBUG_OBJECT (src, "Setting %s to %d", featBinning[axis], src->binning[axis]);
     res =
         PylonDeviceSetIntegerFeature (src->deviceHandle, featBinning[axis],
@@ -1366,7 +1375,7 @@ gst_pylonsrc_set_resolution_axis(GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
     PYLONC_CHECK_ERROR (src, res);
   }
   // Get the camera's resolution
-  if (!FEATURE_SUPPORTED (featSize[axis])) {
+  if (!feature_supported(src, featSize[axis])) {
     GST_ERROR_OBJECT (src,
         "The camera doesn't seem to be reporting it's resolution.");
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
@@ -1379,7 +1388,7 @@ gst_pylonsrc_set_resolution_axis(GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
   PYLONC_CHECK_ERROR (src, res);
 
   // Max Width and Height.
-  if (FEATURE_SUPPORTED (featMaxSize[axis])) {
+  if (feature_supported(src, featMaxSize[axis])) {
     int64_t maxSize;
     res =
         PylonDeviceGetIntegerFeature (src->deviceHandle, featMaxSize[axis], &maxSize);
@@ -1432,16 +1441,9 @@ gst_pylonsrc_set_offset_axis (GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
   static const char* const featCenter[2] = {"CenterX", "CenterY"};
 
   // Set the offset
-  if (!FEATURE_SUPPORTED (featOffset[axis])) {
-    GST_WARNING_OBJECT (src,
-        "The camera doesn't seem to allow setting offsets. Skipping...");
-  } else {
+  if (feature_supported(src, featOffset[axis])) {
     // Check if the user wants to center image first
-    _Bool cameraSupportsCenter = FEATURE_SUPPORTED (featCenter[axis]);
-    if (!cameraSupportsCenter) {
-      GST_WARNING_OBJECT (src,
-          "The camera doesn't seem to allow offset centering. Skipping...");
-    } else {
+    if (feature_supported(src, featCenter[axis])) {
       res =
           PylonDeviceSetBooleanFeature (src->deviceHandle, featCenter[axis],
           src->center[axis]);
@@ -1492,11 +1494,7 @@ gst_pylonsrc_set_reverse_axis (GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
   static const char* const featReverse[2] = {"ReverseX", "ReverseY"};
 
   // Flip the image
-  if (!FEATURE_SUPPORTED (featReverse[axis])) {
-    src->flip[axis] = FALSE;
-    GST_WARNING_OBJECT (src,
-        "Camera doesn't support %s. Skipping...", featReverse[axis]);
-  } else {
+  if (feature_supported(src, featReverse[axis])) {
       res =
           PylonDeviceSetBooleanFeature (src->deviceHandle, featReverse[axis],
           src->flip[axis]);
@@ -1602,7 +1600,7 @@ gst_pylonsrc_set_test_image (GstPylonSrc * src)
   GENAPIC_RESULT res;
 
   // Set whether test image will be shown
-  if (FEATURE_SUPPORTED ("TestImageSelector")) {
+  if (feature_supported(src, "TestImageSelector")) {
     if (src->testImage != 0) {
       char *ImageId;
       GST_DEBUG_OBJECT (src, "Test image mode enabled.");
@@ -1618,8 +1616,6 @@ gst_pylonsrc_set_test_image (GstPylonSrc * src)
           "Off");
       PYLONC_CHECK_ERROR (src, res);
     }
-  } else {
-    GST_WARNING_OBJECT (src, "The camera doesn't support test image mode.");
   }
 
   return TRUE;
@@ -1634,7 +1630,7 @@ gst_pylonsrc_set_readout (GstPylonSrc * src)
   GENAPIC_RESULT res;
 
   // Set sensor readout mode (default: Normal)
-  if (FEATURE_SUPPORTED ("SensorReadoutMode")) {
+    if (feature_supported (src, "SensorReadoutMode")) {
     ascii_strdown (&src->sensorMode, -1);
 
     if (strcmp (src->sensorMode, "normal") == 0) {
@@ -1657,9 +1653,6 @@ gst_pylonsrc_set_readout (GstPylonSrc * src)
           ("Failed to initialise the camera"), ("Invalid parameters provided"));
       goto error;
     }
-  } else {
-    GST_WARNING_OBJECT (src,
-        "Camera does not support changing the readout mode.");
   }
 
   return TRUE;
@@ -1674,27 +1667,17 @@ gst_pylonsrc_set_bandwidth (GstPylonSrc * src)
   GENAPIC_RESULT res;
 
   // Set bandwidth limit mode (default: on)  
-  if (FEATURE_SUPPORTED ("DeviceLinkThroughputLimitMode")) {
-    if (src->limitBandwidth) {
-      GST_DEBUG_OBJECT (src, "Limiting camera's bandwidth.");
+    if (feature_supported (src, "DeviceLinkThroughputLimitMode")) {
+      GST_DEBUG_OBJECT (src, "%s camera's bandwidth.", src->limitBandwidth ? "Limiting" : "Unlocking");
       res =
           PylonDeviceFeatureFromString (src->deviceHandle,
-          "DeviceLinkThroughputLimitMode", "On");
-      PYLONC_CHECK_ERROR (src, res);
-    } else {
-      GST_DEBUG_OBJECT (src, "Unlocking camera's bandwidth.");
-      res =
-          PylonDeviceFeatureFromString (src->deviceHandle,
-          "DeviceLinkThroughputLimitMode", "Off");
+          "DeviceLinkThroughputLimitMode", src->limitBandwidth ? "On" : "Off");
       PYLONC_CHECK_ERROR (src, res);
     }
-  } else {
-    GST_WARNING_OBJECT (src,
-        "Camera does not support disabling the throughput limit.");
-  }
+
 
   // Set bandwidth limit
-  if (FEATURE_SUPPORTED ("DeviceLinkThroughputLimit")) {
+  if (feature_supported (src, "DeviceLinkThroughputLimit")) {
     if (src->maxBandwidth != 0) {
       if (!src->limitBandwidth) {
         GST_DEBUG_OBJECT (src,
@@ -1708,9 +1691,6 @@ gst_pylonsrc_set_bandwidth (GstPylonSrc * src)
           "DeviceLinkThroughputLimit", src->maxBandwidth);
       PYLONC_CHECK_ERROR (src, res);
     }
-  } else {
-    GST_WARNING_OBJECT (src,
-        "Camera does not support changing the throughput limit.");
   }
 
   return TRUE;
@@ -2246,7 +2226,7 @@ gst_pylonsrc_set_pgi (GstPylonSrc * src)
   GENAPIC_RESULT res;
 
   // Basler PGI
-  if (FEATURE_SUPPORTED ("DemosaicingMode")) {
+  if (feature_supported (src, "DemosaicingMode")) {
     if (src->demosaicing || fnequal(src->sharpnessenhancement, 999.0)
         || fnequal(src->noisereduction, 999.0)) {
       if (strncmp ("bayer", src->pixel_format, 5) != 0) {
@@ -2298,8 +2278,6 @@ gst_pylonsrc_set_pgi (GstPylonSrc * src)
       GST_DEBUG_OBJECT (src,
           "Usage of PGI is not permitted with bayer output. Skipping.");
     }
-  } else {
-    GST_DEBUG_OBJECT (src, "Basler's PGI is not supported. Skipping.");
   }
 
   return TRUE;
@@ -2395,8 +2373,8 @@ gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
   }
 
   // Output the bandwidth the camera will actually use [B/s]
-  if (FEATURE_SUPPORTED ("DeviceLinkCurrentThroughput")
-      && FEATURE_SUPPORTED ("DeviceLinkSpeed")) {
+  if (feature_supported (src, "DeviceLinkCurrentThroughput")
+      && feature_supported (src, "DeviceLinkSpeed")) {
     int64_t throughput = 0, linkSpeed = 0;
 
     res =
@@ -2420,12 +2398,10 @@ gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
         "With current settings the camera requires %d/%d B/s (%.1lf out of %.1lf MB/s) of bandwidth.",
         (gint) throughput, (gint) linkSpeed, (double) throughput / 1000000,
         (double) linkSpeed / 1000000);
-  } else {
-    GST_WARNING_OBJECT (src, "Couldn't determine link speed.");
   }
 
   // Output sensor readout time [us]
-  if (FEATURE_SUPPORTED ("SensorReadoutTime")) {
+  if (feature_supported (src, "SensorReadoutTime")) {
     double readoutTime = 0.0;
 
     res =
@@ -2436,12 +2412,10 @@ gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
     GST_DEBUG_OBJECT (src,
         "With these settings it will take approximately %.0lf microseconds to grab each frame.",
         readoutTime);
-  } else {
-    GST_WARNING_OBJECT (src, "Couldn't determine sensor readout time.");
   }
 
   // Output final frame rate [Hz]
-  if (FEATURE_SUPPORTED ("ResultingFrameRate")) {
+  if (feature_supported (src, "ResultingFrameRate")) {
     double frameRate = 0.0;
 
     res =
@@ -2454,8 +2428,6 @@ gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
         "Each frame is %d bytes big (%.1lf MB). That's %.1lfMB/s.",
         src->payloadSize, (double) src->payloadSize / 1000000,
         (src->payloadSize * frameRate) / 1000000);
-  } else {
-    GST_WARNING_OBJECT (src, "Couldn't determine the resulting framerate.");
   }
 
   // Tell the camera to start recording
