@@ -33,6 +33,7 @@ macro(find_gstreamer_library _name _header _abi_version)
                  HINTS ${PKG_GSTREAMER_${_upper_name}_LIBRARY_DIRS}
                        ${PKG_GSTREAMER_${_upper_name}_LIBDIR}
                        ${GSTREAMER_ROOT}/lib
+                       ${GSTREAMER_ROOT}/lib/aarch64-linux-gnu
     )
 
     find_path(GSTREAMER_${_upper_name}_INCLUDE_DIR
