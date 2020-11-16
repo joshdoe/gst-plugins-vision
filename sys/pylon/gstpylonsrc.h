@@ -37,8 +37,15 @@ int gst_pylonsrc_unref_pylon_environment();
 enum {
   GST_PYLONSRC_NUM_CAPTURE_BUFFERS = 10,
   GST_PYLONSRC_NUM_AUTO_FEATURES = 3,
-  GST_PYLONSRC_NUM_LIMITED_FEATURES = 2
+  GST_PYLONSRC_NUM_LIMITED_FEATURES = 2,
+  GST_PYLONSRC_NUM_PROPS = 64
 };
+
+typedef enum _GST_PYLONSRC_PROPERTY_STATE {
+  GST_PYLONSRC_PROPST_DEFAULT,
+  GST_PYLONSRC_PROPST_NOT_SET,
+  GST_PYLONSRC_PROPST_SET
+} GST_PYLONSRC_PROPERTY_STATE;
 
 typedef struct _GstPylonSrcLimitedFeature {
   double lower;
@@ -96,6 +103,7 @@ struct _GstPylonSrc
   gint offset[2];
   gchar *pixel_format, *sensorMode, *lightsource, *reset, *autoprofile, *transformationselector, *userid;
   gchar* autoFeature[GST_PYLONSRC_NUM_AUTO_FEATURES];
+  GST_PYLONSRC_PROPERTY_STATE propFlags[GST_PYLONSRC_NUM_PROPS];
 };
 
 struct _GstPylonSrcClass
