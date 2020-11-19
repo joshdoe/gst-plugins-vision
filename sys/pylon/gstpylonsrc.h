@@ -37,13 +37,13 @@ int gst_pylonsrc_unref_pylon_environment();
 enum {
   GST_PYLONSRC_NUM_CAPTURE_BUFFERS = 10,
   GST_PYLONSRC_NUM_AUTO_FEATURES = 3,
-  GST_PYLONSRC_NUM_MANUAL_FEATURES = 2,
   GST_PYLONSRC_NUM_LIMITED_FEATURES = 2
 };
 
 typedef struct _GstPylonSrcLimitedFeature {
   double lower;
   double upper;
+  double manual;
 } GstPylonSrcLimitedFeature;
 
 G_BEGIN_DECLS
@@ -87,7 +87,6 @@ struct _GstPylonSrc
   double saturation[6];
   double transformation[3][3];
 
-  double manualFeature[GST_PYLONSRC_NUM_MANUAL_FEATURES];
   GstPylonSrcLimitedFeature limitedFeature[GST_PYLONSRC_NUM_LIMITED_FEATURES];
 
   gint maxBandwidth, testImage;

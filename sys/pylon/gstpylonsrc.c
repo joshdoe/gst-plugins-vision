@@ -167,36 +167,26 @@ typedef enum _GST_PYLONSRC_PROP
   PROP_TRANSFORMATION22
 } GST_PYLONSRC_PROP;
 
-typedef enum _GST_PYLONSRC_AUTOFATURE {
+typedef enum _GST_PYLONSRC_AUTOFEATURE {
   AUTOF_GAIN,
   AUTOF_EXPOSURE,
   AUTOF_WHITEBALANCE,
 
   AUTOF_NUM_FEATURES,
 
-  AUTOF_NUM_MANUAL = 2
-} GST_PYLONSRC_AUTOFATURE;
+  AUTOF_NUM_LIMITED = 2
+} GST_PYLONSRC_AUTOFEATURE;
 
 G_STATIC_ASSERT(AUTOF_NUM_FEATURES == GST_PYLONSRC_NUM_AUTO_FEATURES);
-G_STATIC_ASSERT(AUTOF_NUM_MANUAL == GST_PYLONSRC_NUM_MANUAL_FEATURES);
+G_STATIC_ASSERT(AUTOF_NUM_LIMITED == GST_PYLONSRC_NUM_LIMITED_FEATURES);
 
 static const char* const featAutoFeature[AUTOF_NUM_FEATURES] = {"GainAuto", "ExposureAuto", "BalanceWhiteAuto"};
 // Yes,there is no "WhiteBalance" feature, it is only used for logging
 static const char* const featManualFeature[AUTOF_NUM_FEATURES] = {"Gain", "ExposureTime", "WhiteBalance"}; 
+static const char* const featLimitedLower[AUTOF_NUM_LIMITED] = {"AutoGainLowerLimit", "AutoExposureTimeLowerLimit"};
+static const char* const featLimitedUpper[AUTOF_NUM_LIMITED] = {"AutoGainUpperLimit", "AutoExposureTimeUpperLimit"};
 
-typedef enum _GST_PYLONSRC_LIMFEATURE {
-  LIMF_GAIN,
-  LIMF_EXPOSURE,
-
-  LIMF_NUM_FEATURES
-} GST_PYLONSRC_LIMFEATURE;
-
-G_STATIC_ASSERT(LIMF_NUM_FEATURES == GST_PYLONSRC_NUM_LIMITED_FEATURES);
-
-static const char* const featLimitedLower[LIMF_NUM_FEATURES] = {"AutoGainLowerLimit", "AutoExposureTimeLowerLimit"};
-static const char* const featLimitedUpper[LIMF_NUM_FEATURES] = {"AutoGainUpperLimit", "AutoExposureTimeUpperLimit"};
-
-static const double defaultLimitedValue[LIMF_NUM_FEATURES] = {999.0, 9999999.0};
+static const double defaultLimitedValue[AUTOF_NUM_LIMITED] = {999.0, 9999999.0};
 
 typedef enum _GST_PYLONSRC_AXIS {
   AXIS_X,
@@ -627,8 +617,7 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->autoprofile = g_strdup ("default");
   src->transformationselector = g_strdup ("default");
   src->fps = 0.0;
-  src->manualFeature[AUTOF_EXPOSURE] = 0.0;
-  src->manualFeature[AUTOF_GAIN] = 0.0;
+
   src->blacklevel = 0.0;
   src->gamma = 1.0;
 
@@ -644,9 +633,10 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->sharpnessenhancement = 999.0;
   src->noisereduction = 999.0;
 
-  for(int i = 0; i < LIMF_NUM_FEATURES; i++) {
+  for(int i = 0; i < AUTOF_NUM_LIMITED; i++) {
     src->limitedFeature[i].upper = defaultLimitedValue[i];
     src->limitedFeature[i].lower = defaultLimitedValue[i];
+    src->limitedFeature[i].manual = 0.0;
   }
 
   src->brightnesstarget = 999.0;
@@ -812,10 +802,10 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
       src->fps = g_value_get_double (value);
       break;
     case PROP_EXPOSURE:
-      src->manualFeature[AUTOF_EXPOSURE] = g_value_get_double (value);
+      src->limitedFeature[AUTOF_EXPOSURE].manual = g_value_get_double (value);
       break;
     case PROP_GAIN:
-      src->manualFeature[AUTOF_GAIN] = g_value_get_double (value);
+      src->limitedFeature[AUTOF_GAIN].manual = g_value_get_double (value);
       break;
     case PROP_BLACKLEVEL:
       src->blacklevel = g_value_get_double (value);
@@ -827,16 +817,16 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
       src->noisereduction = g_value_get_double (value);
       break;
     case PROP_AUTOEXPOSUREUPPERLIMIT:
-      src->limitedFeature[LIMF_EXPOSURE].upper = g_value_get_double (value);
+      src->limitedFeature[AUTOF_EXPOSURE].upper = g_value_get_double (value);
       break;
     case PROP_AUTOEXPOSURELOWERLIMIT:
-      src->limitedFeature[LIMF_EXPOSURE].lower = g_value_get_double (value);
+      src->limitedFeature[AUTOF_EXPOSURE].lower = g_value_get_double (value);
       break;
     case PROP_GAINLOWERLIMIT:
-      src->limitedFeature[LIMF_GAIN].lower = g_value_get_double (value);
+      src->limitedFeature[AUTOF_GAIN].lower = g_value_get_double (value);
       break;
     case PROP_GAINUPPERLIMIT:
-      src->limitedFeature[LIMF_GAIN].upper = g_value_get_double (value);
+      src->limitedFeature[AUTOF_GAIN].upper = g_value_get_double (value);
       break;
     case PROP_AUTOBRIGHTNESSTARGET:
       src->brightnesstarget = g_value_get_double (value);
@@ -936,6 +926,7 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_AUTOPROFILE:
       g_value_set_string (value, src->autoprofile);
+      break;
     case PROP_TRANSFORMATIONSELECTOR:
       g_value_set_string (value, src->transformationselector);
       break;
@@ -1015,10 +1006,10 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
       g_value_set_double (value, src->fps);
       break;
     case PROP_EXPOSURE:
-      g_value_set_double (value, src->manualFeature[AUTOF_EXPOSURE]);
+      g_value_set_double (value, src->limitedFeature[AUTOF_EXPOSURE].manual);
       break;
     case PROP_GAIN:
-      g_value_set_double (value, src->manualFeature[AUTOF_GAIN]);
+      g_value_set_double (value, src->limitedFeature[AUTOF_GAIN].manual);
       break;
     case PROP_BLACKLEVEL:
       g_value_set_double (value, src->blacklevel);
@@ -1033,19 +1024,19 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
       g_value_set_double (value, src->sharpnessenhancement);
       break;
     case PROP_AUTOEXPOSUREUPPERLIMIT:
-      g_value_set_double (value, src->sharpnessenhancement);
+      g_value_set_double (value, src->limitedFeature[AUTOF_EXPOSURE].upper);
       break;
     case PROP_AUTOEXPOSURELOWERLIMIT:
-      g_value_set_double (value, src->sharpnessenhancement);
+      g_value_set_double (value, src->limitedFeature[AUTOF_EXPOSURE].lower);
       break;
     case PROP_GAINLOWERLIMIT:
-      g_value_set_double (value, src->sharpnessenhancement);
+      g_value_set_double (value, src->limitedFeature[AUTOF_GAIN].lower);
       break;
     case PROP_GAINUPPERLIMIT:
-      g_value_set_double (value, src->sharpnessenhancement);
+      g_value_set_double (value, src->limitedFeature[AUTOF_GAIN].upper);
       break;
     case PROP_AUTOBRIGHTNESSTARGET:
-      g_value_set_double (value, src->sharpnessenhancement);
+      g_value_set_double (value, src->brightnesstarget);
       break;
     case PROP_TRANSFORMATION00:
       g_value_set_double (value, src->transformation[0][0]);
@@ -1827,7 +1818,7 @@ error:
 }
 
 static _Bool
-gst_pylonsrc_set_auto_feature (GstPylonSrc * src, GST_PYLONSRC_AUTOFATURE feature)
+gst_pylonsrc_set_auto_feature (GstPylonSrc * src, GST_PYLONSRC_AUTOFEATURE feature)
 {
   GENAPIC_RESULT res;
 
@@ -1872,42 +1863,47 @@ error:
 }
 
 static _Bool
-gst_pylonsrc_set_limited_feature (GstPylonSrc * src, GST_PYLONSRC_LIMFEATURE feature)
+gst_pylonsrc_set_limited_feature (GstPylonSrc * src, GST_PYLONSRC_AUTOFEATURE feature)
 {
-  GENAPIC_RESULT res;
+  if(feature >= AUTOF_NUM_LIMITED ) {
+    GST_WARNING_OBJECT (src,
+          "Trying to set limits for unsupported autofeature: %d", (int) feature);
+  } else {
+    GENAPIC_RESULT res;
 
-  // Configure automatic exposure and gain settings
-  if (fnequal(src->limitedFeature[feature].upper, defaultLimitedValue[feature])) {
-    if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
-            featLimitedUpper[feature])) {
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle,
-          featLimitedUpper[feature], src->limitedFeature[feature].upper);
-      PYLONC_CHECK_ERROR (src, res);
-    } else {
-      GST_WARNING_OBJECT (src,
-          "This camera doesn't support changing %s.", featLimitedUpper[feature]);
+    // Configure automatic exposure and gain settings
+    if (fnequal(src->limitedFeature[feature].upper, defaultLimitedValue[feature])) {
+      if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
+              featLimitedUpper[feature])) {
+        res =
+            PylonDeviceSetFloatFeature (src->deviceHandle,
+            featLimitedUpper[feature], src->limitedFeature[feature].upper);
+        PYLONC_CHECK_ERROR (src, res);
+      } else {
+        GST_WARNING_OBJECT (src,
+            "This camera doesn't support changing %s.", featLimitedUpper[feature]);
+      }
     }
-  }
-  if (fnequal(src->limitedFeature[feature].lower, defaultLimitedValue[feature])) {
-    if (src->limitedFeature[feature].lower >= src->limitedFeature[feature].upper) {
-      GST_ERROR_OBJECT (src,
-          "Invalid parameter value for %s. It seems like you're trying to set a lower limit (%.2f) that's higher than the upper limit (%.2f).",
-          featLimitedLower[feature], src->limitedFeature[feature].lower, src->limitedFeature[feature].upper);
-      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          ("Failed to initialise the camera"), ("Invalid parameters provided"));
-      goto error;
-    }
+    if (fnequal(src->limitedFeature[feature].lower, defaultLimitedValue[feature])) {
+      if (src->limitedFeature[feature].lower >= src->limitedFeature[feature].upper) {
+        GST_ERROR_OBJECT (src,
+            "Invalid parameter value for %s. It seems like you're trying to set a lower limit (%.2f) that's higher than the upper limit (%.2f).",
+            featLimitedLower[feature], src->limitedFeature[feature].lower, src->limitedFeature[feature].upper);
+        GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+            ("Failed to initialise the camera"), ("Invalid parameters provided"));
+        goto error;
+      }
 
-    if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
-            featLimitedLower[feature])) {
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle,
-          featLimitedLower[feature], src->limitedFeature[feature].lower);
-      PYLONC_CHECK_ERROR (src, res);
-    } else {
-      GST_WARNING_OBJECT (src,
-          "This camera doesn't support changing the %s.", featLimitedLower[feature]);
+      if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
+              featLimitedLower[feature])) {
+        res =
+            PylonDeviceSetFloatFeature (src->deviceHandle,
+            featLimitedLower[feature], src->limitedFeature[feature].lower);
+        PYLONC_CHECK_ERROR (src, res);
+      } else {
+        GST_WARNING_OBJECT (src,
+            "This camera doesn't support changing the %s.", featLimitedLower[feature]);
+      }
     }
   }
 
@@ -1922,13 +1918,13 @@ gst_pylonsrc_set_auto_exp_gain_wb (GstPylonSrc * src)
   GENAPIC_RESULT res;
 
   for(int i = 0; i < AUTOF_NUM_FEATURES; i++) {
-    if(!gst_pylonsrc_set_auto_feature (src, (GST_PYLONSRC_AUTOFATURE) i)) {
+    if(!gst_pylonsrc_set_auto_feature (src, (GST_PYLONSRC_AUTOFEATURE) i)) {
       goto error;
     }
   }
 
-  for(int i = 0; i < LIMF_NUM_FEATURES; i++) {
-    if(!gst_pylonsrc_set_limited_feature (src, (GST_PYLONSRC_LIMFEATURE) i)) {
+  for(int i = 0; i < AUTOF_NUM_LIMITED; i++) {
+    if(!gst_pylonsrc_set_limited_feature (src, (GST_PYLONSRC_AUTOFEATURE) i)) {
       goto error;
     }
   }
@@ -2168,22 +2164,22 @@ error:
 }
 
 static _Bool
-gst_pylonsrc_set_manual_feature (GstPylonSrc * src, GST_PYLONSRC_AUTOFATURE feature)
+gst_pylonsrc_set_manual_feature (GstPylonSrc * src, GST_PYLONSRC_AUTOFEATURE feature)
 {
   GENAPIC_RESULT res;
 
-  if(feature >= AUTOF_NUM_MANUAL ) {
+  if(feature >= AUTOF_NUM_LIMITED ) {
     GST_WARNING_OBJECT (src,
           "Trying to set manual value for unsupported autofeature: %d", (int) feature);
   } else {
     // Configure exposure/gain
     if (PylonDeviceFeatureIsAvailable (src->deviceHandle, featManualFeature[feature])) {
       if (strcmp (src->autoFeature[feature], "off") == 0) {
-        if (src->manualFeature[feature] != 0.0) {
-          GST_DEBUG_OBJECT (src, "Setting %s to %0.2lf", featManualFeature[feature], src->manualFeature[feature]);
+        if (src->limitedFeature[feature].manual != 0.0) {
+          GST_DEBUG_OBJECT (src, "Setting %s to %0.2lf", featManualFeature[feature], src->limitedFeature[feature].manual);
           res =
               PylonDeviceSetFloatFeature (src->deviceHandle, featManualFeature[feature],
-              src->manualFeature[feature]);
+              src->limitedFeature[feature].manual);
           PYLONC_CHECK_ERROR (src, res);
         } else {
           GST_DEBUG_OBJECT (src,
@@ -2210,8 +2206,8 @@ gst_pylonsrc_set_exposure_gain_level (GstPylonSrc * src)
 {
   GENAPIC_RESULT res;
 
-  for(int i = 0; i < AUTOF_NUM_MANUAL; i++) {
-    if(!gst_pylonsrc_set_manual_feature (src, (GST_PYLONSRC_AUTOFATURE) i)) {
+  for(int i = 0; i < AUTOF_NUM_LIMITED; i++) {
+    if(!gst_pylonsrc_set_manual_feature (src, (GST_PYLONSRC_AUTOFEATURE) i)) {
       goto error;
     }
   }
