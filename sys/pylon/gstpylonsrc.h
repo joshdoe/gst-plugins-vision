@@ -38,7 +38,7 @@ enum {
   GST_PYLONSRC_NUM_CAPTURE_BUFFERS = 10,
   GST_PYLONSRC_NUM_AUTO_FEATURES = 3,
   GST_PYLONSRC_NUM_LIMITED_FEATURES = 2,
-  GST_PYLONSRC_NUM_PROPS = 64
+  GST_PYLONSRC_NUM_PROPS = 66
 };
 
 typedef enum _GST_PYLONSRC_PROPERTY_STATE {
@@ -88,6 +88,7 @@ struct _GstPylonSrc
   _Bool setFPS, continuousMode, limitBandwidth, demosaicing;
   _Bool center[2];
   _Bool flip[2];
+  _Bool ignoreDefaults;
   double fps, blacklevel, gamma, sharpnessenhancement, noisereduction, brightnesstarget;
   double balance[3];
   double hue[6];
@@ -103,6 +104,7 @@ struct _GstPylonSrc
   gint offset[2];
   gchar *pixel_format, *sensorMode, *lightsource, *reset, *autoprofile, *transformationselector, *userid;
   gchar* autoFeature[GST_PYLONSRC_NUM_AUTO_FEATURES];
+  gchar* configFile;
   GST_PYLONSRC_PROPERTY_STATE propFlags[GST_PYLONSRC_NUM_PROPS];
 };
 
