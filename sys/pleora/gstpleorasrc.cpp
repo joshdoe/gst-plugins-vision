@@ -1414,7 +1414,24 @@ gst_pleorasrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 
   if (GST_VIDEO_INFO_FORMAT (&vinfo) != GST_VIDEO_FORMAT_UNKNOWN) {
     src->height = GST_VIDEO_INFO_HEIGHT (&vinfo);
-    src->gst_stride = GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0);
+
+    if (GST_VIDEO_INFO_FORMAT (&vinfo) != GST_VIDEO_FORMAT_ENCODED) {
+      src->gst_stride = GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0);
+    } else {
+      GST_DEBUG (gst_structure_get_name (s));
+      if (g_str_equal (gst_structure_get_name (s), "video/x-bayer")) {
+        const gchar *format = gst_structure_get_string (s, "format");
+        gint width = GST_VIDEO_INFO_WIDTH (&vinfo);
+
+        if (g_str_has_suffix (format, "16")) {
+          src->gst_stride = GST_ROUND_UP_4 (width * 2);
+        } else {
+          src->gst_stride = GST_ROUND_UP_4 (width);
+        }
+      } else {
+        goto unsupported_caps;
+      }
+    }
   } else {
     goto unsupported_caps;
   }
