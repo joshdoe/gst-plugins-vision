@@ -130,6 +130,9 @@ gst_kayasrc_class_init (GstKayaSrcClass * klass)
   GstPushSrcClass *gstpushsrc_class = GST_PUSH_SRC_CLASS (klass);
   int i;
 
+  GST_DEBUG_CATEGORY_INIT(GST_CAT_DEFAULT, "kayasrc", 0,
+      "Kaya CoaXPress video source");
+
   gobject_class->set_property = gst_kayasrc_set_property;
   gobject_class->get_property = gst_kayasrc_get_property;
   gobject_class->dispose = gst_kayasrc_dispose;
@@ -893,22 +896,3 @@ gst_kayasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 error:
   return GST_FLOW_ERROR;
 }
-
-
-static gboolean
-plugin_init (GstPlugin * plugin)
-{
-  GST_DEBUG_CATEGORY_INIT (gst_kayasrc_debug, "kayasrc", 0,
-      "debug category for kayasrc element");
-  gst_element_register (plugin, "kayasrc", GST_RANK_NONE,
-      gst_kayasrc_get_type ());
-
-  return TRUE;
-}
-
-GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
-    GST_VERSION_MINOR,
-    kaya,
-    "KAYA frame grabber source",
-    plugin_init, GST_PACKAGE_VERSION, GST_PACKAGE_LICENSE, GST_PACKAGE_NAME,
-    GST_PACKAGE_ORIGIN);

@@ -1,8 +1,11 @@
 set (SOURCES
+  gstkayaplugin.c
+  gstkayasink.c
   gstkayasrc.c
   )
     
 set (HEADERS
+  gstkayasink.h
   gstkayasrc.h)
 
 include_directories (AFTER
