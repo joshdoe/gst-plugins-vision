@@ -148,12 +148,12 @@ gst_kayasink_class_init (GstKayaSinkClass * klass)
   g_object_class_install_property (gobject_class, PROP_DEVICE_INDEX,
       g_param_spec_int ("device-index", "Device index",
           "Device index number, zero-based",
-          0, G_MAXUINT, DEFAULT_PROP_DEVICE_INDEX,
+          0, G_MAXINT, DEFAULT_PROP_DEVICE_INDEX,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               GST_PARAM_MUTABLE_READY)));
   g_object_class_install_property (gobject_class, PROP_NUM_RENDER_BUFFERS,
       g_param_spec_int ("num-render-buffers", "Number of render buffers",
-          "Number of render buffers", 1, G_MAXUINT,
+          "Number of render buffers", 1, G_MAXINT,
           DEFAULT_PROP_NUM_RENDER_BUFFERS,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_TIMEOUT,
