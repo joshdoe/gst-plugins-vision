@@ -1267,6 +1267,17 @@ feature_available(const GstPylonSrc* src, const char* feature)
   }
 }
 
+static inline _Bool
+feature_readable(const GstPylonSrc* src, const char* feature)
+{
+  if(PylonDeviceFeatureIsReadable(src->deviceHandle, feature)) {
+    return TRUE;
+  } else {
+    GST_WARNING_OBJECT (src, "Feature is not readable: %s", feature);
+    return FALSE;
+  }
+}
+
 static gboolean
 gst_pylonsrc_set_trigger (GstPylonSrc * src)
 {
@@ -2613,23 +2624,25 @@ error:
 static gchar*
 read_string_feature(GstPylonSrc* src, const char* feature)
 {
-  gchar* result  = NULL;
-  size_t bufLen = 0;
-  
-  for(int i = 0; i < 2; i++) {
-    // g_malloc(0) == NULL
-    result = g_malloc(bufLen);
-    // get bufLen at first iteration
-    // read value at second iteration
-    GENAPIC_RESULT res =
-    PylonDeviceFeatureToString(src->deviceHandle, feature, result, &bufLen);
-    PYLONC_CHECK_ERROR (src, res);
+  if(feature_readable(src, feature)) {
+    gchar* result  = NULL;
+    size_t bufLen = 0;
+    
+    for(int i = 0; i < 2; i++) {
+      // g_malloc(0) == NULL
+      result = g_malloc(bufLen);
+      // get bufLen at first iteration
+      // read value at second iteration
+      GENAPIC_RESULT res =
+      PylonDeviceFeatureToString(src->deviceHandle, feature, result, &bufLen);
+      PYLONC_CHECK_ERROR (src, res);
+    }
+
+    return result;
+
+  error:
+    g_free(result);
   }
-
-  return result;
-
-error:
-  g_free(result);
   return NULL;
 }
 
