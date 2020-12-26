@@ -44,27 +44,29 @@
 
 static int plugin_counter = 0;
 
-int gst_pylonsrc_ref_pylon_environment()
+int
+gst_pylonsrc_ref_pylon_environment ()
 {
-  if(plugin_counter == 0) {
-    GST_DEBUG("pylonsrc: Initializing Pylon environment");
-    if(PylonInitialize() != GENAPI_E_OK) {
+  if (plugin_counter == 0) {
+    GST_DEBUG ("pylonsrc: Initializing Pylon environment");
+    if (PylonInitialize () != GENAPI_E_OK) {
       return -1;
     }
   }
   return ++plugin_counter;
 }
 
-int gst_pylonsrc_unref_pylon_environment()
+int
+gst_pylonsrc_unref_pylon_environment ()
 {
-  if(plugin_counter == 1) {
-    GST_DEBUG("pylonsrc: Terminating Pylon environment");
-    if(PylonTerminate() != GENAPI_E_OK) {
+  if (plugin_counter == 1) {
+    GST_DEBUG ("pylonsrc: Terminating Pylon environment");
+    if (PylonTerminate () != GENAPI_E_OK) {
       return -1;
     }
   }
-  
-  if(plugin_counter > 0) {
+
+  if (plugin_counter > 0) {
     plugin_counter--;
   }
 
@@ -168,13 +170,14 @@ typedef enum _GST_PYLONSRC_PROP
   PROP_CONFIGFILE,
   PROP_IGNOREDEFAULTS,
 
-  PROP_NUM_PROPERTIES // Yes, there is PROP_0 that represent nothing, so actually there are (PROP_NUMPROPS - 1) properties.
-                // But this way you can intuitively access propFlags[] by index
+  PROP_NUM_PROPERTIES           // Yes, there is PROP_0 that represent nothing, so actually there are (PROP_NUMPROPS - 1) properties.
+      // But this way you can intuitively access propFlags[] by index
 } GST_PYLONSRC_PROP;
 
-G_STATIC_ASSERT(PROP_NUM_PROPERTIES == GST_PYLONSRC_NUM_PROPS);
+G_STATIC_ASSERT (PROP_NUM_PROPERTIES == GST_PYLONSRC_NUM_PROPS);
 
-typedef enum _GST_PYLONSRC_AUTOFEATURE {
+typedef enum _GST_PYLONSRC_AUTOFEATURE
+{
   AUTOF_GAIN,
   AUTOF_EXPOSURE,
   AUTOF_WHITEBALANCE,
@@ -184,43 +187,55 @@ typedef enum _GST_PYLONSRC_AUTOFEATURE {
   AUTOF_NUM_LIMITED = 2
 } GST_PYLONSRC_AUTOFEATURE;
 
-G_STATIC_ASSERT(AUTOF_NUM_FEATURES == GST_PYLONSRC_NUM_AUTO_FEATURES);
-G_STATIC_ASSERT(AUTOF_NUM_LIMITED == GST_PYLONSRC_NUM_LIMITED_FEATURES);
+G_STATIC_ASSERT (AUTOF_NUM_FEATURES == GST_PYLONSRC_NUM_AUTO_FEATURES);
+G_STATIC_ASSERT (AUTOF_NUM_LIMITED == GST_PYLONSRC_NUM_LIMITED_FEATURES);
 
-static const char* const featAutoFeature[AUTOF_NUM_FEATURES] = {"GainAuto", "ExposureAuto", "BalanceWhiteAuto"};
-static const GST_PYLONSRC_PROP propAutoFeature[AUTOF_NUM_FEATURES] = {PROP_GAIN, PROP_EXPOSURE, PROP_AUTOWHITEBALANCE};
+static const char *const featAutoFeature[AUTOF_NUM_FEATURES] =
+    { "GainAuto", "ExposureAuto", "BalanceWhiteAuto" };
+static const GST_PYLONSRC_PROP propAutoFeature[AUTOF_NUM_FEATURES] =
+    { PROP_GAIN, PROP_EXPOSURE, PROP_AUTOWHITEBALANCE };
 // Yes,there is no "WhiteBalance" feature, it is only used for logging
-static const char* const featManualFeature[AUTOF_NUM_FEATURES] = {"Gain", "ExposureTime", "WhiteBalance"}; 
-static const char* const featLimitedLower[AUTOF_NUM_LIMITED] = {"AutoGainLowerLimit", "AutoExposureTimeLowerLimit"};
-static const char* const featLimitedUpper[AUTOF_NUM_LIMITED] = {"AutoGainUpperLimit", "AutoExposureTimeUpperLimit"};
-static const GST_PYLONSRC_PROP propManualFeature[AUTOF_NUM_LIMITED] = {PROP_GAIN, PROP_EXPOSURE};
-static const GST_PYLONSRC_PROP propLimitedLower[AUTOF_NUM_LIMITED] = {PROP_GAINLOWERLIMIT, PROP_AUTOEXPOSURELOWERLIMIT};
-static const GST_PYLONSRC_PROP propLimitedUpper[AUTOF_NUM_LIMITED] = {PROP_GAINUPPERLIMIT, PROP_AUTOEXPOSUREUPPERLIMIT};
+static const char *const featManualFeature[AUTOF_NUM_FEATURES] =
+    { "Gain", "ExposureTime", "WhiteBalance" };
+static const char *const featLimitedLower[AUTOF_NUM_LIMITED] =
+    { "AutoGainLowerLimit", "AutoExposureTimeLowerLimit" };
+static const char *const featLimitedUpper[AUTOF_NUM_LIMITED] =
+    { "AutoGainUpperLimit", "AutoExposureTimeUpperLimit" };
+static const GST_PYLONSRC_PROP propManualFeature[AUTOF_NUM_LIMITED] =
+    { PROP_GAIN, PROP_EXPOSURE };
+static const GST_PYLONSRC_PROP propLimitedLower[AUTOF_NUM_LIMITED] =
+    { PROP_GAINLOWERLIMIT, PROP_AUTOEXPOSURELOWERLIMIT };
+static const GST_PYLONSRC_PROP propLimitedUpper[AUTOF_NUM_LIMITED] =
+    { PROP_GAINUPPERLIMIT, PROP_AUTOEXPOSUREUPPERLIMIT };
 
-static const double defaultLimitedValue[AUTOF_NUM_LIMITED] = {999.0, 9999999.0};
+static const double defaultLimitedValue[AUTOF_NUM_LIMITED] =
+    { 999.0, 9999999.0 };
 
-typedef enum _GST_PYLONSRC_AXIS {
+typedef enum _GST_PYLONSRC_AXIS
+{
   AXIS_X,
   AXIS_Y
 } GST_PYLONSRC_AXIS;
 
-static const GST_PYLONSRC_AXIS otherAxis[2] = {AXIS_Y, AXIS_X};
+static const GST_PYLONSRC_AXIS otherAxis[2] = { AXIS_Y, AXIS_X };
 
-static const char* const featOffset[2] = {"OffsetX", "OffsetY"};
-static const char* const featCenter[2] = {"CenterX", "CenterY"};
-static const GST_PYLONSRC_PROP propOffset[2] = {PROP_OFFSETX, PROP_OFFSETY};
-static const GST_PYLONSRC_PROP propCenter[2] = {PROP_CENTERX, PROP_CENTERY};
+static const char *const featOffset[2] = { "OffsetX", "OffsetY" };
+static const char *const featCenter[2] = { "CenterX", "CenterY" };
+static const GST_PYLONSRC_PROP propOffset[2] = { PROP_OFFSETX, PROP_OFFSETY };
+static const GST_PYLONSRC_PROP propCenter[2] = { PROP_CENTERX, PROP_CENTERY };
 
-static const char* const featReverse[2] = {"ReverseX", "ReverseY"};
-static const GST_PYLONSRC_PROP propReverse[2] = {PROP_FLIPX, PROP_FLIPY};
+static const char *const featReverse[2] = { "ReverseX", "ReverseY" };
+static const GST_PYLONSRC_PROP propReverse[2] = { PROP_FLIPX, PROP_FLIPY };
 
-static const GST_PYLONSRC_PROP propBinning[2] = {PROP_BINNINGH, PROP_BINNINGV};
-static const GST_PYLONSRC_PROP propSize[2]    = {PROP_WIDTH, PROP_HEIGHT};  
-static const char* const featBinning[2]       = {"BinningHorizontal", "BinningVertical"};
-static const char* const featSize[2]          = {"Width", "Height"};
-static const char* const featMaxSize[2]       = {"WidthMax", "HeightMax"};
+static const GST_PYLONSRC_PROP propBinning[2] =
+    { PROP_BINNINGH, PROP_BINNINGV };
+static const GST_PYLONSRC_PROP propSize[2] = { PROP_WIDTH, PROP_HEIGHT };
+static const char *const featBinning[2] =
+    { "BinningHorizontal", "BinningVertical" };
+static const char *const featSize[2] = { "Width", "Height" };
+static const char *const featMaxSize[2] = { "WidthMax", "HeightMax" };
 
-static const char* const featGain[3][3] = {
+static const char *const featGain[3][3] = {
   {"Gain00", "Gain01", "Gain02"},
   {"Gain10", "Gain11", "Gain12"},
   {"Gain20", "Gain21", "Gain22"}
@@ -232,7 +247,8 @@ static const GST_PYLONSRC_PROP propGain[3][3] = {
   {PROP_TRANSFORMATION20, PROP_TRANSFORMATION21, PROP_TRANSFORMATION22}
 };
 
-typedef enum _GST_PYLONSRC_COLOUR {
+typedef enum _GST_PYLONSRC_COLOUR
+{
   COLOUR_RED,
   COLOUR_GREEN,
   COLOUR_BLUE,
@@ -241,24 +257,33 @@ typedef enum _GST_PYLONSRC_COLOUR {
   COLOUR_YELLOW
 } GST_PYLONSRC_COLOUR;
 
-static const char* const featColour[6] = {"Red", "Green", "Blue", "Cyan", "Magenta", "Yellow"};
-static const GST_PYLONSRC_PROP propColourBalance[3] = {PROP_BALANCERED, PROP_BALANCEGREEN, PROP_BALANCEBLUE};
-static const GST_PYLONSRC_PROP propColourHue[6] = {PROP_COLORREDHUE, PROP_COLORGREENHUE, PROP_COLORBLUEHUE,
-                                                    PROP_COLORCYANHUE, PROP_COLORMAGENTAHUE, PROP_COLORYELLOWHUE};
-static const GST_PYLONSRC_PROP propColourSaturation[6]= {PROP_COLORREDSATURATION, PROP_COLORGREENSATURATION, PROP_COLORBLUESATURATION,
-                                                    PROP_COLORCYANSATURATION, PROP_COLORMAGENTASATURATION, PROP_COLORYELLOWSATURATION};
+static const char *const featColour[6] =
+    { "Red", "Green", "Blue", "Cyan", "Magenta", "Yellow" };
+static const GST_PYLONSRC_PROP propColourBalance[3] =
+    { PROP_BALANCERED, PROP_BALANCEGREEN, PROP_BALANCEBLUE };
+static const GST_PYLONSRC_PROP propColourHue[6] =
+    { PROP_COLORREDHUE, PROP_COLORGREENHUE, PROP_COLORBLUEHUE,
+  PROP_COLORCYANHUE, PROP_COLORMAGENTAHUE, PROP_COLORYELLOWHUE
+};
 
-static inline const char*
-boolalpha(_Bool arg)
+static const GST_PYLONSRC_PROP propColourSaturation[6] =
+    { PROP_COLORREDSATURATION, PROP_COLORGREENSATURATION,
+  PROP_COLORBLUESATURATION,
+  PROP_COLORCYANSATURATION, PROP_COLORMAGENTASATURATION,
+  PROP_COLORYELLOWSATURATION
+};
+
+static inline const char *
+boolalpha (_Bool arg)
 {
   return arg ? "True" : "False";
 }
 
 static inline void
-ascii_strdown(gchar* * str, gssize len)
+ascii_strdown (gchar * *str, gssize len)
 {
-  gchar* temp = g_ascii_strdown(*str, len);
-  g_free(*str);
+  gchar *temp = g_ascii_strdown (*str, len);
+  g_free (*str);
   *str = temp;
 }
 
@@ -607,12 +632,12 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
   g_object_class_install_property (gobject_class, PROP_CONFIGFILE,
       g_param_spec_string ("config-file", "Pylon Feature Stream (.pfs) file",
           "Path to PFS file containing configurations for all features. PFS file can be obtained with PylonViewer or PylonFeaturePersistenceSave() function. Configuration file is only applied on plugin startup prior to any other properties. Using configuration file implies setting \"ignore-defaults\"",
-          "",
-          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          "", (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_IGNOREDEFAULTS,
-      g_param_spec_boolean ("ignore-defaults", "Ignore default values to other properties",
-          "(true/false) Apply features only if those are set explicitly. Can only be applied on plugin startup. This property is implicitly set to true if config-file is provided. Setting this to false while config-file is set will lead to strange result and is not recommended", FALSE,
-          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+      g_param_spec_boolean ("ignore-defaults",
+          "Ignore default values to other properties",
+          "(true/false) Apply features only if those are set explicitly. Can only be applied on plugin startup. This property is implicitly set to true if config-file is provided. Setting this to false while config-file is set will lead to strange result and is not recommended",
+          FALSE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 }
 
 static gboolean
@@ -637,7 +662,7 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->setFPS = FALSE;
   src->demosaicing = FALSE;
 
-  for(int i = 0; i < 2; i++) {
+  for (int i = 0; i < 2; i++) {
     src->binning[i] = 1;
     src->center[i] = FALSE;
     src->flip[i] = FALSE;
@@ -652,7 +677,7 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->sensorMode = g_strdup ("normal");
   src->lightsource = g_strdup ("5000k");
 
-  for(int i = 0; i < AUTOF_NUM_FEATURES; i++) {
+  for (int i = 0; i < AUTOF_NUM_FEATURES; i++) {
     src->autoFeature[i] = g_strdup ("off");
   }
 
@@ -666,27 +691,27 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->blacklevel = 0.0;
   src->gamma = 1.0;
 
-  for(int i = 0; i < 3; i++) {
+  for (int i = 0; i < 3; i++) {
     src->balance[i] = 999.0;
   }
 
-  for(int i = 0; i < 6; i++) {
+  for (int i = 0; i < 6; i++) {
     src->hue[i] = 999.0;
     src->saturation[i] = 999.0;
   }
- 
+
   src->sharpnessenhancement = 999.0;
   src->noisereduction = 999.0;
 
-  for(int i = 0; i < AUTOF_NUM_LIMITED; i++) {
+  for (int i = 0; i < AUTOF_NUM_LIMITED; i++) {
     src->limitedFeature[i].upper = defaultLimitedValue[i];
     src->limitedFeature[i].lower = defaultLimitedValue[i];
     src->limitedFeature[i].manual = 0.0;
   }
 
   src->brightnesstarget = 999.0;
-  for(int j = 0; j < 3; j++) {
-    for(int i = 0; i < 3; i++) {
+  for (int j = 0; j < 3; j++) {
+    for (int i = 0; i < 3; i++) {
       src->transformation[j][i] = 999.0;
     }
   }
@@ -694,7 +719,7 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->configFile = g_strdup ("");
   src->ignoreDefaults = FALSE;
 
-  for(int i = 0; i < PROP_NUM_PROPERTIES; i++) {
+  for (int i = 0; i < PROP_NUM_PROPERTIES; i++) {
     src->propFlags[i] = GST_PYLONSRC_PROPST_DEFAULT;
   }
 
@@ -705,42 +730,47 @@ gst_pylonsrc_init (GstPylonSrc * src)
 }
 
 // check if property is set explicitly
-static inline _Bool 
-is_prop_set(const GstPylonSrc* src, GST_PYLONSRC_PROP prop)
+static inline _Bool
+is_prop_set (const GstPylonSrc * src, GST_PYLONSRC_PROP prop)
 {
   return src->propFlags[prop] == GST_PYLONSRC_PROPST_SET;
 }
+
 // check if property is already processed (value is loaded to device)
-static inline _Bool 
-is_prop_not_set(const GstPylonSrc* src, GST_PYLONSRC_PROP prop)
+static inline _Bool
+is_prop_not_set (const GstPylonSrc * src, GST_PYLONSRC_PROP prop)
 {
   return src->propFlags[prop] == GST_PYLONSRC_PROPST_NOT_SET;
 }
+
 // check if property is defaulted
-static inline _Bool 
-is_prop_default(const GstPylonSrc* src, GST_PYLONSRC_PROP prop)
+static inline _Bool
+is_prop_default (const GstPylonSrc * src, GST_PYLONSRC_PROP prop)
 {
   return src->propFlags[prop] == GST_PYLONSRC_PROPST_DEFAULT;
 }
+
 // check if property is set implicitly, i.e. set explicitly or defaulted
-static inline _Bool 
-is_prop_implicit(const GstPylonSrc* src, GST_PYLONSRC_PROP prop)
+static inline _Bool
+is_prop_implicit (const GstPylonSrc * src, GST_PYLONSRC_PROP prop)
 {
   return src->propFlags[prop] != GST_PYLONSRC_PROPST_NOT_SET;
 }
+
 // mark property as processed
-static inline void 
-reset_prop(GstPylonSrc* src, GST_PYLONSRC_PROP prop)
+static inline void
+reset_prop (GstPylonSrc * src, GST_PYLONSRC_PROP prop)
 {
   src->propFlags[prop] = GST_PYLONSRC_PROPST_NOT_SET;
 }
 
 // Use in gst_pylonsrc_set_property to set related boolean property
-static inline void 
-set_prop_implicitly(GObject * object, GST_PYLONSRC_PROP prop, GParamSpec * pspec)
+static inline void
+set_prop_implicitly (GObject * object, GST_PYLONSRC_PROP prop,
+    GParamSpec * pspec)
 {
   GstPylonSrc *src = GST_PYLONSRC (object);
-  if(!is_prop_set(src, prop)) {
+  if (!is_prop_set (src, prop)) {
     GValue val = G_VALUE_INIT;
     g_value_init (&val, G_TYPE_BOOLEAN);
     g_value_set_boolean (&val, TRUE);
@@ -784,19 +814,19 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
       src->testImage = g_value_get_int (value);
       break;
     case PROP_SENSORREADOUTMODE:
-      g_free(src->sensorMode);
+      g_free (src->sensorMode);
       src->sensorMode = g_value_dup_string (value);
       break;
     case PROP_LIGHTSOURCE:
-      g_free(src->lightsource);
+      g_free (src->lightsource);
       src->lightsource = g_value_dup_string (value);
       break;
     case PROP_AUTOEXPOSURE:
-      g_free(src->autoFeature[AUTOF_EXPOSURE]);
+      g_free (src->autoFeature[AUTOF_EXPOSURE]);
       src->autoFeature[AUTOF_EXPOSURE] = g_value_dup_string (value);
       break;
     case PROP_AUTOWHITEBALANCE:
-      g_free(src->autoFeature[AUTOF_WHITEBALANCE]);
+      g_free (src->autoFeature[AUTOF_WHITEBALANCE]);
       src->autoFeature[AUTOF_WHITEBALANCE] = g_value_dup_string (value);
       break;
     case PROP_PIXEL_FORMAT:
@@ -804,23 +834,23 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
       src->pixel_format = g_value_dup_string (value);
       break;
     case PROP_AUTOGAIN:
-      g_free(src->autoFeature[AUTOF_GAIN]);
+      g_free (src->autoFeature[AUTOF_GAIN]);
       src->autoFeature[AUTOF_GAIN] = g_value_dup_string (value);
       break;
     case PROP_RESET:
-      g_free(src->reset);
+      g_free (src->reset);
       src->reset = g_value_dup_string (value);
       break;
     case PROP_AUTOPROFILE:
-      g_free(src->autoprofile);
+      g_free (src->autoprofile);
       src->autoprofile = g_value_dup_string (value);
       break;
     case PROP_TRANSFORMATIONSELECTOR:
-      g_free(src->transformationselector);
+      g_free (src->transformationselector);
       src->transformationselector = g_value_dup_string (value);
       break;
     case PROP_USERID:
-      g_free(src->userid);
+      g_free (src->userid);
       src->userid = g_value_dup_string (value);
       break;
     case PROP_BALANCERED:
@@ -900,7 +930,7 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
     case PROP_FPS:
       src->fps = g_value_get_double (value);
       // Setting fps implies setting AcquisitionFrameRateEnable if the latter is not set to false explicitly
-      set_prop_implicitly(object, PROP_ACQUISITIONFRAMERATEENABLE, pspec);
+      set_prop_implicitly (object, PROP_ACQUISITIONFRAMERATEENABLE, pspec);
       break;
     case PROP_EXPOSURE:
       src->limitedFeature[AUTOF_EXPOSURE].manual = g_value_get_double (value);
@@ -917,7 +947,7 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
     case PROP_DEMOSAICINGNOISEREDUCTION:
       src->noisereduction = g_value_get_double (value);
       // Setting NoiseReduction implies setting Basler Demosaising if the latter is not set to Simple explicitly
-      set_prop_implicitly(object, PROP_BASLERDEMOSAICING, pspec);
+      set_prop_implicitly (object, PROP_BASLERDEMOSAICING, pspec);
       break;
     case PROP_AUTOEXPOSUREUPPERLIMIT:
       src->limitedFeature[AUTOF_EXPOSURE].upper = g_value_get_double (value);
@@ -937,7 +967,7 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
     case PROP_DEMOSAICINGSHARPNESSENHANCEMENT:
       src->sharpnessenhancement = g_value_get_double (value);
       // Setting SharpnessEnhansement implies setting Basler Demosaising if the latter is not set to Simple explicitly
-      set_prop_implicitly(object, PROP_BASLERDEMOSAICING, pspec);
+      set_prop_implicitly (object, PROP_BASLERDEMOSAICING, pspec);
       break;
     case PROP_TRANSFORMATION00:
       src->transformation[0][0] = g_value_get_double (value);
@@ -967,13 +997,13 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
       src->transformation[2][2] = g_value_get_double (value);
       break;
     case PROP_CONFIGFILE:
-      g_free(src->configFile);
+      g_free (src->configFile);
       src->configFile = g_value_dup_string (value);
       // Setting config-file implies setting ignore-defaults if the latter is not set to false explicitly
-      set_prop_implicitly(object, PROP_IGNOREDEFAULTS, pspec);
+      set_prop_implicitly (object, PROP_IGNOREDEFAULTS, pspec);
       break;
     case PROP_IGNOREDEFAULTS:
-      src->ignoreDefaults = g_value_get_boolean(value);
+      src->ignoreDefaults = g_value_get_boolean (value);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -1184,7 +1214,7 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
       g_value_set_string (value, src->configFile);
       break;
     case PROP_IGNOREDEFAULTS:
-      g_value_set_boolean(value, src->ignoreDefaults);
+      g_value_set_boolean (value, src->ignoreDefaults);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -1198,12 +1228,13 @@ gst_pylonsrc_get_caps (GstBaseSrc * bsrc, GstCaps * filter)
 {
   GstPylonSrc *src = GST_PYLONSRC (bsrc);
 
-  GST_DEBUG_OBJECT (src, "Received a request for caps. Filter:\n%" GST_PTR_FORMAT, filter);
+  GST_DEBUG_OBJECT (src,
+      "Received a request for caps. Filter:\n%" GST_PTR_FORMAT, filter);
   if (!src->deviceConnected) {
     GST_DEBUG_OBJECT (src, "Could not send caps - no camera connected.");
     return gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD (bsrc));
   } else {
-    GstCaps* result = gst_caps_copy(src->caps);
+    GstCaps *result = gst_caps_copy (src->caps);
     GST_DEBUG_OBJECT (src, "Return caps:\n%" GST_PTR_FORMAT, result);
     return result;
   }
@@ -1246,9 +1277,9 @@ unsupported_caps:
 }
 
 static inline _Bool
-feature_supported(const GstPylonSrc* src, const char* feature)
+feature_supported (const GstPylonSrc * src, const char *feature)
 {
-  if(PylonDeviceFeatureIsImplemented(src->deviceHandle, feature)) {
+  if (PylonDeviceFeatureIsImplemented (src->deviceHandle, feature)) {
     return TRUE;
   } else {
     GST_WARNING_OBJECT (src, "Camera does not implement feature: %s", feature);
@@ -1257,9 +1288,9 @@ feature_supported(const GstPylonSrc* src, const char* feature)
 }
 
 static inline _Bool
-feature_available(const GstPylonSrc* src, const char* feature)
+feature_available (const GstPylonSrc * src, const char *feature)
 {
-  if(PylonDeviceFeatureIsAvailable(src->deviceHandle, feature)) {
+  if (PylonDeviceFeatureIsAvailable (src->deviceHandle, feature)) {
     return TRUE;
   } else {
     GST_WARNING_OBJECT (src, "Feature is not available: %s", feature);
@@ -1268,9 +1299,9 @@ feature_available(const GstPylonSrc* src, const char* feature)
 }
 
 static inline _Bool
-feature_readable(const GstPylonSrc* src, const char* feature)
+feature_readable (const GstPylonSrc * src, const char *feature)
 {
-  if(PylonDeviceFeatureIsReadable(src->deviceHandle, feature)) {
+  if (PylonDeviceFeatureIsReadable (src->deviceHandle, feature)) {
     return TRUE;
   } else {
     GST_WARNING_OBJECT (src, "Feature is not readable: %s", feature);
@@ -1283,90 +1314,90 @@ gst_pylonsrc_set_trigger (GstPylonSrc * src)
 {
   GENAPIC_RESULT res;
 
-  if(is_prop_implicit(src, PROP_CONTINUOUSMODE)) {
-  // Set camera trigger mode
-  const char *triggerSelectorValue = "FrameStart";
-  _Bool isAvailAcquisitionStart =
-      PylonDeviceFeatureIsAvailable (src->deviceHandle,
-      "EnumEntry_TriggerSelector_AcquisitionStart");
-  _Bool isAvailFrameStart = PylonDeviceFeatureIsAvailable (src->deviceHandle,
-      "EnumEntry_TriggerSelector_FrameStart");
-  const char *triggerMode = (src->continuousMode) ? "Off" : "On";
+  if (is_prop_implicit (src, PROP_CONTINUOUSMODE)) {
+    // Set camera trigger mode
+    const char *triggerSelectorValue = "FrameStart";
+    _Bool isAvailAcquisitionStart =
+        PylonDeviceFeatureIsAvailable (src->deviceHandle,
+        "EnumEntry_TriggerSelector_AcquisitionStart");
+    _Bool isAvailFrameStart = PylonDeviceFeatureIsAvailable (src->deviceHandle,
+        "EnumEntry_TriggerSelector_FrameStart");
+    const char *triggerMode = (src->continuousMode) ? "Off" : "On";
 
-  GST_DEBUG_OBJECT (src, "Setting trigger mode.");
+    GST_DEBUG_OBJECT (src, "Setting trigger mode.");
 
-  // Check to see if the camera implements the acquisition start trigger mode only
-  if (isAvailAcquisitionStart && !isAvailFrameStart) {
-    // Select the software trigger as the trigger source
-    res =
-        PylonDeviceFeatureFromString (src->deviceHandle, "TriggerSelector",
-        "AcquisitionStart");
-    PYLONC_CHECK_ERROR (src, res);
-    res =
-        PylonDeviceFeatureFromString (src->deviceHandle, "TriggerMode",
-        triggerMode);
-    PYLONC_CHECK_ERROR (src, res);
-    triggerSelectorValue = "AcquisitionStart";
-  } else {
-    // Camera may have the acquisition start trigger mode and the frame start trigger mode implemented.
-    // In this case, the acquisition trigger mode must be switched off.
-    if (isAvailAcquisitionStart) {
+    // Check to see if the camera implements the acquisition start trigger mode only
+    if (isAvailAcquisitionStart && !isAvailFrameStart) {
+      // Select the software trigger as the trigger source
       res =
           PylonDeviceFeatureFromString (src->deviceHandle, "TriggerSelector",
           "AcquisitionStart");
       PYLONC_CHECK_ERROR (src, res);
       res =
           PylonDeviceFeatureFromString (src->deviceHandle, "TriggerMode",
-          "Off");
+          triggerMode);
       PYLONC_CHECK_ERROR (src, res);
-    }
-    // Disable frame burst start trigger if available
-    if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
-            "EnumEntry_TriggerSelector_FrameBurstStart")) {
+      triggerSelectorValue = "AcquisitionStart";
+    } else {
+      // Camera may have the acquisition start trigger mode and the frame start trigger mode implemented.
+      // In this case, the acquisition trigger mode must be switched off.
+      if (isAvailAcquisitionStart) {
+        res =
+            PylonDeviceFeatureFromString (src->deviceHandle, "TriggerSelector",
+            "AcquisitionStart");
+        PYLONC_CHECK_ERROR (src, res);
+        res =
+            PylonDeviceFeatureFromString (src->deviceHandle, "TriggerMode",
+            "Off");
+        PYLONC_CHECK_ERROR (src, res);
+      }
+      // Disable frame burst start trigger if available
+      if (PylonDeviceFeatureIsAvailable (src->deviceHandle,
+              "EnumEntry_TriggerSelector_FrameBurstStart")) {
+        res =
+            PylonDeviceFeatureFromString (src->deviceHandle, "TriggerSelector",
+            "FrameBurstStart");
+        PYLONC_CHECK_ERROR (src, res);
+        res =
+            PylonDeviceFeatureFromString (src->deviceHandle, "TriggerMode",
+            "Off");
+        PYLONC_CHECK_ERROR (src, res);
+      }
+      // To trigger each single frame by software or external hardware trigger: Enable the frame start trigger mode
       res =
           PylonDeviceFeatureFromString (src->deviceHandle, "TriggerSelector",
-          "FrameBurstStart");
+          "FrameStart");
       PYLONC_CHECK_ERROR (src, res);
       res =
           PylonDeviceFeatureFromString (src->deviceHandle, "TriggerMode",
-          "Off");
+          triggerMode);
       PYLONC_CHECK_ERROR (src, res);
     }
-    // To trigger each single frame by software or external hardware trigger: Enable the frame start trigger mode
+
+    if (!src->continuousMode) {
+      // Set the acquisiton selector to FrameTrigger in case it was changed by something else before launching the plugin so we don't request frames when they're still capturing or something.
+      res =
+          PylonDeviceFeatureFromString (src->deviceHandle,
+          "AcquisitionStatusSelector", "FrameTriggerWait");
+      PYLONC_CHECK_ERROR (src, res);
+    }
+    GST_DEBUG_OBJECT (src,
+        "Using \"%s\" trigger selector. Software trigger mode is %s.",
+        triggerSelectorValue, triggerMode);
     res =
         PylonDeviceFeatureFromString (src->deviceHandle, "TriggerSelector",
-        "FrameStart");
+        triggerSelectorValue);
     PYLONC_CHECK_ERROR (src, res);
     res =
-        PylonDeviceFeatureFromString (src->deviceHandle, "TriggerMode",
-        triggerMode);
+        PylonDeviceFeatureFromString (src->deviceHandle, "TriggerSource",
+        "Software");
     PYLONC_CHECK_ERROR (src, res);
-  }
-
-  if (!src->continuousMode) {
-    // Set the acquisiton selector to FrameTrigger in case it was changed by something else before launching the plugin so we don't request frames when they're still capturing or something.
     res =
-        PylonDeviceFeatureFromString (src->deviceHandle,
-        "AcquisitionStatusSelector", "FrameTriggerWait");
+        PylonDeviceFeatureFromString (src->deviceHandle, "AcquisitionMode",
+        "Continuous");
     PYLONC_CHECK_ERROR (src, res);
-  }
-  GST_DEBUG_OBJECT (src,
-      "Using \"%s\" trigger selector. Software trigger mode is %s.",
-      triggerSelectorValue, triggerMode);
-  res =
-      PylonDeviceFeatureFromString (src->deviceHandle, "TriggerSelector",
-      triggerSelectorValue);
-  PYLONC_CHECK_ERROR (src, res);
-  res =
-      PylonDeviceFeatureFromString (src->deviceHandle, "TriggerSource",
-      "Software");
-  PYLONC_CHECK_ERROR (src, res);
-  res =
-      PylonDeviceFeatureFromString (src->deviceHandle, "AcquisitionMode",
-      "Continuous");
-  PYLONC_CHECK_ERROR (src, res);
 
-    reset_prop(src, PROP_CONTINUOUSMODE);
+    reset_prop (src, PROP_CONTINUOUSMODE);
   }
 
   return TRUE;
@@ -1391,12 +1422,12 @@ gst_pylonsrc_select_device (GstPylonSrc * src)
         ("Failed to initialise the camera"), ("No camera connected"));
     goto error;
   } else if (numDevices == 1) {
-    if (is_prop_set(src, PROP_CAMERA)) {
+    if (is_prop_set (src, PROP_CAMERA)) {
       GST_DEBUG_OBJECT (src,
           "Camera id was set, but was ignored as only one camera was found.");
     }
     src->cameraId = 0;
-  } else if (numDevices > 1 && !is_prop_set(src, PROP_CAMERA)) {
+  } else if (numDevices > 1 && !is_prop_set (src, PROP_CAMERA)) {
     GST_DEBUG_OBJECT (src,
         "Multiple cameras found, and the user didn't specify which camera to use.");
     GST_DEBUG_OBJECT (src,
@@ -1427,7 +1458,7 @@ gst_pylonsrc_select_device (GstPylonSrc * src)
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Failed to initialise the camera"), ("No camera selected"));
     goto error;
-  } else if (is_prop_set(src, PROP_CAMERA) && src->cameraId > numDevices) {
+  } else if (is_prop_set (src, PROP_CAMERA) && src->cameraId > numDevices) {
     GST_DEBUG_OBJECT (src, "No camera found with id %i.", src->cameraId);
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Failed to initialise the camera"), ("No camera connected"));
@@ -1476,7 +1507,7 @@ gst_pylonsrc_connect_device (GstPylonSrc * src)
           "Camera reset. Waiting 6 seconds for it to fully reboot.");
       g_usleep (6 * G_USEC_PER_SEC);
 
-      gst_pylonsrc_ref_pylon_environment();
+      gst_pylonsrc_ref_pylon_environment ();
       res = PylonEnumerateDevices (&numDevices);
       PYLONC_CHECK_ERROR (src, res);
 
@@ -1503,25 +1534,26 @@ error:
   return FALSE;
 }
 
-static _Bool 
-gst_pylonsrc_set_resolution_axis(GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
+static _Bool
+gst_pylonsrc_set_resolution_axis (GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
 {
   GENAPIC_RESULT res;
 
   // set binning of camera
-  if(is_prop_implicit(src, propBinning[axis])) {
-    if (feature_supported(src, featBinning[axis])) {
-      GST_DEBUG_OBJECT (src, "Setting %s to %d", featBinning[axis], src->binning[axis]);
+  if (is_prop_implicit (src, propBinning[axis])) {
+    if (feature_supported (src, featBinning[axis])) {
+      GST_DEBUG_OBJECT (src, "Setting %s to %d", featBinning[axis],
+          src->binning[axis]);
       res =
           PylonDeviceSetIntegerFeature (src->deviceHandle, featBinning[axis],
           src->binning[axis]);
       PYLONC_CHECK_ERROR (src, res);
     }
-    reset_prop(src, propBinning[axis]);
+    reset_prop (src, propBinning[axis]);
   }
 
-  if(is_prop_implicit(src, propSize[axis])) {
-    if (!feature_supported(src, featSize[axis])) {
+  if (is_prop_implicit (src, propSize[axis])) {
+    if (!feature_supported (src, featSize[axis])) {
       GST_ERROR_OBJECT (src,
           "The camera doesn't seem to be reporting it's resolution.");
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
@@ -1530,41 +1562,45 @@ gst_pylonsrc_set_resolution_axis(GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
       goto error;
     }
 
-    if(is_prop_set(src, propSize[axis])) {
-      if (feature_supported(src, featMaxSize[axis])) {
+    if (is_prop_set (src, propSize[axis])) {
+      if (feature_supported (src, featMaxSize[axis])) {
         int64_t maxSize;
         res =
-            PylonDeviceGetIntegerFeature (src->deviceHandle, featMaxSize[axis], &maxSize);
+            PylonDeviceGetIntegerFeature (src->deviceHandle, featMaxSize[axis],
+            &maxSize);
         src->maxSize[axis] = (gint) maxSize;
         PYLONC_CHECK_ERROR (src, res);
       }
-
       // Check if custom resolution is even possible and set it
       if (src->size[axis] > src->maxSize[axis]) {
-        GST_ERROR_OBJECT (src, "Set %s is above camera's capabilities.", featSize[axis]);
+        GST_ERROR_OBJECT (src, "Set %s is above camera's capabilities.",
+            featSize[axis]);
         goto error;
       }
-
       // Set the final resolution
-      res = PylonDeviceSetIntegerFeature (src->deviceHandle, featSize[axis], src->size[axis]);
+      res =
+          PylonDeviceSetIntegerFeature (src->deviceHandle, featSize[axis],
+          src->size[axis]);
       PYLONC_CHECK_ERROR (src, res);
     } else {
       // if defaulted, just read from camera
       int64_t size = 0;
-      res = PylonDeviceGetIntegerFeature (src->deviceHandle, featSize[axis], &size);
+      res =
+          PylonDeviceGetIntegerFeature (src->deviceHandle, featSize[axis],
+          &size);
       PYLONC_CHECK_ERROR (src, res);
       src->size[axis] = (gint) size;
     }
 
-    if(is_prop_not_set(src, propSize[otherAxis[axis]])) {
+    if (is_prop_not_set (src, propSize[otherAxis[axis]])) {
       // if other axis is already configured
       GST_DEBUG_OBJECT (src, "Max resolution is %dx%d.", src->maxSize[AXIS_X],
-            src->maxSize[AXIS_Y]);
+          src->maxSize[AXIS_Y]);
       GST_DEBUG_OBJECT (src, "Setting resolution to %dx%d.", src->size[AXIS_X],
-            src->size[AXIS_Y]);
+          src->size[AXIS_Y]);
     }
 
-    reset_prop(src, propSize[axis]);
+    reset_prop (src, propSize[axis]);
   }
 
   return TRUE;
@@ -1576,8 +1612,8 @@ error:
 static _Bool
 gst_pylonsrc_set_resolution (GstPylonSrc * src)
 {
-  return (gst_pylonsrc_set_resolution_axis(src, AXIS_X) &&
-      gst_pylonsrc_set_resolution_axis(src, AXIS_Y));
+  return (gst_pylonsrc_set_resolution_axis (src, AXIS_X) &&
+      gst_pylonsrc_set_resolution_axis (src, AXIS_Y));
 }
 
 static gboolean
@@ -1585,24 +1621,26 @@ gst_pylonsrc_set_offset_axis (GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
 {
   GENAPIC_RESULT res;
 
-  if(is_prop_implicit(src, propCenter[axis])) {
+  if (is_prop_implicit (src, propCenter[axis])) {
     // Check if the user wants to center image first
-    if (feature_supported(src, featCenter[axis])) {
+    if (feature_supported (src, featCenter[axis])) {
       res =
           PylonDeviceSetBooleanFeature (src->deviceHandle, featCenter[axis],
           src->center[axis]);
       PYLONC_CHECK_ERROR (src, res);
 
-      GST_DEBUG_OBJECT (src, "%s: %s", featCenter[axis], boolalpha(src->center[axis]));
+      GST_DEBUG_OBJECT (src, "%s: %s", featCenter[axis],
+          boolalpha (src->center[axis]));
     } else {
       src->center[axis] = FALSE;
     }
-    reset_prop(src, propCenter[axis]);
+    reset_prop (src, propCenter[axis]);
   }
 
-  if(is_prop_implicit(src, propOffset[axis])) {
-    if(src->center[axis]) {
-      GST_WARNING_OBJECT(src, "%s is ignored due to %s is set", featOffset[axis], featCenter[axis]);
+  if (is_prop_set (src, propOffset[axis])) {
+    if (src->center[axis]) {
+      GST_WARNING_OBJECT (src, "%s is ignored due to %s is set",
+          featOffset[axis], featCenter[axis]);
     } else {
       if (feature_supported (src, featOffset[axis])) {
         const gint maxoffset = src->maxSize[axis] - src->size[axis];
@@ -1612,20 +1650,21 @@ gst_pylonsrc_set_offset_axis (GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
               PylonDeviceSetIntegerFeature (src->deviceHandle, featOffset[axis],
               src->offset[axis]);
           PYLONC_CHECK_ERROR (src, res);
-          GST_DEBUG_OBJECT (src, "Setting %s to %d", featOffset[axis], src->offset[axis]);
+          GST_DEBUG_OBJECT (src, "Setting %s to %d", featOffset[axis],
+              src->offset[axis]);
         } else {
           GST_DEBUG_OBJECT (src,
-              "Set %s is above camera's capabilities. (%d > %d)", featOffset[axis],
-              src->offset[axis], maxoffset);
+              "Set %s is above camera's capabilities. (%d > %d)",
+              featOffset[axis], src->offset[axis], maxoffset);
           GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-              ("Failed to initialise the camera"),
-              ("Wrong %s specified", featOffset[axis]));
+              ("Failed to initialise the camera"), ("Wrong %s specified",
+                  featOffset[axis]));
           goto error;
         }
-      } // if (feature_supported (src, featOffset[axis]))
-    } // if(!src->center[axis]) 
-    reset_prop(src, propOffset[axis]);
-  } // if(!is_prop_not_set(src, propOffset[axis]))
+      }                         // if (feature_supported (src, featOffset[axis]))
+    }                           // if(!src->center[axis]) 
+    reset_prop (src, propOffset[axis]);
+  }                             // if(!is_prop_not_set(src, propOffset[axis]))
 
   return TRUE;
 
@@ -1636,8 +1675,8 @@ error:
 static _Bool
 gst_pylonsrc_set_offset (GstPylonSrc * src)
 {
-  return gst_pylonsrc_set_offset_axis(src, AXIS_X) &&
-    gst_pylonsrc_set_offset_axis(src, AXIS_Y);
+  return gst_pylonsrc_set_offset_axis (src, AXIS_X) &&
+      gst_pylonsrc_set_offset_axis (src, AXIS_Y);
 }
 
 static _Bool
@@ -1645,19 +1684,20 @@ gst_pylonsrc_set_reverse_axis (GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
 {
   GENAPIC_RESULT res;
 
-  if(is_prop_implicit(src, propReverse[axis])) {
+  if (is_prop_implicit (src, propReverse[axis])) {
     // Flip the image
-    if (feature_supported(src, featReverse[axis])) {
+    if (feature_supported (src, featReverse[axis])) {
       res =
           PylonDeviceSetBooleanFeature (src->deviceHandle, featReverse[axis],
           src->flip[axis]);
       PYLONC_CHECK_ERROR (src, res);
-      
-      GST_DEBUG_OBJECT (src, "%s: %s", featReverse[axis], boolalpha(src->flip[axis]));
+
+      GST_DEBUG_OBJECT (src, "%s: %s", featReverse[axis],
+          boolalpha (src->flip[axis]));
     } else {
       src->flip[axis] = FALSE;
     }
-    reset_prop(src, propReverse[axis]);
+    reset_prop (src, propReverse[axis]);
   }
 
   return TRUE;
@@ -1669,8 +1709,8 @@ error:
 static _Bool
 gst_pylonsrc_set_reverse (GstPylonSrc * src)
 {
-  return gst_pylonsrc_set_reverse_axis(src, AXIS_X) && 
-    gst_pylonsrc_set_reverse_axis(src, AXIS_Y);
+  return gst_pylonsrc_set_reverse_axis (src, AXIS_X) &&
+      gst_pylonsrc_set_reverse_axis (src, AXIS_Y);
 }
 
 static GstCaps *
@@ -1706,8 +1746,9 @@ gst_pylonsrc_get_supported_caps (GstPylonSrc * src)
 
       // TODO: query FPS
       format_caps =
-          gst_genicam_pixel_format_caps_from_pixel_format_var (info->pixel_format,
-          G_BYTE_ORDER, src->size[AXIS_X], src->size[AXIS_Y]);
+          gst_genicam_pixel_format_caps_from_pixel_format_var
+          (info->pixel_format, G_BYTE_ORDER, src->size[AXIS_X],
+          src->size[AXIS_Y]);
 
       if (format_caps)
         gst_caps_append (caps, format_caps);
@@ -1716,7 +1757,7 @@ gst_pylonsrc_get_supported_caps (GstPylonSrc * src)
 
   GST_DEBUG_OBJECT (src, "Supported caps are %" GST_PTR_FORMAT, caps);
 
-  g_string_free(format, TRUE);
+  g_string_free (format, TRUE);
   return caps;
 }
 
@@ -1724,7 +1765,7 @@ static gboolean
 gst_pylonsrc_set_pixel_format (GstPylonSrc * src)
 {
   // TODO: handle PixelFormat change and caps renegotiation if possible
-  if(is_prop_implicit(src, PROP_PIXEL_FORMAT)) {
+  if (is_prop_implicit (src, PROP_PIXEL_FORMAT)) {
     GENAPIC_RESULT res;
 
     GST_DEBUG_OBJECT (src, "Using %s PixelFormat.", src->pixel_format);
@@ -1746,7 +1787,7 @@ gst_pylonsrc_set_pixel_format (GstPylonSrc * src)
     } else {
       GST_WARNING_OBJECT (src, "Couldn't read pixel size from the camera");
     }
-    reset_prop(src, PROP_PIXEL_FORMAT);
+    reset_prop (src, PROP_PIXEL_FORMAT);
   }
   return TRUE;
 
@@ -1757,27 +1798,27 @@ error:
 static gboolean
 gst_pylonsrc_set_test_image (GstPylonSrc * src)
 {
-  if(is_prop_implicit(src, PROP_TESTIMAGE)) {
+  if (is_prop_implicit (src, PROP_TESTIMAGE)) {
     // Set whether test image will be shown
-    if (feature_supported(src, "TestImageSelector")) {
+    if (feature_supported (src, "TestImageSelector")) {
       GENAPIC_RESULT res;
       if (src->testImage != 0) {
         char *ImageId;
         GST_DEBUG_OBJECT (src, "Test image mode enabled.");
         ImageId = g_strdup_printf ("Testimage%d", src->testImage);
         res =
-            PylonDeviceFeatureFromString (src->deviceHandle, "TestImageSelector",
-            ImageId);
-          g_free(ImageId);
+            PylonDeviceFeatureFromString (src->deviceHandle,
+            "TestImageSelector", ImageId);
+        g_free (ImageId);
         PYLONC_CHECK_ERROR (src, res);
       } else {
         res =
-            PylonDeviceFeatureFromString (src->deviceHandle, "TestImageSelector",
-            "Off");
+            PylonDeviceFeatureFromString (src->deviceHandle,
+            "TestImageSelector", "Off");
         PYLONC_CHECK_ERROR (src, res);
       }
     }
-    reset_prop(src, PROP_TESTIMAGE);
+    reset_prop (src, PROP_TESTIMAGE);
   }
   return TRUE;
 
@@ -1788,34 +1829,35 @@ error:
 static gboolean
 gst_pylonsrc_set_readout (GstPylonSrc * src)
 {
-  if(is_prop_implicit(src, PROP_SENSORREADOUTMODE)) {
+  if (is_prop_implicit (src, PROP_SENSORREADOUTMODE)) {
     // Set sensor readout mode (default: Normal)
     if (feature_supported (src, "SensorReadoutMode")) {
       ascii_strdown (&src->sensorMode, -1);
       GENAPIC_RESULT res;
       if (strcmp (src->sensorMode, "normal") == 0) {
-        
+
         GST_DEBUG_OBJECT (src, "Setting the sensor readout mode to normal.");
         res =
-            PylonDeviceFeatureFromString (src->deviceHandle, "SensorReadoutMode",
-            "Normal");
+            PylonDeviceFeatureFromString (src->deviceHandle,
+            "SensorReadoutMode", "Normal");
         PYLONC_CHECK_ERROR (src, res);
       } else if (strcmp (src->sensorMode, "fast") == 0) {
         GST_DEBUG_OBJECT (src, "Setting the sensor readout mode to fast.");
         res =
-            PylonDeviceFeatureFromString (src->deviceHandle, "SensorReadoutMode",
-            "Fast");
+            PylonDeviceFeatureFromString (src->deviceHandle,
+            "SensorReadoutMode", "Fast");
         PYLONC_CHECK_ERROR (src, res);
       } else {
         GST_ERROR_OBJECT (src,
             "Invalid parameter value for sensorreadoutmode. Available values are normal/fast, while the value provided was \"%s\".",
             src->sensorMode);
         GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-            ("Failed to initialise the camera"), ("Invalid parameters provided"));
+            ("Failed to initialise the camera"),
+            ("Invalid parameters provided"));
         goto error;
       }
     }
-    reset_prop(src, PROP_SENSORREADOUTMODE);
+    reset_prop (src, PROP_SENSORREADOUTMODE);
   }
   return TRUE;
 
@@ -1827,21 +1869,22 @@ static gboolean
 gst_pylonsrc_set_bandwidth (GstPylonSrc * src)
 {
   GENAPIC_RESULT res;
-  if(is_prop_implicit(src, PROP_LIMITBANDWIDTH)) {
-  // Set bandwidth limit mode (default: on)  
+  if (is_prop_implicit (src, PROP_LIMITBANDWIDTH)) {
+    // Set bandwidth limit mode (default: on)  
     if (feature_supported (src, "DeviceLinkThroughputLimitMode")) {
-      GST_DEBUG_OBJECT (src, "%s camera's bandwidth.", src->limitBandwidth ? "Limiting" : "Unlocking");
+      GST_DEBUG_OBJECT (src, "%s camera's bandwidth.",
+          src->limitBandwidth ? "Limiting" : "Unlocking");
       res =
           PylonDeviceFeatureFromString (src->deviceHandle,
           "DeviceLinkThroughputLimitMode", src->limitBandwidth ? "On" : "Off");
       PYLONC_CHECK_ERROR (src, res);
     }
-    reset_prop(src, PROP_LIMITBANDWIDTH);
+    reset_prop (src, PROP_LIMITBANDWIDTH);
   }
 
-  if(is_prop_implicit(src, PROP_MAXBANDWIDTH)) {
-  // Set bandwidth limit
-    if(is_prop_set(src, PROP_MAXBANDWIDTH)) {
+  if (is_prop_implicit (src, PROP_MAXBANDWIDTH)) {
+    // Set bandwidth limit
+    if (is_prop_set (src, PROP_MAXBANDWIDTH)) {
       if (feature_supported (src, "DeviceLinkThroughputLimit")) {
         if (!src->limitBandwidth) {
           GST_DEBUG_OBJECT (src,
@@ -1856,7 +1899,7 @@ gst_pylonsrc_set_bandwidth (GstPylonSrc * src)
         PYLONC_CHECK_ERROR (src, res);
       }
     }
-    reset_prop(src, PROP_MAXBANDWIDTH);
+    reset_prop (src, PROP_MAXBANDWIDTH);
   }
 
   return TRUE;
@@ -1869,33 +1912,34 @@ static gboolean
 gst_pylonsrc_set_framerate (GstPylonSrc * src)
 {
   GENAPIC_RESULT res;
-  if(is_prop_implicit(src, PROP_ACQUISITIONFRAMERATEENABLE)) {
-    if (feature_available(src, "AcquisitionFrameRateEnable")) {
+  if (is_prop_implicit (src, PROP_ACQUISITIONFRAMERATEENABLE)) {
+    if (feature_available (src, "AcquisitionFrameRateEnable")) {
       res =
           PylonDeviceSetBooleanFeature (src->deviceHandle,
           "AcquisitionFrameRateEnable", src->setFPS);
       PYLONC_CHECK_ERROR (src, res);
 
       GST_DEBUG_OBJECT (src,
-            "Limiting framerate: %s. See below for current framerate.", boolalpha(src->setFPS));
+          "Limiting framerate: %s. See below for current framerate.",
+          boolalpha (src->setFPS));
     }
-    reset_prop(src, PROP_ACQUISITIONFRAMERATEENABLE);
+    reset_prop (src, PROP_ACQUISITIONFRAMERATEENABLE);
   }
 
-  if(is_prop_implicit(src, PROP_FPS)) {
-    if(is_prop_set(src, PROP_FPS)) {
+  if (is_prop_implicit (src, PROP_FPS)) {
+    if (is_prop_set (src, PROP_FPS)) {
       // apply only if it is set explicitly (default is zero)
-      if(feature_available(src, "AcquisitionFrameRate")) {
+      if (feature_available (src, "AcquisitionFrameRate")) {
         res =
             PylonDeviceSetFloatFeature (src->deviceHandle,
             "AcquisitionFrameRate", src->fps);
         PYLONC_CHECK_ERROR (src, res);
-        if(src->setFPS) {
+        if (src->setFPS) {
           GST_DEBUG_OBJECT (src, "Capping framerate to %0.2lf.", src->fps);
         }
       }
     }
-    reset_prop(src, PROP_FPS);
+    reset_prop (src, PROP_FPS);
   }
 
   return TRUE;
@@ -1908,7 +1952,7 @@ static gboolean
 gst_pylonsrc_set_lightsource (GstPylonSrc * src)
 {
   GENAPIC_RESULT res;
-  if(is_prop_implicit(src, PROP_LIGHTSOURCE)) {
+  if (is_prop_implicit (src, PROP_LIGHTSOURCE)) {
     // Set lightsource preset
     if (PylonDeviceFeatureIsAvailable (src->deviceHandle, "LightSourcePreset")) {
       ascii_strdown (&src->lightsource, -1);
@@ -1916,43 +1960,44 @@ gst_pylonsrc_set_lightsource (GstPylonSrc * src)
       if (strcmp (src->lightsource, "off") == 0) {
         GST_DEBUG_OBJECT (src, "Not using a lightsource preset.");
         res =
-            PylonDeviceFeatureFromString (src->deviceHandle, "LightSourcePreset",
-            "Off");
+            PylonDeviceFeatureFromString (src->deviceHandle,
+            "LightSourcePreset", "Off");
         PYLONC_CHECK_ERROR (src, res);
       } else if (strcmp (src->lightsource, "2800k") == 0) {
         GST_DEBUG_OBJECT (src,
             "Setting light preset to Tungsten 2800k (Incandescen light).");
         res =
-            PylonDeviceFeatureFromString (src->deviceHandle, "LightSourcePreset",
-            "Tungsten2800K");
+            PylonDeviceFeatureFromString (src->deviceHandle,
+            "LightSourcePreset", "Tungsten2800K");
         PYLONC_CHECK_ERROR (src, res);
       } else if (strcmp (src->lightsource, "5000k") == 0) {
         GST_DEBUG_OBJECT (src,
             "Setting light preset to Daylight 5000k (Daylight).");
         res =
-            PylonDeviceFeatureFromString (src->deviceHandle, "LightSourcePreset",
-            "Daylight5000K");
+            PylonDeviceFeatureFromString (src->deviceHandle,
+            "LightSourcePreset", "Daylight5000K");
         PYLONC_CHECK_ERROR (src, res);
       } else if (strcmp (src->lightsource, "6500k") == 0) {
         GST_DEBUG_OBJECT (src,
             "Setting light preset to Daylight 6500k (Very bright day).");
         res =
-            PylonDeviceFeatureFromString (src->deviceHandle, "LightSourcePreset",
-            "Daylight6500K");
+            PylonDeviceFeatureFromString (src->deviceHandle,
+            "LightSourcePreset", "Daylight6500K");
         PYLONC_CHECK_ERROR (src, res);
       } else {
         GST_ERROR_OBJECT (src,
             "Invalid parameter value for lightsource. Available values are off/2800k/5000k/6500k, while the value provided was \"%s\".",
             src->lightsource);
         GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-            ("Failed to initialise the camera"), ("Invalid parameters provided"));
+            ("Failed to initialise the camera"),
+            ("Invalid parameters provided"));
         goto error;
       }
     } else {
       GST_WARNING_OBJECT (src,
           "This camera doesn't have any lightsource presets");
     }
-    reset_prop(src, PROP_LIGHTSOURCE);
+    reset_prop (src, PROP_LIGHTSOURCE);
   }
 
   return TRUE;
@@ -1962,9 +2007,10 @@ error:
 }
 
 static _Bool
-gst_pylonsrc_set_auto_feature (GstPylonSrc * src, GST_PYLONSRC_AUTOFEATURE feature)
+gst_pylonsrc_set_auto_feature (GstPylonSrc * src,
+    GST_PYLONSRC_AUTOFEATURE feature)
 {
-  if(is_prop_implicit(src, propAutoFeature[feature])) {
+  if (is_prop_implicit (src, propAutoFeature[feature])) {
     // Enable/disable automatic feature
     if (feature_available (src, featAutoFeature[feature])) {
       GENAPIC_RESULT res;
@@ -1972,33 +2018,35 @@ gst_pylonsrc_set_auto_feature (GstPylonSrc * src, GST_PYLONSRC_AUTOFEATURE featu
       if (strcmp (src->autoFeature[feature], "off") == 0) {
         GST_DEBUG_OBJECT (src, "Disabling %s.", featAutoFeature[feature]);
         res =
-            PylonDeviceFeatureFromString (src->deviceHandle, featAutoFeature[feature],
-            "Off");
+            PylonDeviceFeatureFromString (src->deviceHandle,
+            featAutoFeature[feature], "Off");
         PYLONC_CHECK_ERROR (src, res);
       } else if (strcmp (src->autoFeature[feature], "once") == 0) {
-        GST_DEBUG_OBJECT (src, "Making the camera only calibrate %s once.", featManualFeature[feature]);
+        GST_DEBUG_OBJECT (src, "Making the camera only calibrate %s once.",
+            featManualFeature[feature]);
         res =
-            PylonDeviceFeatureFromString (src->deviceHandle, featAutoFeature[feature],
-            "Once");
+            PylonDeviceFeatureFromString (src->deviceHandle,
+            featAutoFeature[feature], "Once");
         PYLONC_CHECK_ERROR (src, res);
       } else if (strcmp (src->autoFeature[feature], "continuous") == 0) {
         GST_DEBUG_OBJECT (src,
-            "Making the camera calibrate %s automatically all the time.", featManualFeature[feature]);
+            "Making the camera calibrate %s automatically all the time.",
+            featManualFeature[feature]);
         res =
-            PylonDeviceFeatureFromString (src->deviceHandle, featAutoFeature[feature],
-            "Continuous");
+            PylonDeviceFeatureFromString (src->deviceHandle,
+            featAutoFeature[feature], "Continuous");
         PYLONC_CHECK_ERROR (src, res);
       } else {
         GST_ERROR_OBJECT (src,
             "Invalid parameter value for %s. Available values are off/once/continuous, while the value provided was \"%s\".",
-            featAutoFeature[feature], 
-            src->autoFeature[feature]);
+            featAutoFeature[feature], src->autoFeature[feature]);
         GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-            ("Failed to initialise the camera"), ("Invalid parameters provided"));
+            ("Failed to initialise the camera"),
+            ("Invalid parameters provided"));
         goto error;
       }
     }
-    reset_prop(src, propAutoFeature[feature]);
+    reset_prop (src, propAutoFeature[feature]);
   }
 
   return TRUE;
@@ -2007,39 +2055,45 @@ error:
 }
 
 static _Bool
-gst_pylonsrc_set_limited_feature (GstPylonSrc * src, GST_PYLONSRC_AUTOFEATURE feature)
+gst_pylonsrc_set_limited_feature (GstPylonSrc * src,
+    GST_PYLONSRC_AUTOFEATURE feature)
 {
-  if(feature >= AUTOF_NUM_LIMITED ) {
+  if (feature >= AUTOF_NUM_LIMITED) {
     GST_WARNING_OBJECT (src,
-          "Trying to set limits for unsupported autofeature: %d", (int) feature);
+        "Trying to set limits for unsupported autofeature: %d", (int) feature);
   } else {
     GENAPIC_RESULT res;
 
     // Configure automatic exposure and gain settings
     // Apply boundaries only if explicitly set
-    if(is_prop_set(src, propLimitedUpper[feature])) {
-      if(is_prop_default(src, propLimitedLower[feature])) {
-        GST_WARNING_OBJECT(src, "Only the upper bound is set for %s", featManualFeature[feature]);
+    if (is_prop_set (src, propLimitedUpper[feature])) {
+      if (is_prop_default (src, propLimitedLower[feature])) {
+        GST_WARNING_OBJECT (src, "Only the upper bound is set for %s",
+            featManualFeature[feature]);
       }
-      if(feature_available(src, featLimitedUpper[feature])) {
+      if (feature_available (src, featLimitedUpper[feature])) {
         res =
             PylonDeviceSetFloatFeature (src->deviceHandle,
             featLimitedUpper[feature], src->limitedFeature[feature].upper);
         PYLONC_CHECK_ERROR (src, res);
       }
-      reset_prop(src, propLimitedUpper[feature]);
+      reset_prop (src, propLimitedUpper[feature]);
     }
 
-    if(is_prop_set(src, propLimitedLower[feature])) {
-      if(is_prop_default(src, propLimitedLower[feature])) {
-        GST_WARNING_OBJECT(src, "Only the lower bound is set for %s", featManualFeature[feature]);
+    if (is_prop_set (src, propLimitedLower[feature])) {
+      if (is_prop_default (src, propLimitedLower[feature])) {
+        GST_WARNING_OBJECT (src, "Only the lower bound is set for %s",
+            featManualFeature[feature]);
       } else {
-        if (src->limitedFeature[feature].lower >= src->limitedFeature[feature].upper) {
+        if (src->limitedFeature[feature].lower >=
+            src->limitedFeature[feature].upper) {
           GST_ERROR_OBJECT (src,
               "Invalid parameter value for %s. It seems like you're trying to set a lower limit (%.2f) that's higher than the upper limit (%.2f).",
-              featLimitedLower[feature], src->limitedFeature[feature].lower, src->limitedFeature[feature].upper);
+              featLimitedLower[feature], src->limitedFeature[feature].lower,
+              src->limitedFeature[feature].upper);
           GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-              ("Failed to initialise the camera"), ("Invalid parameters provided"));
+              ("Failed to initialise the camera"),
+              ("Invalid parameters provided"));
           goto error;
         }
       }
@@ -2050,7 +2104,7 @@ gst_pylonsrc_set_limited_feature (GstPylonSrc * src, GST_PYLONSRC_AUTOFEATURE fe
             featLimitedLower[feature], src->limitedFeature[feature].lower);
         PYLONC_CHECK_ERROR (src, res);
       }
-      reset_prop(src, propLimitedLower[feature]);
+      reset_prop (src, propLimitedLower[feature]);
     }
   }
 
@@ -2064,32 +2118,32 @@ gst_pylonsrc_set_auto_exp_gain_wb (GstPylonSrc * src)
 {
   GENAPIC_RESULT res;
 
-  for(int i = 0; i < AUTOF_NUM_FEATURES; i++) {
-    if(!gst_pylonsrc_set_auto_feature (src, (GST_PYLONSRC_AUTOFEATURE) i)) {
+  for (int i = 0; i < AUTOF_NUM_FEATURES; i++) {
+    if (!gst_pylonsrc_set_auto_feature (src, (GST_PYLONSRC_AUTOFEATURE) i)) {
       goto error;
     }
   }
 
-  for(int i = 0; i < AUTOF_NUM_LIMITED; i++) {
-    if(!gst_pylonsrc_set_limited_feature (src, (GST_PYLONSRC_AUTOFEATURE) i)) {
+  for (int i = 0; i < AUTOF_NUM_LIMITED; i++) {
+    if (!gst_pylonsrc_set_limited_feature (src, (GST_PYLONSRC_AUTOFEATURE) i)) {
       goto error;
     }
   }
 
-  if(is_prop_implicit(src, PROP_AUTOBRIGHTNESSTARGET)) {
-    if (is_prop_set(src, PROP_AUTOBRIGHTNESSTARGET)) {
-      if (feature_available(src, "AutoTargetBrightness")) {
+  if (is_prop_implicit (src, PROP_AUTOBRIGHTNESSTARGET)) {
+    if (is_prop_set (src, PROP_AUTOBRIGHTNESSTARGET)) {
+      if (feature_available (src, "AutoTargetBrightness")) {
         res =
-            PylonDeviceSetFloatFeature (src->deviceHandle, "AutoTargetBrightness",
-            src->brightnesstarget);
+            PylonDeviceSetFloatFeature (src->deviceHandle,
+            "AutoTargetBrightness", src->brightnesstarget);
         PYLONC_CHECK_ERROR (src, res);
       }
     }
-    reset_prop(src, PROP_AUTOBRIGHTNESSTARGET);
+    reset_prop (src, PROP_AUTOBRIGHTNESSTARGET);
   }
 
-  if(is_prop_implicit(src, PROP_AUTOPROFILE)) {
-    if(is_prop_set(src, PROP_AUTOPROFILE)) {
+  if (is_prop_implicit (src, PROP_AUTOPROFILE)) {
+    if (is_prop_set (src, PROP_AUTOPROFILE)) {
       ascii_strdown (&src->autoprofile, -1);
       GST_DEBUG_OBJECT (src, "Setting automatic profile to minimise %s.",
           src->autoprofile);
@@ -2108,14 +2162,15 @@ gst_pylonsrc_set_auto_exp_gain_wb (GstPylonSrc * src)
             "Invalid parameter value for autoprofile. Available values are gain/exposure, while the value provided was \"%s\".",
             src->autoprofile);
         GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-            ("Failed to initialise the camera"), ("Invalid parameters provided"));
+            ("Failed to initialise the camera"),
+            ("Invalid parameters provided"));
         goto error;
       }
     } else {
       GST_DEBUG_OBJECT (src,
           "Using the auto profile currently saved on the device.");
     }
-    reset_prop(src, PROP_AUTOPROFILE);
+    reset_prop (src, PROP_AUTOPROFILE);
   }
 
   return TRUE;
@@ -2124,11 +2179,11 @@ error:
   return FALSE;
 }
 
-static _Bool 
-gst_pylonsrc_set_colour_balance(GstPylonSrc* src, GST_PYLONSRC_COLOUR colour)
+static _Bool
+gst_pylonsrc_set_colour_balance (GstPylonSrc * src, GST_PYLONSRC_COLOUR colour)
 {
-  if(is_prop_implicit(src, propColourBalance[colour])) {
-    if (is_prop_set(src, propColourBalance[colour])) {
+  if (is_prop_implicit (src, propColourBalance[colour])) {
+    if (is_prop_set (src, propColourBalance[colour])) {
       if (strcmp (src->autoFeature[AUTOF_WHITEBALANCE], "off") == 0) {
         if (feature_available (src, "BalanceRatio")) {
           GENAPIC_RESULT res;
@@ -2141,15 +2196,19 @@ gst_pylonsrc_set_colour_balance(GstPylonSrc* src, GST_PYLONSRC_COLOUR colour)
               src->balance[colour]);
           PYLONC_CHECK_ERROR (src, res);
 
-          GST_DEBUG_OBJECT (src, "%s balance set to %.2lf", featColour[colour], src->balance[colour]);
+          GST_DEBUG_OBJECT (src, "%s balance set to %.2lf", featColour[colour],
+              src->balance[colour]);
         }
       } else {
-        GST_DEBUG_OBJECT (src, "Auto White Balance is enabled. Not setting %s Balance Ratio.", featColour[colour]);
+        GST_DEBUG_OBJECT (src,
+            "Auto White Balance is enabled. Not setting %s Balance Ratio.",
+            featColour[colour]);
       }
     } else {
-      GST_DEBUG_OBJECT (src, "Using current settings for the colour %s.", featColour[colour]);
+      GST_DEBUG_OBJECT (src, "Using current settings for the colour %s.",
+          featColour[colour]);
     }
-    reset_prop(src, propColourBalance[colour]);
+    reset_prop (src, propColourBalance[colour]);
   }
 
   return TRUE;
@@ -2157,11 +2216,11 @@ error:
   return FALSE;
 }
 
-static _Bool 
-gst_pylonsrc_set_colour_hue(GstPylonSrc* src, GST_PYLONSRC_COLOUR colour)
+static _Bool
+gst_pylonsrc_set_colour_hue (GstPylonSrc * src, GST_PYLONSRC_COLOUR colour)
 {
-  if(is_prop_implicit(src, propColourHue[colour])) {
-    if(is_prop_set(src, propColourHue[colour])) {
+  if (is_prop_implicit (src, propColourHue[colour])) {
+    if (is_prop_set (src, propColourHue[colour])) {
       if (feature_available (src, "ColorAdjustmentSelector")) {
         GENAPIC_RESULT res;
         res =
@@ -2173,12 +2232,13 @@ gst_pylonsrc_set_colour_hue(GstPylonSrc* src, GST_PYLONSRC_COLOUR colour)
             src->hue[colour]);
         PYLONC_CHECK_ERROR (src, res);
 
-        GST_DEBUG_OBJECT (src, "%s hue set to %.2lf", featColour[colour], src->hue[colour]);
+        GST_DEBUG_OBJECT (src, "%s hue set to %.2lf", featColour[colour],
+            src->hue[colour]);
       }
     } else {
       GST_DEBUG_OBJECT (src, "Using saved %s hue.", featColour[colour]);
     }
-    reset_prop(src, propColourHue[colour]);
+    reset_prop (src, propColourHue[colour]);
   }
 
   return TRUE;
@@ -2186,11 +2246,12 @@ error:
   return FALSE;
 }
 
-static _Bool 
-gst_pylonsrc_set_colour_saturation(GstPylonSrc* src, GST_PYLONSRC_COLOUR colour)
+static _Bool
+gst_pylonsrc_set_colour_saturation (GstPylonSrc * src,
+    GST_PYLONSRC_COLOUR colour)
 {
-  if(is_prop_implicit(src, propColourSaturation[colour])) {
-    if(is_prop_set(src, propColourSaturation[colour])) {
+  if (is_prop_implicit (src, propColourSaturation[colour])) {
+    if (is_prop_set (src, propColourSaturation[colour])) {
       if (feature_available (src, "ColorAdjustmentSelector")) {
         GENAPIC_RESULT res;
         res =
@@ -2202,12 +2263,13 @@ gst_pylonsrc_set_colour_saturation(GstPylonSrc* src, GST_PYLONSRC_COLOUR colour)
             "ColorAdjustmentSaturation", src->saturation[colour]);
         PYLONC_CHECK_ERROR (src, res);
 
-        GST_DEBUG_OBJECT (src, "%s saturation set to %.2lf", featColour[colour], src->saturation[colour]);
+        GST_DEBUG_OBJECT (src, "%s saturation set to %.2lf", featColour[colour],
+            src->saturation[colour]);
       }
     } else {
       GST_DEBUG_OBJECT (src, "Using saved %s saturation.", featColour[colour]);
     }
-    reset_prop(src, propColourSaturation[colour]);
+    reset_prop (src, propColourSaturation[colour]);
   }
 
   return TRUE;
@@ -2215,14 +2277,14 @@ error:
   return FALSE;
 }
 
-static _Bool 
-gst_pylonsrc_set_colour_transformation(GstPylonSrc* src, int i, int j)
+static _Bool
+gst_pylonsrc_set_colour_transformation (GstPylonSrc * src, int i, int j)
 {
   GENAPIC_RESULT res;
 
-  if(is_prop_implicit(src, propGain[j][i])) {
-    if(is_prop_set(src, propGain[j][i])) {
-      if (feature_available(src, "ColorTransformationSelector")) {
+  if (is_prop_implicit (src, propGain[j][i])) {
+    if (is_prop_set (src, propGain[j][i])) {
+      if (feature_available (src, "ColorTransformationSelector")) {
         res =
             PylonDeviceFeatureFromString (src->deviceHandle,
             "ColorTransformationSelector", featGain[j][i]);
@@ -2232,12 +2294,14 @@ gst_pylonsrc_set_colour_transformation(GstPylonSrc* src, int i, int j)
             "ColorTransformationValueSelector", src->transformation[j][i]);
         PYLONC_CHECK_ERROR (src, res);
 
-        GST_DEBUG_OBJECT (src, "%s set to %.2lf", featGain[j][i], src->transformation[j][i]);
+        GST_DEBUG_OBJECT (src, "%s set to %.2lf", featGain[j][i],
+            src->transformation[j][i]);
       }
     } else {
-      GST_DEBUG_OBJECT (src, "Using saved %s transformation value. ", featGain[j][i]);
+      GST_DEBUG_OBJECT (src, "Using saved %s transformation value. ",
+          featGain[j][i]);
     }
-    reset_prop(src, propGain[j][i]);
+    reset_prop (src, propGain[j][i]);
   }
 
   return TRUE;
@@ -2248,25 +2312,25 @@ error:
 static _Bool
 gst_pylonsrc_set_color (GstPylonSrc * src)
 {
-  for(int i = 0; i < 3; i++) {
-    if(!gst_pylonsrc_set_colour_balance(src, (GST_PYLONSRC_COLOUR) i)) {
+  for (int i = 0; i < 3; i++) {
+    if (!gst_pylonsrc_set_colour_balance (src, (GST_PYLONSRC_COLOUR) i)) {
       goto error;
     }
   }
 
   // Configure colour adjustment
-  for(int i = 0; i < 6; i++) {
+  for (int i = 0; i < 6; i++) {
     const GST_PYLONSRC_COLOUR colour = (GST_PYLONSRC_COLOUR) i;
-    if(!gst_pylonsrc_set_colour_hue(src, colour) ||
-        !gst_pylonsrc_set_colour_saturation(src, colour)) {
-        goto error;
+    if (!gst_pylonsrc_set_colour_hue (src, colour) ||
+        !gst_pylonsrc_set_colour_saturation (src, colour)) {
+      goto error;
     }
   }
 
   // Configure colour transformation
-  if(is_prop_implicit(src, PROP_TRANSFORMATIONSELECTOR)) {
-    if(is_prop_set(src, PROP_TRANSFORMATIONSELECTOR)) {
-      if (feature_available(src, "ColorTransformationSelector")) {
+  if (is_prop_implicit (src, PROP_TRANSFORMATIONSELECTOR)) {
+    if (is_prop_set (src, PROP_TRANSFORMATIONSELECTOR)) {
+      if (feature_available (src, "ColorTransformationSelector")) {
         ascii_strdown (&src->transformationselector, -1);
         GENAPIC_RESULT res;
         if (strcmp (src->transformationselector, "rgbrgb") == 0) {
@@ -2292,15 +2356,15 @@ gst_pylonsrc_set_color (GstPylonSrc * src)
               ("Failed to initialise the camera"),
               ("Invalid parameters provided"));
           goto error;
-        }    
+        }
       }
     }
-    reset_prop(src, PROP_TRANSFORMATIONSELECTOR);
+    reset_prop (src, PROP_TRANSFORMATIONSELECTOR);
   }
 
-  for(int j = 0; j < 3; j++) {
-    for(int i = 0; i < 3; i++) {
-      if(!gst_pylonsrc_set_colour_transformation(src, i, j)) {
+  for (int j = 0; j < 3; j++) {
+    for (int i = 0; i < 3; i++) {
+      if (!gst_pylonsrc_set_colour_transformation (src, i, j)) {
         goto error;
       }
     }
@@ -2313,33 +2377,40 @@ error:
 }
 
 static _Bool
-gst_pylonsrc_set_manual_feature (GstPylonSrc * src, GST_PYLONSRC_AUTOFEATURE feature)
+gst_pylonsrc_set_manual_feature (GstPylonSrc * src,
+    GST_PYLONSRC_AUTOFEATURE feature)
 {
-  if(feature >= AUTOF_NUM_LIMITED ) {
+  if (feature >= AUTOF_NUM_LIMITED) {
     GST_WARNING_OBJECT (src,
-          "Trying to set manual value for unsupported autofeature: %d", (int) feature);
+        "Trying to set manual value for unsupported autofeature: %d",
+        (int) feature);
   } else {
     // Configure exposure/gain
-    if(is_prop_implicit(src, propManualFeature[feature])) {
-      if(is_prop_set(src, propManualFeature[feature])) {
+    if (is_prop_implicit (src, propManualFeature[feature])) {
+      if (is_prop_set (src, propManualFeature[feature])) {
         if (feature_available (src, featManualFeature[feature])) {
           if (strcmp (src->autoFeature[feature], "off") == 0) {
             GENAPIC_RESULT res;
-            GST_DEBUG_OBJECT (src, "Setting %s to %0.2lf", featManualFeature[feature], src->limitedFeature[feature].manual);
+            GST_DEBUG_OBJECT (src, "Setting %s to %0.2lf",
+                featManualFeature[feature],
+                src->limitedFeature[feature].manual);
             res =
-                PylonDeviceSetFloatFeature (src->deviceHandle, featManualFeature[feature],
+                PylonDeviceSetFloatFeature (src->deviceHandle,
+                featManualFeature[feature],
                 src->limitedFeature[feature].manual);
             PYLONC_CHECK_ERROR (src, res);
           } else {
             GST_WARNING_OBJECT (src,
-                "%s has been enabled, skipping setting manual %s.", featAutoFeature[feature], featManualFeature[feature]);
+                "%s has been enabled, skipping setting manual %s.",
+                featAutoFeature[feature], featManualFeature[feature]);
           }
         }
       } else {
         GST_DEBUG_OBJECT (src,
-                  "%s property not set, using the saved setting.", featManualFeature[feature]);
-      } 
-      reset_prop(src, propManualFeature[feature]);
+            "%s property not set, using the saved setting.",
+            featManualFeature[feature]);
+      }
+      reset_prop (src, propManualFeature[feature]);
     }
   }
 
@@ -2354,32 +2425,31 @@ gst_pylonsrc_set_exposure_gain_level (GstPylonSrc * src)
 {
   GENAPIC_RESULT res;
 
-  for(int i = 0; i < AUTOF_NUM_LIMITED; i++) {
-    if(!gst_pylonsrc_set_manual_feature (src, (GST_PYLONSRC_AUTOFEATURE) i)) {
+  for (int i = 0; i < AUTOF_NUM_LIMITED; i++) {
+    if (!gst_pylonsrc_set_manual_feature (src, (GST_PYLONSRC_AUTOFEATURE) i)) {
       goto error;
     }
   }
- 
+
   // Configure black level
-  if(is_prop_implicit(src, PROP_BLACKLEVEL)) {
-    if (feature_available(src, "BlackLevel")) {
+  if (is_prop_implicit (src, PROP_BLACKLEVEL)) {
+    if (feature_available (src, "BlackLevel")) {
       GST_DEBUG_OBJECT (src, "Setting black level to %0.2lf", src->blacklevel);
       res =
           PylonDeviceSetFloatFeature (src->deviceHandle, "BlackLevel",
           src->blacklevel);
       PYLONC_CHECK_ERROR (src, res);
     }
-    reset_prop(src, PROP_BLACKLEVEL);
+    reset_prop (src, PROP_BLACKLEVEL);
   }
-
   // Configure gamma correction
-  if(is_prop_implicit(src, PROP_GAMMA)) {
+  if (is_prop_implicit (src, PROP_GAMMA)) {
     if (feature_available (src, "Gamma")) {
       GST_DEBUG_OBJECT (src, "Setting gamma to %0.2lf", src->gamma);
       res = PylonDeviceSetFloatFeature (src->deviceHandle, "Gamma", src->gamma);
       PYLONC_CHECK_ERROR (src, res);
     }
-    reset_prop(src, PROP_GAMMA);
+    reset_prop (src, PROP_GAMMA);
   }
 
   return TRUE;
@@ -2391,36 +2461,37 @@ error:
 static gboolean
 gst_pylonsrc_set_pgi (GstPylonSrc * src)
 {
-  if(is_prop_implicit(src, PROP_BASLERDEMOSAICING)) {
+  if (is_prop_implicit (src, PROP_BASLERDEMOSAICING)) {
     if (feature_supported (src, "DemosaicingMode")) {
       GENAPIC_RESULT res;
-      if(src->demosaicing) {
+      if (src->demosaicing) {
         if (strncmp ("bayer", src->pixel_format, 5) != 0) {
           GST_DEBUG_OBJECT (src, "Enabling Basler's PGI.");
           res =
-              PylonDeviceFeatureFromString (src->deviceHandle, "DemosaicingMode",
-              "BaslerPGI");
+              PylonDeviceFeatureFromString (src->deviceHandle,
+              "DemosaicingMode", "BaslerPGI");
           PYLONC_CHECK_ERROR (src, res);
 
           // PGI Modules (Noise reduction and Sharpness enhancement).
-          if(is_prop_implicit(src, PROP_DEMOSAICINGNOISEREDUCTION)) {
-            if(is_prop_set(src, PROP_DEMOSAICINGNOISEREDUCTION)) {
+          if (is_prop_implicit (src, PROP_DEMOSAICINGNOISEREDUCTION)) {
+            if (is_prop_set (src, PROP_DEMOSAICINGNOISEREDUCTION)) {
               if (feature_available (src, "NoiseReduction")) {
                 GST_DEBUG_OBJECT (src, "Setting PGI noise reduction to %0.2lf",
                     src->noisereduction);
                 res =
-                    PylonDeviceSetFloatFeature (src->deviceHandle, "NoiseReduction",
-                    src->noisereduction);
+                    PylonDeviceSetFloatFeature (src->deviceHandle,
+                    "NoiseReduction", src->noisereduction);
                 PYLONC_CHECK_ERROR (src, res);
               }
             } else {
-              GST_DEBUG_OBJECT (src, "Using the stored value for noise reduction.");
+              GST_DEBUG_OBJECT (src,
+                  "Using the stored value for noise reduction.");
             }
-            reset_prop(src, PROP_DEMOSAICINGNOISEREDUCTION);
+            reset_prop (src, PROP_DEMOSAICINGNOISEREDUCTION);
           }
 
-          if(is_prop_implicit(src, PROP_DEMOSAICINGSHARPNESSENHANCEMENT)) {
-            if(is_prop_set(src, PROP_DEMOSAICINGSHARPNESSENHANCEMENT)) {
+          if (is_prop_implicit (src, PROP_DEMOSAICINGSHARPNESSENHANCEMENT)) {
+            if (is_prop_set (src, PROP_DEMOSAICINGSHARPNESSENHANCEMENT)) {
               if (feature_available (src, "SharpnessEnhancement")) {
                 GST_DEBUG_OBJECT (src,
                     "Setting PGI sharpness enhancement to %0.2lf",
@@ -2431,22 +2502,23 @@ gst_pylonsrc_set_pgi (GstPylonSrc * src)
                 PYLONC_CHECK_ERROR (src, res);
               }
             } else {
-              GST_DEBUG_OBJECT (src, "Using the stored value for sharpness enhancement.");
+              GST_DEBUG_OBJECT (src,
+                  "Using the stored value for sharpness enhancement.");
             }
-            reset_prop(src, PROP_DEMOSAICINGSHARPNESSENHANCEMENT);
+            reset_prop (src, PROP_DEMOSAICINGSHARPNESSENHANCEMENT);
           }
         } else {
           GST_WARNING_OBJECT (src,
-            "Usage of PGI is not permitted with bayer output. Skipping.");
+              "Usage of PGI is not permitted with bayer output. Skipping.");
         }
       } else {
         res =
-              PylonDeviceFeatureFromString (src->deviceHandle, "DemosaicingMode",
-              "Simple");
-          PYLONC_CHECK_ERROR (src, res);
+            PylonDeviceFeatureFromString (src->deviceHandle, "DemosaicingMode",
+            "Simple");
+        PYLONC_CHECK_ERROR (src, res);
       }
     }
-    reset_prop(src, PROP_BASLERDEMOSAICING);
+    reset_prop (src, PROP_BASLERDEMOSAICING);
   }
 
   return TRUE;
@@ -2456,7 +2528,7 @@ error:
 }
 
 static _Bool
-gst_pylonsrc_set_properties(GstPylonSrc* src)
+gst_pylonsrc_set_properties (GstPylonSrc * src)
 {
   return gst_pylonsrc_set_offset (src) &&
       gst_pylonsrc_set_reverse (src) &&
@@ -2469,8 +2541,7 @@ gst_pylonsrc_set_properties(GstPylonSrc* src)
       gst_pylonsrc_set_auto_exp_gain_wb (src) &&
       gst_pylonsrc_set_color (src) &&
       gst_pylonsrc_set_exposure_gain_level (src) &&
-      gst_pylonsrc_set_pgi (src) &&
-      gst_pylonsrc_set_trigger (src);
+      gst_pylonsrc_set_pgi (src) && gst_pylonsrc_set_trigger (src);
 }
 
 static gboolean
@@ -2572,7 +2643,6 @@ gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
         (gint) throughput, (gint) linkSpeed, (double) throughput / 1000000,
         (double) linkSpeed / 1000000);
   }
-
   // Output sensor readout time [us]
   if (feature_supported (src, "SensorReadoutTime")) {
     double readoutTime = 0.0;
@@ -2586,7 +2656,6 @@ gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
         "With these settings it will take approximately %.0lf microseconds to grab each frame.",
         readoutTime);
   }
-
   // Output final frame rate [Hz]
   if (feature_supported (src, "ResultingFrameRate")) {
     double frameRate = 0.0;
@@ -2602,7 +2671,6 @@ gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
         src->payloadSize, (double) src->payloadSize / 1000000,
         (src->payloadSize * frameRate) / 1000000);
   }
-
   // Tell the camera to start recording
   res =
       PylonDeviceExecuteCommandFeature (src->deviceHandle, "AcquisitionStart");
@@ -2621,406 +2689,462 @@ error:
   return FALSE;
 }
 
-static gchar*
-read_string_feature(GstPylonSrc* src, const char* feature)
+static gchar *
+read_string_feature (GstPylonSrc * src, const char *feature)
 {
-  if(feature_readable(src, feature)) {
-    gchar* result  = NULL;
+  if (feature_readable (src, feature)) {
+    gchar *result = NULL;
     size_t bufLen = 0;
-    
-    for(int i = 0; i < 2; i++) {
+
+    for (int i = 0; i < 2; i++) {
       // g_malloc(0) == NULL
-      result = g_malloc(bufLen);
+      result = g_malloc (bufLen);
       // get bufLen at first iteration
       // read value at second iteration
       GENAPIC_RESULT res =
-      PylonDeviceFeatureToString(src->deviceHandle, feature, result, &bufLen);
+          PylonDeviceFeatureToString (src->deviceHandle, feature, result,
+          &bufLen);
       PYLONC_CHECK_ERROR (src, res);
     }
-
+    GST_DEBUG_OBJECT (src, "Reading string feature: %s = %s", feature, result);
     return result;
 
   error:
-    g_free(result);
+    g_free (result);
   }
   return NULL;
 }
 
-static void
-gst_pylonsrc_read_offset_axis (GstPylonSrc* src, GST_PYLONSRC_AXIS axis)
+static GENAPIC_RESULT
+read_bool_feature (GstPylonSrc * src, const char *feature, _Bool * result)
 {
-  if(is_prop_not_set(src, propCenter[axis])) {
-    PylonDeviceGetBooleanFeature (src->deviceHandle, featCenter[axis], &src->center[axis]);
+  GENAPIC_RESULT res = GENAPI_E_FAIL;
+  if (feature_readable (src, feature)) {
+    res = PylonDeviceGetBooleanFeature (src->deviceHandle, feature, result);
+    GST_DEBUG_OBJECT (src, "Reading bool feature: %s = %s", feature,
+        boolalpha (*result));
   }
 
-  if(is_prop_not_set(src, propOffset[axis])) {
+  return res;
+}
+
+static GENAPIC_RESULT
+read_integer_feature (GstPylonSrc * src, const char *feature, int64_t * result)
+{
+  GENAPIC_RESULT res = GENAPI_E_FAIL;
+  if (feature_readable (src, feature)) {
+    res = PylonDeviceGetIntegerFeature (src->deviceHandle, feature, result);
+    GST_DEBUG_OBJECT (src, "Reading integer feature: %s = %ld", feature,
+        *result);
+  }
+
+  return res;
+}
+
+static GENAPIC_RESULT
+read_float_feature (GstPylonSrc * src, const char *feature, double *result)
+{
+  GENAPIC_RESULT res = GENAPI_E_FAIL;
+  if (feature_readable (src, feature)) {
+    res = PylonDeviceGetFloatFeature (src->deviceHandle, feature, result);
+    GST_DEBUG_OBJECT (src, "Reading float feature: %s = %f", feature, *result);
+  }
+
+  return res;
+}
+
+static void
+gst_pylonsrc_read_offset_axis (GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
+{
+  if (is_prop_not_set (src, propCenter[axis])) {
+    read_bool_feature (src, featCenter[axis], &src->center[axis]);
+  }
+
+  if (is_prop_not_set (src, propOffset[axis])) {
     int64_t temp;
-    GENAPIC_RESULT res = PylonDeviceGetIntegerFeature (src->deviceHandle, featOffset[axis], &temp);
-    if(res == GENAPI_E_OK) {
+    GENAPIC_RESULT res = read_integer_feature (src, featOffset[axis], &temp);
+    if (res == GENAPI_E_OK) {
       src->offset[axis] = temp;
     }
   }
 }
 
 static void
-gst_pylonsrc_read_offset(GstPylonSrc* src)
+gst_pylonsrc_read_offset (GstPylonSrc * src)
 {
-  gst_pylonsrc_read_offset_axis(src, AXIS_X);
-  gst_pylonsrc_read_offset_axis(src, AXIS_Y);
+  gst_pylonsrc_read_offset_axis (src, AXIS_X);
+  gst_pylonsrc_read_offset_axis (src, AXIS_Y);
 }
 
 static _Bool
 gst_pylonsrc_read_reverse_axis (GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
 {
-  if(is_prop_not_set(src, propReverse[axis])) {
-    PylonDeviceGetBooleanFeature (src->deviceHandle, featReverse[axis], &src->flip[axis]);
+  if (is_prop_not_set (src, propReverse[axis])) {
+    read_bool_feature (src, featReverse[axis], &src->flip[axis]);
   }
 }
 
 static void
-gst_pylonsrc_read_reverse (GstPylonSrc* src)
+gst_pylonsrc_read_reverse (GstPylonSrc * src)
 {
-  gst_pylonsrc_read_reverse_axis(src, AXIS_X);
-  gst_pylonsrc_read_reverse_axis(src, AXIS_Y);
+  gst_pylonsrc_read_reverse_axis (src, AXIS_X);
+  gst_pylonsrc_read_reverse_axis (src, AXIS_Y);
 }
 
 static void
-gst_pylonsrc_read_pixel_format (GstPylonSrc* src)
+gst_pylonsrc_read_pixel_format (GstPylonSrc * src)
 {
-  if(is_prop_not_set(src, PROP_PIXEL_FORMAT)) {
-    g_free(src->pixel_format);
-    src->pixel_format = read_string_feature(src, "PixelFormat");
-    if(src->pixel_format == NULL) {
+  if (is_prop_not_set (src, PROP_PIXEL_FORMAT)) {
+    g_free (src->pixel_format);
+    src->pixel_format = read_string_feature (src, "PixelFormat");
+    if (src->pixel_format == NULL) {
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-                ("Failed to initialise the camera"),
-                ("Unable to read PixelFormat"));
+          ("Failed to initialise the camera"), ("Unable to read PixelFormat"));
     }
   }
 }
 
 static void
-gst_pylonsrc_read_test_image (GstPylonSrc* src)
+gst_pylonsrc_read_test_image (GstPylonSrc * src)
 {
-  if(is_prop_not_set(src, PROP_TESTIMAGE)) {
+  if (is_prop_not_set (src, PROP_TESTIMAGE)) {
     static const char prefix[] = "Testimage";
-    char* ImageID = read_string_feature(src, "TestImageSelector");
+    char *ImageID = read_string_feature (src, "TestImageSelector");
 
-    if((ImageID != NULL) && (g_ascii_strncasecmp (ImageID, prefix, sizeof(prefix) - 1) == 0)) { 
-      src->testImage = atoi(&ImageID[sizeof(prefix) - 1]);
+    if ((ImageID != NULL)
+        && (g_ascii_strncasecmp (ImageID, prefix, sizeof (prefix) - 1) == 0)) {
+      src->testImage = atoi (&ImageID[sizeof (prefix) - 1]);
     } else {
       src->testImage = 0;
     }
-    g_free(ImageID);
+    g_free (ImageID);
   }
 }
 
 static void
-gst_pylonsrc_read_readout (GstPylonSrc* src)
+gst_pylonsrc_read_readout (GstPylonSrc * src)
 {
-  if(is_prop_not_set(src, PROP_SENSORREADOUTMODE)) {
-    g_free(src->sensorMode);
-    src->sensorMode = read_string_feature(src, "SensorReadoutMode");
+  if (is_prop_not_set (src, PROP_SENSORREADOUTMODE)) {
+    g_free (src->sensorMode);
+    src->sensorMode = read_string_feature (src, "SensorReadoutMode");
   }
 }
 
 static void
-gst_pylonsrc_read_bandwidth (GstPylonSrc* src)
+gst_pylonsrc_read_bandwidth (GstPylonSrc * src)
 {
-  if(is_prop_not_set(src, PROP_LIMITBANDWIDTH)) {
-    char* mode = read_string_feature(src, "DeviceLinkThroughputLimitMode");
-    if((mode != NULL) && (g_ascii_strncasecmp (mode, "On", -1) == 0)) {
+  if (is_prop_not_set (src, PROP_LIMITBANDWIDTH)) {
+    char *mode = read_string_feature (src, "DeviceLinkThroughputLimitMode");
+    if ((mode != NULL) && (g_ascii_strncasecmp (mode, "On", -1) == 0)) {
       src->limitBandwidth = TRUE;
     } else {
       src->limitBandwidth = FALSE;
     }
-    g_free(mode);
+    g_free (mode);
   }
 
-  if(is_prop_not_set(src, PROP_MAXBANDWIDTH)) {
+  if (is_prop_not_set (src, PROP_MAXBANDWIDTH)) {
     int64_t temp;
-    GENAPIC_RESULT res = PylonDeviceGetIntegerFeature (src->deviceHandle, "DeviceLinkThroughputLimit", &temp);
-    if(res == GENAPI_E_OK) {
+    GENAPIC_RESULT res =
+        read_integer_feature (src, "DeviceLinkThroughputLimit", &temp);
+    if (res == GENAPI_E_OK) {
       src->maxBandwidth = temp;
     }
   }
 }
 
 static void
-gst_pylonsrc_read_framerate (GstPylonSrc* src)
+gst_pylonsrc_read_framerate (GstPylonSrc * src)
 {
-  if(is_prop_not_set(src, PROP_ACQUISITIONFRAMERATEENABLE)) {
-    GENAPIC_RESULT res = PylonDeviceGetBooleanFeature (src->deviceHandle,
+  if (is_prop_not_set (src, PROP_ACQUISITIONFRAMERATEENABLE)) {
+    GENAPIC_RESULT res = read_bool_feature (src,
         "AcquisitionFrameRateEnable", &src->setFPS);
-    if(res != GENAPI_E_OK) {
+    if (res != GENAPI_E_OK) {
       src->setFPS = FALSE;
     }
   }
 
-  if(is_prop_not_set(src, PROP_FPS)) {
-    GENAPIC_RESULT res =  PylonDeviceGetFloatFeature (src->deviceHandle,
-            "AcquisitionFrameRate", &src->fps);
-    if(res != GENAPI_E_OK) {
+  if (is_prop_not_set (src, PROP_FPS)) {
+    GENAPIC_RESULT res = read_float_feature (src,
+        "AcquisitionFrameRate", &src->fps);
+    if (res != GENAPI_E_OK) {
       src->fps = 0.0;
     }
   }
 }
 
-static void 
-gst_pylonsrc_read_lightsource (GstPylonSrc* src)
+static void
+gst_pylonsrc_read_lightsource (GstPylonSrc * src)
 {
-  if(is_prop_not_set(src, PROP_LIGHTSOURCE)) {
-    g_free(src->lightsource);
+  if (is_prop_not_set (src, PROP_LIGHTSOURCE)) {
+    g_free (src->lightsource);
     src->lightsource = NULL;
 
-    char* temp = read_string_feature(src, "LightSourcePreset");
-    if(temp != NULL) {
+    char *temp = read_string_feature (src, "LightSourcePreset");
+    if (temp != NULL) {
       // if temp is something like "Daylight5000K"
       // We need to set src->lightsource to "5000K"
-      for(int i = 0; i < strlen(temp); i++) {
-        if(temp[i] >= '0' && temp[i] <= '9') {
+      for (int i = 0; i < strlen (temp); i++) {
+        if (temp[i] >= '0' && temp[i] <= '9') {
           // found digit
-          src->lightsource = g_strdup(&temp[i]);
+          src->lightsource = g_strdup (&temp[i]);
           break;
         }
       }
-      g_free(temp);
+      g_free (temp);
     }
 
-    if(src->lightsource == NULL) {
-      src->lightsource = g_strdup("off");
-    }
-  }
-}
-
-static void
-gst_pylonsrc_read_auto_feature (GstPylonSrc * src, GST_PYLONSRC_AUTOFEATURE feature)
-{
-  if(is_prop_not_set(src, propAutoFeature[feature])) {
-    g_free(src->autoFeature[feature]);
-    src->autoFeature[feature] = read_string_feature(src, featAutoFeature[feature]);
-    if(src->autoFeature[feature] == NULL) {
-      src->autoFeature[feature] = g_strdup("off");
+    if (src->lightsource == NULL) {
+      src->lightsource = g_strdup ("off");
     }
   }
 }
 
 static void
-gst_pylonsrc_read_limited_feature (GstPylonSrc * src, GST_PYLONSRC_AUTOFEATURE feature)
+gst_pylonsrc_read_auto_feature (GstPylonSrc * src,
+    GST_PYLONSRC_AUTOFEATURE feature)
 {
-  if(feature >= AUTOF_NUM_LIMITED ) {
+  if (is_prop_not_set (src, propAutoFeature[feature])) {
+    g_free (src->autoFeature[feature]);
+    src->autoFeature[feature] =
+        read_string_feature (src, featAutoFeature[feature]);
+    if (src->autoFeature[feature] == NULL) {
+      src->autoFeature[feature] = g_strdup ("off");
+    }
+  }
+}
+
+static void
+gst_pylonsrc_read_limited_feature (GstPylonSrc * src,
+    GST_PYLONSRC_AUTOFEATURE feature)
+{
+  if (feature >= AUTOF_NUM_LIMITED) {
     GST_WARNING_OBJECT (src,
-          "Trying to read limits for unsupported autofeature: %d", (int) feature);
+        "Trying to read limits for unsupported autofeature: %d", (int) feature);
   } else {
-    if(is_prop_not_set(src, propLimitedUpper[feature])) {
-      PylonDeviceGetFloatFeature (src->deviceHandle, featLimitedUpper[feature], &src->limitedFeature[feature].upper);
+    if (is_prop_not_set (src, propLimitedUpper[feature])) {
+      read_float_feature (src, featLimitedUpper[feature],
+          &src->limitedFeature[feature].upper);
     }
 
-    if(is_prop_not_set(src, propLimitedLower[feature])) {
-      PylonDeviceGetFloatFeature (src->deviceHandle, featLimitedLower[feature], &src->limitedFeature[feature].lower);
+    if (is_prop_not_set (src, propLimitedLower[feature])) {
+      read_float_feature (src, featLimitedLower[feature],
+          &src->limitedFeature[feature].lower);
     }
   }
 }
 
-
-static void 
-gst_pylonsrc_read_auto_exp_gain_wb (GstPylonSrc* src)
-{
-GENAPIC_RESULT res;
-
-  for(int i = 0; i < AUTOF_NUM_FEATURES; i++) {
-    gst_pylonsrc_read_auto_feature (src, (GST_PYLONSRC_AUTOFEATURE) i);
-  }
-
-  for(int i = 0; i < AUTOF_NUM_LIMITED; i++) {
-    gst_pylonsrc_read_limited_feature (src, (GST_PYLONSRC_AUTOFEATURE) i);
-  }
-
-  if(is_prop_not_set(src, PROP_AUTOBRIGHTNESSTARGET)) {
-    PylonDeviceGetFloatFeature (src->deviceHandle, "AutoTargetBrightness", &src->brightnesstarget);
-  }
-
-  if(is_prop_not_set(src, PROP_AUTOPROFILE)) {
-    static const char prefix[] = "Minimize";
-    g_free(src->autoprofile);
-
-    char* temp = read_string_feature(src, "AutoFunctionProfile");
-    if((temp != NULL) && (g_ascii_strncasecmp (temp, prefix, sizeof(prefix) - 1) == 0)) {
-      src->autoprofile = g_ascii_strdown(&temp[sizeof(prefix) - 1], -1);
-    } else {
-      src->autoprofile = g_strdup("off");
-    }
-    g_free(temp);
-  }
-}
 
 static void
-gst_pylonsrc_read_colour_balance(GstPylonSrc* src, GST_PYLONSRC_COLOUR colour)
-{
-  if(is_prop_not_set(src, propColourBalance[colour])) {
-    GENAPIC_RESULT res = PylonDeviceFeatureFromString (src->deviceHandle,
-              "BalanceRatioSelector", featColour[colour]);
-    if(res == GENAPI_E_OK) {
-      PylonDeviceGetFloatFeature (src->deviceHandle, "BalanceRatio", &src->balance[colour]);
-    }
-  }
-}
-
-static void
-gst_pylonsrc_read_colour_hue(GstPylonSrc* src, GST_PYLONSRC_COLOUR colour)
-{
-  if(is_prop_not_set(src, propColourHue[colour])) {
-    GENAPIC_RESULT res = PylonDeviceFeatureFromString (src->deviceHandle,
-            "ColorAdjustmentSelector", featColour[colour]);
-    if(res = GENAPI_E_OK) {
-      PylonDeviceGetFloatFeature (src->deviceHandle, "ColorAdjustmentHue", &src->hue[colour]);
-    }
-  }
-}
-
-static _Bool 
-gst_pylonsrc_read_colour_saturation(GstPylonSrc* src, GST_PYLONSRC_COLOUR colour)
-{
-  if(is_prop_not_set(src, propColourSaturation[colour])) {
-    GENAPIC_RESULT res = PylonDeviceFeatureFromString (src->deviceHandle,
-            "ColorAdjustmentSelector", featColour[colour]);
-    if(res == GENAPI_E_OK) {
-      PylonDeviceGetFloatFeature (src->deviceHandle, "ColorAdjustmentSaturation", &src->saturation[colour]);
-    }
-  }
-}
-
-static void
-gst_pylonsrc_read_colour_transformation(GstPylonSrc* src, int i, int j)
-{
-  if(is_prop_not_set(src, propGain[j][i])) {
-    GENAPIC_RESULT res = PylonDeviceFeatureFromString (src->deviceHandle,
-            "ColorTransformationSelector", featGain[j][i]);
-    if(res == GENAPI_E_OK) {
-      PylonDeviceGetFloatFeature (src->deviceHandle,
-            "ColorTransformationValueSelector", &src->transformation[j][i]);
-    }
-  }
-}
-
-static void 
-gst_pylonsrc_read_color (GstPylonSrc* src)
-{
-  for(int i = 0; i < 3; i++) {
-    gst_pylonsrc_read_colour_balance(src, (GST_PYLONSRC_COLOUR) i);
-  }
-
-  for(int i = 0; i < 6; i++) {
-    const GST_PYLONSRC_COLOUR colour = (GST_PYLONSRC_COLOUR) i;
-    gst_pylonsrc_read_colour_hue(src, colour);
-    gst_pylonsrc_read_colour_saturation(src, colour);
-  }
-
-  // Configure colour transformation
-  if(is_prop_not_set(src, PROP_TRANSFORMATIONSELECTOR)) {
-    char* temp = read_string_feature(src, "ColorTransformationSelector");
-    g_free(src->transformationselector);
-    src->transformationselector = NULL;
-
-    if(temp != NULL) {
-      if(strcmp(temp, "RGBtoRGB") == 0) {
-        src->transformationselector = g_strdup("rgbrgb");
-      } else if(strcmp(temp, "RGBtoYUV") == 0) {
-        src->transformationselector = g_strdup("rgbyuv");
-      } else if(strcmp(temp, "YUVtoRGB") == 0) {
-        src->transformationselector = g_strdup("yuvrgb");
-      }
-      g_free(temp);
-    }
-
-    if(src->transformationselector == NULL) {
-      src->transformationselector = g_strdup("off");
-    }
-  }
-
-  for(int j = 0; j < 3; j++) {
-    for(int i = 0; i < 3; i++) {
-      gst_pylonsrc_read_colour_transformation(src, i, j);
-    }
-  }
-}
-
-static void
-gst_pylonsrc_read_manual_feature (GstPylonSrc * src, GST_PYLONSRC_AUTOFEATURE feature)
-{
-  if(feature >= AUTOF_NUM_LIMITED ) {
-    GST_WARNING_OBJECT (src,
-          "Trying to read manual value for unsupported autofeature: %d", (int) feature);
-  } else {
-    if(is_prop_not_set(src, propManualFeature[feature])) {
-      PylonDeviceGetFloatFeature (src->deviceHandle, featManualFeature[feature],
-                &src->limitedFeature[feature].manual);
-    }
-  }
-}
-
-static void 
-gst_pylonsrc_read_exposure_gain_level (GstPylonSrc* src)
+gst_pylonsrc_read_auto_exp_gain_wb (GstPylonSrc * src)
 {
   GENAPIC_RESULT res;
 
-  for(int i = 0; i < AUTOF_NUM_LIMITED; i++) {
-    gst_pylonsrc_read_manual_feature (src, (GST_PYLONSRC_AUTOFEATURE) i);
+  for (int i = 0; i < AUTOF_NUM_FEATURES; i++) {
+    gst_pylonsrc_read_auto_feature (src, (GST_PYLONSRC_AUTOFEATURE) i);
   }
 
-  if(is_prop_not_set(src, PROP_BLACKLEVEL)) {
-    PylonDeviceGetFloatFeature (src->deviceHandle, "BlackLevel", &src->blacklevel);
+  for (int i = 0; i < AUTOF_NUM_LIMITED; i++) {
+    gst_pylonsrc_read_limited_feature (src, (GST_PYLONSRC_AUTOFEATURE) i);
   }
 
-  // Configure gamma correction
-  if(is_prop_not_set(src, PROP_GAMMA)) {
-    PylonDeviceGetFloatFeature (src->deviceHandle, "Gamma", &src->gamma);
+  if (is_prop_not_set (src, PROP_AUTOBRIGHTNESSTARGET)) {
+    read_float_feature (src, "AutoTargetBrightness", &src->brightnesstarget);
+  }
+
+  if (is_prop_not_set (src, PROP_AUTOPROFILE)) {
+    static const char prefix[] = "Minimize";
+    g_free (src->autoprofile);
+
+    char *temp = read_string_feature (src, "AutoFunctionProfile");
+    if ((temp != NULL)
+        && (g_ascii_strncasecmp (temp, prefix, sizeof (prefix) - 1) == 0)) {
+      src->autoprofile = g_ascii_strdown (&temp[sizeof (prefix) - 1], -1);
+    } else {
+      src->autoprofile = g_strdup ("off");
+    }
+    g_free (temp);
   }
 }
 
-static void 
-gst_pylonsrc_read_pgi (GstPylonSrc* src)
+static void
+gst_pylonsrc_read_colour_balance (GstPylonSrc * src, GST_PYLONSRC_COLOUR colour)
 {
-  if(is_prop_not_set(src, PROP_BASLERDEMOSAICING)) {
-    char* temp = read_string_feature(src, "DemosaicingMode");
-    if((temp != NULL) && (strcmp(temp, "BaslerPGI"))) {
+  if (is_prop_not_set (src, propColourBalance[colour])) {
+    GENAPIC_RESULT res = PylonDeviceFeatureFromString (src->deviceHandle,
+        "BalanceRatioSelector", featColour[colour]);
+    if (res == GENAPI_E_OK) {
+      read_float_feature (src, "BalanceRatio", &src->balance[colour]);
+    }
+  }
+}
+
+static void
+gst_pylonsrc_read_colour_hue (GstPylonSrc * src, GST_PYLONSRC_COLOUR colour)
+{
+  if (is_prop_not_set (src, propColourHue[colour])) {
+    GENAPIC_RESULT res = PylonDeviceFeatureFromString (src->deviceHandle,
+        "ColorAdjustmentSelector", featColour[colour]);
+    if (res = GENAPI_E_OK) {
+      read_float_feature (src, "ColorAdjustmentHue", &src->hue[colour]);
+    }
+  }
+}
+
+static _Bool
+gst_pylonsrc_read_colour_saturation (GstPylonSrc * src,
+    GST_PYLONSRC_COLOUR colour)
+{
+  if (is_prop_not_set (src, propColourSaturation[colour])) {
+    GENAPIC_RESULT res = PylonDeviceFeatureFromString (src->deviceHandle,
+        "ColorAdjustmentSelector", featColour[colour]);
+    if (res == GENAPI_E_OK) {
+      read_float_feature (src, "ColorAdjustmentSaturation",
+          &src->saturation[colour]);
+    }
+  }
+}
+
+static void
+gst_pylonsrc_read_colour_transformation (GstPylonSrc * src, int i, int j)
+{
+  if (is_prop_not_set (src, propGain[j][i])) {
+    GENAPIC_RESULT res = PylonDeviceFeatureFromString (src->deviceHandle,
+        "ColorTransformationSelector", featGain[j][i]);
+    if (res == GENAPI_E_OK) {
+      read_float_feature (src,
+          "ColorTransformationValueSelector", &src->transformation[j][i]);
+    }
+  }
+}
+
+static void
+gst_pylonsrc_read_color (GstPylonSrc * src)
+{
+  for (int i = 0; i < 3; i++) {
+    gst_pylonsrc_read_colour_balance (src, (GST_PYLONSRC_COLOUR) i);
+  }
+
+  for (int i = 0; i < 6; i++) {
+    const GST_PYLONSRC_COLOUR colour = (GST_PYLONSRC_COLOUR) i;
+    gst_pylonsrc_read_colour_hue (src, colour);
+    gst_pylonsrc_read_colour_saturation (src, colour);
+  }
+
+  // Configure colour transformation
+  if (is_prop_not_set (src, PROP_TRANSFORMATIONSELECTOR)) {
+    char *temp = read_string_feature (src, "ColorTransformationSelector");
+    g_free (src->transformationselector);
+    src->transformationselector = NULL;
+
+    if (temp != NULL) {
+      if (strcmp (temp, "RGBtoRGB") == 0) {
+        src->transformationselector = g_strdup ("rgbrgb");
+      } else if (strcmp (temp, "RGBtoYUV") == 0) {
+        src->transformationselector = g_strdup ("rgbyuv");
+      } else if (strcmp (temp, "YUVtoRGB") == 0) {
+        src->transformationselector = g_strdup ("yuvrgb");
+      }
+      g_free (temp);
+    }
+
+    if (src->transformationselector == NULL) {
+      src->transformationselector = g_strdup ("off");
+    }
+  }
+
+  for (int j = 0; j < 3; j++) {
+    for (int i = 0; i < 3; i++) {
+      gst_pylonsrc_read_colour_transformation (src, i, j);
+    }
+  }
+}
+
+static void
+gst_pylonsrc_read_manual_feature (GstPylonSrc * src,
+    GST_PYLONSRC_AUTOFEATURE feature)
+{
+  if (feature >= AUTOF_NUM_LIMITED) {
+    GST_WARNING_OBJECT (src,
+        "Trying to read manual value for unsupported autofeature: %d",
+        (int) feature);
+  } else {
+    if (is_prop_not_set (src, propManualFeature[feature])) {
+      read_float_feature (src, featManualFeature[feature],
+          &src->limitedFeature[feature].manual);
+    }
+  }
+}
+
+static void
+gst_pylonsrc_read_exposure_gain_level (GstPylonSrc * src)
+{
+  GENAPIC_RESULT res;
+
+  for (int i = 0; i < AUTOF_NUM_LIMITED; i++) {
+    gst_pylonsrc_read_manual_feature (src, (GST_PYLONSRC_AUTOFEATURE) i);
+  }
+
+  if (is_prop_not_set (src, PROP_BLACKLEVEL)) {
+    read_float_feature (src, "BlackLevel", &src->blacklevel);
+  }
+  // Configure gamma correction
+  if (is_prop_not_set (src, PROP_GAMMA)) {
+    read_float_feature (src, "Gamma", &src->gamma);
+  }
+}
+
+static void
+gst_pylonsrc_read_pgi (GstPylonSrc * src)
+{
+  if (is_prop_not_set (src, PROP_BASLERDEMOSAICING)) {
+    char *temp = read_string_feature (src, "DemosaicingMode");
+    if ((temp != NULL) && (strcmp (temp, "BaslerPGI"))) {
       src->demosaicing = TRUE;
     } else {
       src->demosaicing = FALSE;
     }
-    g_free(temp);
+    g_free (temp);
   }
 
-  if(is_prop_not_set(src, PROP_DEMOSAICINGNOISEREDUCTION)) {
-    PylonDeviceGetFloatFeature (src->deviceHandle, "NoiseReduction", &src->noisereduction);
+  if (is_prop_not_set (src, PROP_DEMOSAICINGNOISEREDUCTION)) {
+    read_float_feature (src, "NoiseReduction", &src->noisereduction);
   }
 
-  if(is_prop_not_set(src, PROP_DEMOSAICINGSHARPNESSENHANCEMENT)) {
-    PylonDeviceGetFloatFeature (src->deviceHandle,
-            "SharpnessEnhancement", &src->sharpnessenhancement);
+  if (is_prop_not_set (src, PROP_DEMOSAICINGSHARPNESSENHANCEMENT)) {
+    read_float_feature (src,
+        "SharpnessEnhancement", &src->sharpnessenhancement);
   }
 }
 
 static void
-gst_pylonsrc_read_trigger_selector_mode(GstPylonSrc* src, const char* trigger_selector)
+gst_pylonsrc_read_trigger_selector_mode (GstPylonSrc * src,
+    const char *trigger_selector)
 {
-  GENAPIC_RESULT res = PylonDeviceFeatureFromString (src->deviceHandle, "TriggerSelector", trigger_selector);
-    if(res == GENAPI_E_OK) {
-      char* temp = read_string_feature(src, "TriggerMode");
-      if((temp != NULL) && (strcmp(temp, "On") == 0)) {
-        src->continuousMode = TRUE;
-      } else {
-        src->continuousMode = FALSE;
-      }
-      g_free(temp);
-    } else {
+  GST_DEBUG_OBJECT (src, "Reading trigger selector mode: %s", trigger_selector);
+  GENAPIC_RESULT res =
+      PylonDeviceFeatureFromString (src->deviceHandle, "TriggerSelector",
+      trigger_selector);
+  if (res == GENAPI_E_OK) {
+    char *temp = read_string_feature (src, "TriggerMode");
+    GST_DEBUG_OBJECT (src, "Trigger mode: %s", temp);
+    if ((temp != NULL) && (strcmp (temp, "On") == 0)) {
       src->continuousMode = FALSE;
+    } else {
+      src->continuousMode = TRUE;
     }
+    g_free (temp);
+  } else {
+    GST_WARNING_OBJECT (src,
+        "Failed to get TriggerSelector. Assuming continuous acquisition");
+    src->continuousMode = TRUE;
+  }
 }
 
-static void 
-gst_pylonsrc_read_trigger (GstPylonSrc* src)
+static void
+gst_pylonsrc_read_trigger (GstPylonSrc * src)
 {
-  if(is_prop_not_set(src, PROP_CONTINUOUSMODE)) {
+  if (is_prop_not_set (src, PROP_CONTINUOUSMODE)) {
     const char *triggerSelectorValue = "FrameStart";
     _Bool isAvailAcquisitionStart =
         PylonDeviceFeatureIsAvailable (src->deviceHandle,
@@ -3029,28 +3153,28 @@ gst_pylonsrc_read_trigger (GstPylonSrc* src)
         "EnumEntry_TriggerSelector_FrameStart");
 
     if (isAvailAcquisitionStart && !isAvailFrameStart) {
-      gst_pylonsrc_read_trigger_selector_mode(src, "AcquisitionStart");
+      gst_pylonsrc_read_trigger_selector_mode (src, "AcquisitionStart");
     } else {
-      gst_pylonsrc_read_trigger_selector_mode(src, "FrameStart");
+      gst_pylonsrc_read_trigger_selector_mode (src, "FrameStart");
     }
   }
 }
 
-static _Bool 
-gst_pylonsrc_read_resolution_axis(GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
+static _Bool
+gst_pylonsrc_read_resolution_axis (GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
 {
-  if(is_prop_not_set(src, propBinning[axis])) {
+  if (is_prop_not_set (src, propBinning[axis])) {
     int64_t temp;
-    GENAPIC_RESULT res = PylonDeviceGetIntegerFeature (src->deviceHandle, featBinning[axis], &temp);
-    if(res == GENAPI_E_OK) {
+    GENAPIC_RESULT res = read_integer_feature (src, featBinning[axis], &temp);
+    if (res == GENAPI_E_OK) {
       src->binning[axis] = temp;
     }
   }
 
-  if(is_prop_not_set(src, propSize[axis])) {
+  if (is_prop_not_set (src, propSize[axis])) {
     int64_t temp;
-    GENAPIC_RESULT res = PylonDeviceGetIntegerFeature (src->deviceHandle, featSize[axis], &temp);
-    if(res == GENAPI_E_OK) {
+    GENAPIC_RESULT res = read_integer_feature (src, featSize[axis], &temp);
+    if (res == GENAPI_E_OK) {
       src->size[axis] = temp;
     } else {
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
@@ -3058,8 +3182,8 @@ gst_pylonsrc_read_resolution_axis(GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
           ("Camera isn't reporting it's resolution. (Unsupported device?)"));
     }
 
-    res = PylonDeviceGetIntegerFeature (src->deviceHandle, featMaxSize[axis], &temp);
-    if(res == GENAPI_E_OK) {
+    res = read_integer_feature (src, featMaxSize[axis], &temp);
+    if (res == GENAPI_E_OK) {
       src->maxSize[axis] = temp;
     }
   }
@@ -3068,13 +3192,13 @@ gst_pylonsrc_read_resolution_axis(GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
 static void
 gst_pylonsrc_read_resolution (GstPylonSrc * src)
 {
-  gst_pylonsrc_read_resolution_axis(src, AXIS_X);
-  gst_pylonsrc_read_resolution_axis(src, AXIS_Y);
+  gst_pylonsrc_read_resolution_axis (src, AXIS_X);
+  gst_pylonsrc_read_resolution_axis (src, AXIS_Y);
 }
 
 // read all features from device to plugin struct
 static void
-read_all_features(GstPylonSrc* src)
+read_all_features (GstPylonSrc * src)
 {
   gst_pylonsrc_read_offset (src);
   gst_pylonsrc_read_reverse (src);
@@ -3089,39 +3213,39 @@ read_all_features(GstPylonSrc* src)
   gst_pylonsrc_read_exposure_gain_level (src);
   gst_pylonsrc_read_pgi (src);
   gst_pylonsrc_read_trigger (src);
-  gst_pylonsrc_read_resolution(src);
+  gst_pylonsrc_read_resolution (src);
 }
 
 // Load features from PFS file to device
 static _Bool
-gst_pylonsrc_load_configuration(GstPylonSrc* src)
+gst_pylonsrc_load_configuration (GstPylonSrc * src)
 {
-  if(is_prop_set(src, PROP_CONFIGFILE)) {
+  if (is_prop_set (src, PROP_CONFIGFILE)) {
     GST_DEBUG_OBJECT (src, "Loading features from file: %s", src->configFile);
     NODEMAP_HANDLE hMap;
-    GENAPIC_RESULT res = PylonDeviceGetNodeMap(src->deviceHandle, &hMap);
+    GENAPIC_RESULT res = PylonDeviceGetNodeMap (src->deviceHandle, &hMap);
     PYLONC_CHECK_ERROR (src, res);
     // Do not verify features. This makes plugin more robust in case of floating point values being rounded
     // For example trying to set AcquisitionFrameRate to 300 will result in 300.030003 and verification failure
-    res = PylonFeaturePersistenceLoad(hMap, src->configFile, FALSE);
-    PYLONC_CHECK_ERROR (src, res);  
+    res = PylonFeaturePersistenceLoad (hMap, src->configFile, FALSE);
+    PYLONC_CHECK_ERROR (src, res);
     // We don't really need to reset it, but anyway
-    reset_prop(src, PROP_CONFIGFILE);
+    reset_prop (src, PROP_CONFIGFILE);
   }
 
-  if(is_prop_set(src, PROP_IGNOREDEFAULTS)) {
-    if(src->ignoreDefaults) {
+  if (is_prop_set (src, PROP_IGNOREDEFAULTS)) {
+    if (src->ignoreDefaults) {
       GST_DEBUG_OBJECT (src, "Ignoring defaults");
-      for(int i = 0; i < GST_PYLONSRC_NUM_PROPS; i++) {
+      for (int i = 0; i < GST_PYLONSRC_NUM_PROPS; i++) {
         const GST_PYLONSRC_PROP prop = (GST_PYLONSRC_PROP) i;
-        if(is_prop_default(src, prop)) {
-          reset_prop(src, prop);
+        if (is_prop_default (src, prop)) {
+          reset_prop (src, prop);
         }
       }
-      read_all_features(src);
+      read_all_features (src);
     }
     // We don't really need to reset it, but anyway
-    reset_prop(src, PROP_IGNOREDEFAULTS);
+    reset_prop (src, PROP_IGNOREDEFAULTS);
   }
 
   return TRUE;
@@ -3134,20 +3258,20 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
 {
   GstPylonSrc *src = GST_PYLONSRC (bsrc);
 
-  const int count = gst_pylonsrc_ref_pylon_environment();
+  const int count = gst_pylonsrc_ref_pylon_environment ();
   if (count <= 0) {
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Failed to initialise the camera"),
         ("Pylon library initialization failed"));
     goto error;
   } else if (count == 1) {
-    GST_DEBUG_OBJECT(src, "First object created");
+    GST_DEBUG_OBJECT (src, "First object created");
   }
 
 
   if (!gst_pylonsrc_select_device (src) ||
       !gst_pylonsrc_connect_device (src) ||
-      !gst_pylonsrc_load_configuration(src) ||
+      !gst_pylonsrc_load_configuration (src) ||
       !gst_pylonsrc_set_resolution (src))
     goto error;
 
@@ -3193,7 +3317,7 @@ gst_pylonsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   PylonGrabResult_t grabResult;
   _Bool bufferReady;
 
-  if(!gst_pylonsrc_set_properties(src)) {
+  if (!gst_pylonsrc_set_properties (src)) {
     // TODO: Maybe just shot warning if setting is not critical
     goto error;
   }
@@ -3289,23 +3413,23 @@ gst_pylonsrc_finalize (GObject * object)
   GstPylonSrc *src = GST_PYLONSRC (object);
   GST_DEBUG_OBJECT (src, "finalize");
 
-  g_free(src->pixel_format);
-  g_free(src->sensorMode);
-  g_free(src->lightsource);
+  g_free (src->pixel_format);
+  g_free (src->sensorMode);
+  g_free (src->lightsource);
 
-  for(int i = 0; i < AUTOF_NUM_FEATURES; i++) {
-    g_free(src->autoFeature[i]);
+  for (int i = 0; i < AUTOF_NUM_FEATURES; i++) {
+    g_free (src->autoFeature[i]);
   }
 
-  g_free(src->reset);
-  g_free(src->autoprofile);
-  g_free(src->transformationselector);
-  g_free(src->userid);
-  g_free(src->configFile);
+  g_free (src->reset);
+  g_free (src->autoprofile);
+  g_free (src->transformationselector);
+  g_free (src->userid);
+  g_free (src->configFile);
 
 
-  if(gst_pylonsrc_unref_pylon_environment () == 0) {
-    GST_DEBUG_OBJECT(src, "Last object finalized");
+  if (gst_pylonsrc_unref_pylon_environment () == 0) {
+    GST_DEBUG_OBJECT (src, "Last object finalized");
   }
 
   G_OBJECT_CLASS (gst_pylonsrc_parent_class)->finalize (object);
