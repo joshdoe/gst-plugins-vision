@@ -74,7 +74,11 @@ enum
   PROP_EXPOSURE,
   PROP_GAIN,
   PROP_OFFSET,
-  PROP_FORMAT
+  PROP_FORMAT,
+  PROP_X,
+  PROP_Y,
+  PROP_WIDTH,
+  PROP_HEIGHT
 };
 
 #define DEFAULT_PROP_DEVICE_INDEX 0
@@ -84,6 +88,10 @@ enum
 #define DEFAULT_PROP_GAIN 1.0
 #define DEFAULT_PROP_OFFSET 0
 #define DEFAULT_PROP_FORMAT qfmtMono16
+#define DEFAULT_PROP_X 0
+#define DEFAULT_PROP_Y 0
+#define DEFAULT_PROP_WIDTH 0
+#define DEFAULT_PROP_HEIGHT 0
 
 
 /* pad templates */
@@ -182,6 +190,22 @@ gst_qcamsrc_class_init (GstQcamSrcClass * klass)
       g_param_spec_int ("format", "Image format",
           "Image format (2=GRAY8, 3=GRAY16_LE)", 2, 3, DEFAULT_PROP_FORMAT,
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
+  g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_X,
+      g_param_spec_int ("x", "ROI x pixel",
+          "ROI x pixel position", 0, G_MAXINT, DEFAULT_PROP_X,
+          (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
+  g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_Y,
+      g_param_spec_int ("y", "ROI y pixel",
+          "ROI y pixel position", 0, G_MAXINT, DEFAULT_PROP_Y,
+          (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
+  g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_WIDTH,
+      g_param_spec_int ("width", "ROI width",
+          "ROI width", 0, G_MAXINT, DEFAULT_PROP_WIDTH,
+          (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
+  g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_HEIGHT,
+      g_param_spec_int ("height", "ROI height",
+          "ROI height", 0, G_MAXINT, DEFAULT_PROP_HEIGHT,
+          (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
 }
 
 static void
@@ -193,6 +217,10 @@ gst_qcamsrc_reset (GstQcamSrc * src)
   src->gain = DEFAULT_PROP_GAIN;
   src->offset = DEFAULT_PROP_OFFSET;
   src->format = DEFAULT_PROP_FORMAT;
+  src->x = DEFAULT_PROP_X;
+  src->y = DEFAULT_PROP_Y;
+  src->width = DEFAULT_PROP_WIDTH;
+  src->height = DEFAULT_PROP_HEIGHT;
 
   src->last_frame_count = 0;
   src->total_dropped_frames = 0;
@@ -201,9 +229,6 @@ gst_qcamsrc_reset (GstQcamSrc * src)
     gst_caps_unref (src->caps);
     src->caps = NULL;
   }
-
-  src->width = 0;
-  src->height = 0;
 
   if (src->queue) {
     // TODO: remove dangling buffers
@@ -297,6 +322,18 @@ gst_qcamsrc_set_property (GObject * object, guint property_id,
     case PROP_FORMAT:
       src->format = g_value_get_int (value);
       break;
+    case PROP_X:
+      src->x = g_value_get_int (value);
+      break;
+    case PROP_Y:
+      src->y = g_value_get_int (value);
+      break;
+    case PROP_WIDTH:
+      src->width = GST_ROUND_DOWN_4 (g_value_get_int (value));
+      break;
+    case PROP_HEIGHT:
+      src->height = g_value_get_int (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -333,6 +370,18 @@ gst_qcamsrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_FORMAT:
       g_value_set_int (value, src->format);
+      break;
+    case PROP_X:
+      g_value_set_int (value, src->x);
+      break;
+    case PROP_Y:
+      g_value_set_int (value, src->y);
+      break;
+    case PROP_WIDTH:
+      g_value_set_int (value, src->width);
+      break;
+    case PROP_HEIGHT:
+      g_value_set_int (value, src->height);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -467,6 +516,12 @@ gst_qcamsrc_setup_stream (GstQcamSrc * src)
   }
 
   err = QCam_SetParam (&src->qsettings, qprmImageFormat, src->format);
+  err = QCam_SetParam (&src->qsettings, qprmRoiX, src->x);
+  err = QCam_SetParam (&src->qsettings, qprmRoiX, src->y);
+  if (src->width > 0)
+    err = QCam_SetParam (&src->qsettings, qprmRoiWidth, src->width);
+  if (src->height > 0)
+    err = QCam_SetParam (&src->qsettings, qprmRoiHeight, src->height);
   gst_qcamsrc_set_exposure (src, src->exposure);
   gst_qcamsrc_set_gain (src, src->gain);
   gst_qcamsrc_set_offset (src, src->offset);

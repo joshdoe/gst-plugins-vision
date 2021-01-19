@@ -51,6 +51,10 @@ struct _GstQcamSrc
   gfloat gain;
   gint offset;
   gint format;
+  gint x;
+  gint y;
+  gint width;
+  gint height;
 
   GAsyncQueue *queue;
   GstClockTime base_time;
@@ -59,8 +63,6 @@ struct _GstQcamSrc
   guint32 total_dropped_frames;
 
   GstCaps *caps;
-  gint width;
-  gint height;
 
   gboolean stop_requested;
 };
