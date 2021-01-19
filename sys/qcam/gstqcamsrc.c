@@ -179,7 +179,7 @@ gst_qcamsrc_class_init (GstQcamSrcClass * klass)
           "Exposure time in microseconds", 0, G_MAXINT, DEFAULT_PROP_EXPOSURE,
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_GAIN,
-      g_param_spec_float ("gain", "Normalized gain",
+      g_param_spec_double ("gain", "Normalized gain",
           "Normalized gain", 0, 1000, DEFAULT_PROP_GAIN,
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_OFFSET,
@@ -310,7 +310,7 @@ gst_qcamsrc_set_property (GObject * object, guint property_id,
         gst_qcamsrc_set_exposure (src, src->exposure);
       break;
     case PROP_GAIN:
-      src->gain = g_value_get_float (value);
+      src->gain = g_value_get_double (value);
       if (src->handle)
         gst_qcamsrc_set_gain (src, src->gain);
       break;
@@ -363,7 +363,7 @@ gst_qcamsrc_get_property (GObject * object, guint property_id,
       g_value_set_uint (value, src->exposure);
       break;
     case PROP_GAIN:
-      g_value_set_float (value, src->gain);
+      g_value_set_double (value, src->gain);
       break;
     case PROP_OFFSET:
       g_value_set_int (value, src->offset);

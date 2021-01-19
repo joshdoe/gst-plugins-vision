@@ -48,7 +48,7 @@ struct _GstQcamSrc
   guint num_capture_buffers;
   gint timeout;
   guint exposure;
-  gfloat gain;
+  gdouble gain;
   gint offset;
   gint format;
   gint x;
