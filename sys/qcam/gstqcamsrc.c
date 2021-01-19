@@ -446,7 +446,9 @@ static void
 video_frame_release (void *data)
 {
   VideoFrame *frame = (VideoFrame *) data;
-  video_frame_queue (frame);
+  if (!frame->src->stop_requested && frame->src->handle) {
+    video_frame_queue (frame);
+  }
 }
 
 static VideoFrame *
@@ -681,9 +683,13 @@ gst_qcamsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
       (VideoFrame *) g_async_queue_timeout_pop (src->queue,
       (guint64) src->timeout * 1000 + src->exposure);
   if (!video_frame) {
-    GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
-        ("Failed to get buffer in %d ms", src->timeout), (NULL));
-    return GST_FLOW_ERROR;
+    if (!src->stop_requested) {
+      GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
+          ("Failed to get buffer in %d ms", src->timeout), (NULL));
+      return GST_FLOW_ERROR;
+    } else {
+      return GST_FLOW_FLUSHING;
+    }
   }
 
   *buf = gst_buffer_new_wrapped_full ((GstMemoryFlags)
