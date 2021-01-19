@@ -62,6 +62,10 @@ if (PYLON_FOUND)
 	add_subdirectory(pylon)
 endif (PYLON_FOUND)
 
+if (QCAM_FOUND)
+	add_subdirectory(qcam)
+endif (QCAM_FOUND)
+
 if (SAPERA_FOUND)
 	add_subdirectory(sapera)
 endif (SAPERA_FOUND)
