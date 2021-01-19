@@ -83,7 +83,7 @@ enum
 
 #define DEFAULT_PROP_DEVICE_INDEX 0
 #define DEFAULT_PROP_NUM_CAPTURE_BUFFERS 3
-#define DEFAULT_PROP_TIMEOUT 1000
+#define DEFAULT_PROP_TIMEOUT 500
 #define DEFAULT_PROP_EXPOSURE 16384
 #define DEFAULT_PROP_GAIN 1.0
 #define DEFAULT_PROP_OFFSET 0
@@ -172,7 +172,7 @@ gst_qcamsrc_class_init (GstQcamSrcClass * klass)
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_TIMEOUT,
       g_param_spec_int ("timeout", "Timeout (ms)",
-          "Timeout in ms (0 to use default)", 0, G_MAXINT, DEFAULT_PROP_TIMEOUT,
+          "Timeout in ms to wait for a frame beyond exposure time", 0, G_MAXINT, DEFAULT_PROP_TIMEOUT,
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_EXPOSURE,
       g_param_spec_uint ("exposure", "Exposure (us)",
@@ -674,15 +674,12 @@ static GstFlowReturn
 gst_qcamsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 {
   GstQcamSrc *src = GST_QCAM_SRC (psrc);
-  GstClock *clock;
-  GstClockTime clock_time;
-  QCam_Err err;
   VideoFrame *video_frame;
   GST_LOG_OBJECT (src, "create");
 
   video_frame =
       (VideoFrame *) g_async_queue_timeout_pop (src->queue,
-      (guint64) src->timeout * 1000);
+      (guint64) src->timeout * 1000 + src->exposure);
   if (!video_frame) {
     GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
         ("Failed to get buffer in %d ms", src->timeout), (NULL));
