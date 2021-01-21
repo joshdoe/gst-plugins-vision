@@ -172,39 +172,40 @@ gst_qcamsrc_class_init (GstQcamSrcClass * klass)
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_TIMEOUT,
       g_param_spec_int ("timeout", "Timeout (ms)",
-          "Timeout in ms to wait for a frame beyond exposure time", 0, G_MAXINT, DEFAULT_PROP_TIMEOUT,
+          "Timeout in ms to wait for a frame beyond exposure time", 0, G_MAXINT,
+          DEFAULT_PROP_TIMEOUT,
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_EXPOSURE,
       g_param_spec_uint ("exposure", "Exposure (us)",
           "Exposure time in microseconds", 0, G_MAXINT, DEFAULT_PROP_EXPOSURE,
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_GAIN,
-      g_param_spec_double ("gain", "Normalized gain",
-          "Normalized gain", 0, 1000, DEFAULT_PROP_GAIN,
+      g_param_spec_double ("gain", "Normalized gain", "Normalized gain", 0,
+          1000, DEFAULT_PROP_GAIN,
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_OFFSET,
-      g_param_spec_int ("offset", "Offset",
-          "Absolute offset", -G_MAXINT, G_MAXINT, DEFAULT_PROP_OFFSET,
+      g_param_spec_int ("offset", "Offset", "Absolute offset", -G_MAXINT,
+          G_MAXINT, DEFAULT_PROP_OFFSET,
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_FORMAT,
       g_param_spec_int ("format", "Image format",
           "Image format (2=GRAY8, 3=GRAY16_LE)", 2, 3, DEFAULT_PROP_FORMAT,
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_X,
-      g_param_spec_int ("x", "ROI x pixel",
-          "ROI x pixel position", 0, G_MAXINT, DEFAULT_PROP_X,
+      g_param_spec_int ("x", "ROI x pixel", "ROI x pixel position", 0, G_MAXINT,
+          DEFAULT_PROP_X,
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_Y,
-      g_param_spec_int ("y", "ROI y pixel",
-          "ROI y pixel position", 0, G_MAXINT, DEFAULT_PROP_Y,
+      g_param_spec_int ("y", "ROI y pixel", "ROI y pixel position", 0, G_MAXINT,
+          DEFAULT_PROP_Y,
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_WIDTH,
-      g_param_spec_int ("width", "ROI width",
-          "ROI width", 0, G_MAXINT, DEFAULT_PROP_WIDTH,
+      g_param_spec_int ("width", "ROI width", "ROI width", 0, G_MAXINT,
+          DEFAULT_PROP_WIDTH,
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
   g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_HEIGHT,
-      g_param_spec_int ("height", "ROI height",
-          "ROI height", 0, G_MAXINT, DEFAULT_PROP_HEIGHT,
+      g_param_spec_int ("height", "ROI height", "ROI height", 0, G_MAXINT,
+          DEFAULT_PROP_HEIGHT,
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
 }
 
