@@ -41,6 +41,7 @@ struct _GstQcamSrc
 
   /* camera handle */
   QCam_Handle handle;
+  gboolean send_settings;
   QCam_Settings qsettings;
 
   /* properties */

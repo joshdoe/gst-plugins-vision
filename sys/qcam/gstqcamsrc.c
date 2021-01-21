@@ -268,7 +268,6 @@ static void
 gst_qcamsrc_set_exposure (GstQcamSrc * src, unsigned long exposure)
 {
   QCam_SetParam (&src->qsettings, qprmExposure, exposure);
-  QCam_SendSettingsToCam (src->handle, &src->qsettings);
 }
 
 static void
@@ -276,14 +275,12 @@ gst_qcamsrc_set_gain (GstQcamSrc * src, float gain)
 {
   QCam_SetParam (&src->qsettings, qprmNormalizedGain,
       (unsigned long) (gain * 1000000));
-  QCam_SendSettingsToCam (src->handle, &src->qsettings);
 }
 
 static void
 gst_qcamsrc_set_offset (GstQcamSrc * src, long offset)
 {
   QCam_SetParamS32 (&src->qsettings, qprmS32AbsoluteOffset, offset);
-  QCam_SendSettingsToCam (src->handle, &src->qsettings);
 }
 
 
@@ -307,18 +304,15 @@ gst_qcamsrc_set_property (GObject * object, guint property_id,
       break;
     case PROP_EXPOSURE:
       src->exposure = g_value_get_uint (value);
-      if (src->handle)
-        gst_qcamsrc_set_exposure (src, src->exposure);
+      src->send_settings = TRUE;
       break;
     case PROP_GAIN:
       src->gain = g_value_get_double (value);
-      if (src->handle)
-        gst_qcamsrc_set_gain (src, src->gain);
+      src->send_settings = TRUE;
       break;
     case PROP_OFFSET:
       src->offset = g_value_get_int (value);
-      if (src->handle)
-        gst_qcamsrc_set_offset (src, src->offset);
+      src->send_settings = TRUE;
       break;
     case PROP_FORMAT:
       src->format = g_value_get_int (value);
@@ -528,6 +522,8 @@ gst_qcamsrc_setup_stream (GstQcamSrc * src)
   gst_qcamsrc_set_exposure (src, src->exposure);
   gst_qcamsrc_set_gain (src, src->gain);
   gst_qcamsrc_set_offset (src, src->offset);
+  QCam_SendSettingsToCam (src->handle, &src->qsettings);
+  src->send_settings = FALSE;
 
   err = QCam_GetInfo (src->handle, qinfCcdWidth, &width);
   err = QCam_GetInfo (src->handle, qinfCcdHeight, &height);
@@ -721,6 +717,14 @@ gst_qcamsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
       *buf = NULL;
     }
     return GST_FLOW_FLUSHING;
+  }
+
+  if (src->handle && src->send_settings) {
+    gst_qcamsrc_set_exposure (src, src->exposure);
+    gst_qcamsrc_set_gain (src, src->gain);
+    gst_qcamsrc_set_offset (src, src->offset);
+    QCam_QueueSettings (src->handle, &src->qsettings, NULL, 0, 0, 0);
+    src->send_settings = FALSE;
   }
 
   return GST_FLOW_OK;
