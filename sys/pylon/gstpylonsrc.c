@@ -208,9 +208,6 @@ static const GST_PYLONSRC_PROP propLimitedLower[AUTOF_NUM_LIMITED] =
 static const GST_PYLONSRC_PROP propLimitedUpper[AUTOF_NUM_LIMITED] =
     { PROP_GAINUPPERLIMIT, PROP_AUTOEXPOSUREUPPERLIMIT };
 
-static const double defaultLimitedValue[AUTOF_NUM_LIMITED] =
-    { 999.0, 9999999.0 };
-
 typedef enum _GST_PYLONSRC_AXIS
 {
   AXIS_X,
@@ -239,6 +236,12 @@ static const char *const featGain[3][3] = {
   {"Gain00", "Gain01", "Gain02"},
   {"Gain10", "Gain11", "Gain12"},
   {"Gain20", "Gain21", "Gain22"}
+};
+
+static const double defaultTransform[3][3] = {
+  {1.4375, -0.3125, -0.125},
+  {-0.28125, 1.75, -0.46875},
+  {0.0625, -0.8125, 1.75}
 };
 
 static const GST_PYLONSRC_PROP propGain[3][3] = {
@@ -287,7 +290,42 @@ ascii_strdown (gchar * *str, gssize len)
   *str = temp;
 }
 
-#define DEFAULT_PROP_PIXEL_FORMAT "auto"
+#define DEFAULT_PROP_CAMERA                           0
+#define DEFAULT_PROP_SIZE                             0
+#define DEFAULT_PROP_BINNING                          1
+#define DEFAULT_PROP_LIMITBANDWIDTH                   TRUE
+#define DEFAULT_PROP_MAXBANDWIDTH                     0
+#define DEFAULT_PROP_SENSORREADOUTMODE                "normal"
+#define DEFAULT_PROP_ACQUISITIONFRAMERATEENABLE       FALSE
+#define DEFAULT_PROP_FPS                              0.0
+#define DEFAULT_PROP_LIGHTSOURCE                      "5000k"
+#define DEFAULT_PROP_AUTOFEATURE                      "off"
+#define DEFAULT_PROP_LIMITED_MANUAL                   0.0
+#define DEFAULT_PROP_BALANCE                          1.0
+#define DEFAULT_PROP_HUE                              0.0
+#define DEFAULT_PROP_SATURATION                       0.0
+#define DEFAULT_PROP_BLACKLEVEL                       0.0
+#define DEFAULT_PROP_GAMMA                            1.0
+#define DEFAULT_PROP_RESET                            "off"
+#define DEFAULT_PROP_TESTIMAGE                        0
+#define DEFAULT_PROP_CONTINUOUSMODE                   TRUE
+#define DEFAULT_PROP_PIXEL_FORMAT                     "auto"
+#define DEFAULT_PROP_USERID                           ""
+#define DEFAULT_PROP_BASLERDEMOSAICING                FALSE
+#define DEFAULT_PROP_DEMOSAICINGNOISEREDUCTION        0.0
+#define DEFAULT_PROP_DEMOSAICINGSHARPNESSENHANCEMENT  1.0
+#define DEFAULT_PROP_OFFSET                           0
+#define DEFAULT_PROP_CENTER                           FALSE
+#define DEFAULT_PROP_FLIP                             FALSE
+#define DEFAULT_PROP_AUTOEXPOSURELOWERLIMIT           105.0
+#define DEFAULT_PROP_AUTOEXPOSUREUPPERLIMIT           1000000.0
+#define DEFAULT_PROP_GAINLOWERLIMIT                   0.0
+#define DEFAULT_PROP_GAINUPPERLIMIT                   12.00921
+#define DEFAULT_PROP_AUTOBRIGHTNESSTARGET             0.50196
+#define DEFAULT_PROP_AUTOPROFILE                      "gain"
+#define DEFAULT_PROP_TRANSFORMATIONSELECTOR           "RGBRGB"
+#define DEFAULT_PROP_CONFIGFILE                       ""
+#define DEFAULT_PROP_IGNOREDEFAULTS                   FALSE
 
 /* pad templates */
 static GstStaticPadTemplate gst_pylonsrc_src_template =
@@ -331,173 +369,184 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
   g_object_class_install_property (gobject_class, PROP_CAMERA,
       g_param_spec_int ("camera", "camera",
           "(Number) Camera ID as defined by Basler's API. If only one camera is connected this parameter will be ignored and the lone camera will be used. If there are multiple cameras and this parameter isn't defined, the plugin will output a list of available cameras and their IDs. Note that if there are multiple cameras available to the API and the camera parameter isn't defined then this plugin will not run.",
-          0, 100, 0,
+          0, 100, DEFAULT_PROP_CAMERA,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_HEIGHT,
       g_param_spec_int ("height", "height",
           "(Pixels) The height of the picture. Note that the camera will remember this setting, and will use values from the previous runs if you relaunch without specifying this parameter. Reconnect the camera or use the reset parameter to reset.",
-          0, 10000, 0,
+          0, 10000, DEFAULT_PROP_SIZE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_WIDTH,
       g_param_spec_int ("width", "width",
           "(Pixels) The width of the picture. Note that the camera will remember this setting, and will use values from the previous runs if you relaunch without specifying this parameter. Reconnect the camera or use the reset parameter to reset.",
-          0, 10000, 0,
+          0, 10000, DEFAULT_PROP_SIZE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_BINNINGH,
       g_param_spec_int ("binningh", "Horizontal binning",
           "(Pixels) The number of pixels to be binned in horizontal direction. Note that the camera will remember this setting, and will use values from the previous runs if you relaunch without specifying this parameter. Reconnect the camera or use the reset parameter to reset.",
-          1, 6, 1, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          1, 6, DEFAULT_PROP_BINNING,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_BINNINGV,
       g_param_spec_int ("binningv", "Vertical binning",
           "(Pixels) The number of pixels to be binned in vertical direction. Note that the camera will remember this setting, and will use values from the previous runs if you relaunch without specifying this parameter. Reconnect the camera or use the reset parameter to reset.",
-          1, 6, 1, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          1, 6, DEFAULT_PROP_BINNING,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_LIMITBANDWIDTH,
       g_param_spec_boolean ("limitbandwidth", "Link Throughput limit mode",
           "(true/false) Bandwidth limit mode. Disabling this will potentially allow the camera to reach higher frames per second, but can potentially damage your camera. Use with caution. Running the plugin without specifying this parameter will reset the value stored on the camera to `true`.",
-          TRUE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          DEFAULT_PROP_LIMITBANDWIDTH,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_MAXBANDWIDTH,
       g_param_spec_int ("maxbandwidth", "Maximum bandwidth",
           "(Bytes per second) This property sets the maximum bandwidth the camera can use. The camera will only use as much as it needs for the specified resolution and framerate. This setting will have no effect if limitbandwidth is set to off. Note that the camera will remember this setting, and will use values from the previous runs if you relaunch without specifying this parameter. Reconnect the camera or use the reset parameter to reset.",
-          0, 999999999, 0,
+          0, 999999999, DEFAULT_PROP_MAXBANDWIDTH,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_SENSORREADOUTMODE,
       g_param_spec_string ("sensorreadoutmode", "Sensor readout mode",
           "(normal/fast) This property changes the sensor readout mode. Fast will allow for faster framerates, but might cause quality loss. It might be required to either increase max bandwidth or disabling bandwidth limiting for this to cause any noticeable change. Running the plugin without specifying this parameter will reset the value stored on the camera to \"normal\".",
-          "Normal",
+          DEFAULT_PROP_SENSORREADOUTMODE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class,
       PROP_ACQUISITIONFRAMERATEENABLE,
       g_param_spec_boolean ("acquisitionframerateenable", "Custom FPS mode",
           "(true/false) Enables the use of custom fps values. Will be set to true if the fps poperty is set. Running the plugin without specifying this parameter will reset the value stored on the camera to false.",
-          FALSE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          DEFAULT_PROP_ACQUISITIONFRAMERATEENABLE,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_FPS,
       g_param_spec_double ("fps", "Framerate",
           "(Frames per second) Sets the framerate of the video coming from the camera. Setting the value too high might cause the plugin to crash. Note that if your pipeline proves to be too much for your computer then the resulting video won't be in the resolution you set. Setting this parameter will set acquisitionframerateenable to true. The value of this parameter will be saved to the camera, but it will have no effect unless either this or the acquisitionframerateenable parameters are set. Reconnect the camera or use the reset parameter to reset.",
-          0.0, 1024.0, 0.0,
+          0.0, 1024.0, DEFAULT_PROP_FPS,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_LIGHTSOURCE,
       g_param_spec_string ("lightsource", "Lightsource preset",
           "(off, 2800k, 5000k, 6500k) Changes the colour balance settings to ones defined by presests. Just pick one that's closest to your environment's lighting. Running the plugin without specifying this parameter will reset the value stored on the camera to \"5000k\"",
-          "5000k", (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          DEFAULT_PROP_LIGHTSOURCE,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_AUTOEXPOSURE,
       g_param_spec_string ("autoexposure", "Automatic exposure setting",
           "(off, once, continuous) Controls whether or not the camera will try to adjust the exposure settings. Setting this parameter to anything but \"off\" will override the exposure parameter. Running the plugin without specifying this parameter will reset the value stored on the camera to \"off\"",
-          "off", (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          DEFAULT_PROP_AUTOFEATURE,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_EXPOSURE,
       g_param_spec_double ("exposure", "Exposure",
           "(Microseconds) Exposure time for the camera in microseconds. Will only have an effect if autoexposure is set to off (default). Higher numbers will cause lower frame rate. Note that the camera will remember this setting, and will use values from the previous runs if you relaunch without specifying this parameter. Reconnect the camera or use the reset parameter to reset.",
-          0.0, 1000000.0, 0.0,
+          0.0, 1000000.0, DEFAULT_PROP_LIMITED_MANUAL,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_AUTOWHITEBALANCE,
       g_param_spec_string ("autowhitebalance", "Automatic colour balancing",
           "(off, once, continuous) Controls whether or not the camera will try to adjust the white balance settings. Setting this parameter to anything but \"off\" will override the exposure parameter. Running the plugin without specifying this parameter will reset the value stored on the camera to \"off\"",
-          "off", (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          DEFAULT_PROP_AUTOFEATURE,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_BALANCERED,
       g_param_spec_double ("balancered", "Red balance",
           "Specifies the red colour balance. the autowhitebalance must be set to \"off\" for this property to have any effect. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          0.0, 15.9, 0.0,
+          0.0, 15.9, DEFAULT_PROP_BALANCE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_BALANCEGREEN,
       g_param_spec_double ("balancegreen", "Green balance",
           "Specifies the green colour balance. the autowhitebalance must be set to \"off\" for this property to have any effect. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          0.0, 15.9, 0.0,
+          0.0, 15.9, DEFAULT_PROP_BALANCE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_BALANCEBLUE,
       g_param_spec_double ("balanceblue", "Blue balance",
           "Specifies the blue colour balance. the autowhitebalance must be set to \"off\" for this property to have any effect. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          0.0, 15.9, 0.0,
+          0.0, 15.9, DEFAULT_PROP_BALANCE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORREDHUE,
       g_param_spec_double ("colorredhue", "Red's hue",
           "Specifies the red colour's hue. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          -4.0, 3.9, 0.0,
+          -4.0, 3.9, DEFAULT_PROP_HUE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORREDSATURATION,
       g_param_spec_double ("colorredsaturation", "Red's saturation",
           "Specifies the red colour's saturation. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          0.0, 1.9, 0.0,
+          0.0, 1.9, DEFAULT_PROP_SATURATION,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORYELLOWHUE,
       g_param_spec_double ("coloryellowhue", "Yellow's hue",
           "Specifies the yellow colour's hue. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          -4.0, 3.9, 0.0,
+          -4.0, 3.9, DEFAULT_PROP_HUE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORYELLOWSATURATION,
       g_param_spec_double ("coloryellowsaturation", "Yellow's saturation",
           "Specifies the yellow colour's saturation. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          0.0, 1.9, 0.0,
+          0.0, 1.9, DEFAULT_PROP_SATURATION,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORGREENHUE,
       g_param_spec_double ("colorgreenhue", "Green's hue",
           "Specifies the green colour's hue. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          -4.0, 3.9, 0.0,
+          -4.0, 3.9, DEFAULT_PROP_HUE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORGREENSATURATION,
       g_param_spec_double ("colorgreensaturation", "Green's saturation",
           "Specifies the green colour's saturation. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          0.0, 1.9, 0.0,
+          0.0, 1.9, DEFAULT_PROP_SATURATION,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORCYANHUE,
       g_param_spec_double ("colorcyanhue", "Cyan's hue",
           "Specifies the cyan colour's hue. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          -4.0, 3.9, 0.0,
+          -4.0, 3.9, DEFAULT_PROP_HUE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORCYANSATURATION,
       g_param_spec_double ("colorcyansaturation", "Cyan's saturation",
           "Specifies the cyan colour's saturation. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          0.0, 1.9, 0.0,
+          0.0, 1.9, DEFAULT_PROP_SATURATION,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORBLUEHUE,
       g_param_spec_double ("colorbluehue", "Blue's hue",
           "Specifies the blue colour's hue. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          -4.0, 3.9, 0.0,
+          -4.0, 3.9, DEFAULT_PROP_HUE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORBLUESATURATION,
       g_param_spec_double ("colorbluesaturation", "Blue's saturation",
           "Specifies the blue colour's saturation. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          0.0, 1.9, 0.0,
+          0.0, 1.9, DEFAULT_PROP_SATURATION,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORMAGENTAHUE,
       g_param_spec_double ("colormagentahue", "Magenta's hue",
           "Specifies the magenta colour's hue. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          -4.0, 3.9, 0.0,
+          -4.0, 3.9, DEFAULT_PROP_HUE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORMAGENTASATURATION,
       g_param_spec_double ("colormagentasaturation", "Magenta's saturation",
           "Specifies the magenta colour's saturation. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          0.0, 1.9, 0.0,
+          0.0, 1.9, DEFAULT_PROP_SATURATION,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_AUTOGAIN,
       g_param_spec_string ("autogain", "Automatic gain",
           "(off, once, continuous) Controls whether or not the camera will try to adjust the gain settings. Setting this parameter to anything but \"off\" will override the exposure parameter. Running the plugin without specifying this parameter will reset the value stored on the camera to \"off\"",
-          "off", (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          DEFAULT_PROP_AUTOFEATURE,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_GAIN,
       g_param_spec_double ("gain", "Gain",
           "(dB) Sets the gain added on the camera before sending the frame to the computer. The value of this parameter will be saved to the camera, but it will be set to 0 every time this plugin is launched without specifying gain or overriden if the autogain parameter is set to anything that's not \"off\". Reconnect the camera or use the reset parameter to reset the stored value.",
-          0.0, 12.0, 0.0,
+          0.0, 12.0, DEFAULT_PROP_LIMITED_MANUAL,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_BLACKLEVEL,
       g_param_spec_double ("blacklevel", "Black Level",
           "(DN) Sets stream's black level. This parameter is processed on the camera before the picture is sent to the computer. The value of this parameter will be saved to the camera, but it will be set to 0 every time this plugin is launched without specifying this parameter. Reconnect the camera or use the reset parameter to reset the stored value.",
-          0.0, 63.75, 0.0,
+          0.0, 63.75, DEFAULT_PROP_BLACKLEVEL,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_GAMMA,
       g_param_spec_double ("gamma", "Gamma",
           "Sets the gamma correction value. This parameter is processed on the camera before the picture is sent to the computer. The value of this parameter will be saved to the camera, but it will be set to 1.0 every time this plugin is launched without specifying this parameter. Reconnect the camera or use the reset parameter to reset the stored value.",
-          0.0, 3.9, 1.0,
+          0.0, 3.9, DEFAULT_PROP_GAMMA,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_RESET,
       g_param_spec_string ("reset", "Camera reset settings",
           "(off, before, after). Controls whether or when the camera's settings will be reset. Setting this to \"before\" will wipe the settings before the camera initialisation begins. Setting this to \"after\" will reset the device once the pipeline closes. This can be useful for debugging or when you want to use the camera with other software that doesn't reset the camera settings before use (such as PylonViewerApp).",
-          "off", (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          DEFAULT_PROP_RESET,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_TESTIMAGE,
       g_param_spec_int ("testimage", "Test image",
           "(1-6) Specifies a test image to show instead of a video stream. Useful for debugging. Will be disabled by default.",
-          0, 6, 0, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          0, 6, DEFAULT_PROP_TESTIMAGE,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_CONTINUOUSMODE,
       g_param_spec_boolean ("continuous", "Continuous mode",
           "(true/false) Used to switch between triggered and continuous mode. To switch to triggered mode this parameter has to be switched to false.",
-          TRUE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          DEFAULT_PROP_CONTINUOUSMODE,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_PIXEL_FORMAT,
       g_param_spec_string ("pixel-format", "Pixel format",
           "Force the pixel format (e.g., Mono8). Default to 'auto', which will use GStreamer negotiation.",
@@ -506,138 +555,147 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
   g_object_class_install_property (gobject_class, PROP_USERID,
       g_param_spec_string ("userid", "Custom Device User ID",
           "(<string>) Sets the device custom id so that it can be identified later.",
-          "", (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          DEFAULT_PROP_USERID,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_BASLERDEMOSAICING,
       g_param_spec_boolean ("demosaicing", "Basler's Demosaicing mode'",
           "(true/false) Switches between simple and Basler's Demosaicing (PGI) mode. Note that this will not work if bayer output is used.",
-          FALSE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          DEFAULT_PROP_BASLERDEMOSAICING,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class,
       PROP_DEMOSAICINGNOISEREDUCTION, g_param_spec_double ("noisereduction",
           "Noise reduction",
           "Specifies the amount of noise reduction to apply. To use this Basler's demosaicing mode must be enabled. Setting this will enable demosaicing mode.",
-          0.0, 2.0, 0.0,
+          0.0, 2.0, DEFAULT_PROP_DEMOSAICINGNOISEREDUCTION,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class,
       PROP_DEMOSAICINGSHARPNESSENHANCEMENT,
       g_param_spec_double ("sharpnessenhancement", "Sharpness enhancement",
           "Specifies the amount of sharpness enhancement to apply. To use this Basler's demosaicing mode must be enabled. Setting this will enable demosaicing mode.",
-          1.0, 3.98, 1.0,
+          1.0, 3.98, DEFAULT_PROP_DEMOSAICINGSHARPNESSENHANCEMENT,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_OFFSETX,
       g_param_spec_int ("offsetx", "horizontal offset",
           "(0-10000) Determines the vertical offset. Note that the maximum offset value is calculated during initialisation, and will not be shown in this output.",
-          0, 10000, 0,
+          0, 10000, DEFAULT_PROP_OFFSET,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_OFFSETY,
       g_param_spec_int ("offsety", "vertical offset",
           "(0-10000) Determines the vertical offset. Note that the maximum offset value is calculated during initialisation, and will not be shown in this output.",
-          0, 10000, 0,
+          0, 10000, DEFAULT_PROP_OFFSET,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_CENTERX,
       g_param_spec_boolean ("centerx", "center horizontally",
           "(true/false) Setting this will center the horizontal offset. Setting this to true this will cause the plugin to ignore offsetx value.",
-          FALSE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          DEFAULT_PROP_CENTER,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_CENTERY,
       g_param_spec_boolean ("centery", "center vertically",
           "(true/false) Setting this will center the vertical offset. Setting this to true this will cause the plugin to ignore offsetx value.",
-          FALSE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          DEFAULT_PROP_CENTER,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_FLIPX,
       g_param_spec_boolean ("flipx", "Flip horizontally",
-          "(true/false) Setting this will flip the image horizontally.", FALSE,
+          "(true/false) Setting this will flip the image horizontally.",
+          DEFAULT_PROP_FLIP,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_FLIPY,
       g_param_spec_boolean ("flipy", "Flip vertically",
-          "(true/false) Setting this will flip the image vertically.", FALSE,
+          "(true/false) Setting this will flip the image vertically.",
+          DEFAULT_PROP_FLIP,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_AUTOEXPOSURELOWERLIMIT,
       g_param_spec_double ("exposurelowerlimit", "Auto exposure lower limit",
           "(105-1000000) Sets the lower limit for the auto exposure function.",
-          105.0, 1000000.0, 105.0,
+          105.0, 1000000.0, DEFAULT_PROP_AUTOEXPOSURELOWERLIMIT,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_AUTOEXPOSUREUPPERLIMIT,
       g_param_spec_double ("exposureupperlimit", "Auto exposure upper limit",
           "(105-1000000) Sets the upper limit for the auto exposure function.",
-          105.0, 1000000.0, 1000000.0,
+          105.0, 1000000.0, DEFAULT_PROP_AUTOEXPOSUREUPPERLIMIT,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_GAINUPPERLIMIT,
       g_param_spec_double ("gainupperlimit", "Auto exposure upper limit",
           "(0-12.00921) Sets the upper limit for the auto gain function.", 0.0,
-          12.00921, 12.00921,
+          12.00921, DEFAULT_PROP_GAINUPPERLIMIT,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_GAINLOWERLIMIT,
       g_param_spec_double ("gainlowerlimit", "Auto exposure lower limit",
           "(0-12.00921) Sets the lower limit for the auto gain function.", 0.0,
-          12.00921, 0.0,
+          12.00921, DEFAULT_PROP_GAINLOWERLIMIT,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_AUTOBRIGHTNESSTARGET,
       g_param_spec_double ("autobrightnesstarget", "Auto brightness target",
           "(0.19608-0.80392) Sets the brightness value the auto exposure function should strive for.",
-          0.19608, 0.80392, 0.50196,
+          0.19608, 0.80392, DEFAULT_PROP_AUTOBRIGHTNESSTARGET,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_AUTOPROFILE,
       g_param_spec_string ("autoprofile", "Auto function minimize profile",
           "(gain/exposure) When the auto functions are on, this determines whether to focus on minimising gain or exposure.",
-          "gain", (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          DEFAULT_PROP_AUTOPROFILE,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_TRANSFORMATION00,
       g_param_spec_double ("transformation00",
           "Color Transformation selector 00", "Gain00 transformation selector.",
-          -8.0, 7.96875, 1.4375,
+          -8.0, 7.96875, defaultTransform[0][0],
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_TRANSFORMATION01,
       g_param_spec_double ("transformation01",
           "Color Transformation selector 01", "Gain01 transformation selector.",
-          -8.0, 7.96875, -0.3125,
+          -8.0, 7.96875, defaultTransform[0][1],
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_TRANSFORMATION02,
       g_param_spec_double ("transformation02",
           "Color Transformation selector 02", "Gain02 transformation selector.",
-          -8.0, 7.96875, -0.125,
+          -8.0, 7.96875, defaultTransform[0][2],
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_TRANSFORMATION10,
       g_param_spec_double ("transformation10",
           "Color Transformation selector 10", "Gain10 transformation selector.",
-          -8.0, 7.96875, -0.28125,
+          -8.0, 7.96875, defaultTransform[1][0],
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_TRANSFORMATION11,
       g_param_spec_double ("transformation11",
           "Color Transformation selector 11", "Gain11 transformation selector.",
-          -8.0, 7.96875, 1.75,
+          -8.0, 7.96875, defaultTransform[1][1],
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_TRANSFORMATION12,
       g_param_spec_double ("transformation12",
           "Color Transformation selector 12", "Gain12 transformation selector.",
-          -8.0, 7.96875, -0.46875,
+          -8.0, 7.96875, defaultTransform[1][2],
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_TRANSFORMATION20,
       g_param_spec_double ("transformation20",
           "Color Transformation selector 20", "Gain20 transformation selector.",
-          -8.0, 7.96875, 0.0625,
+          -8.0, 7.96875, defaultTransform[2][0],
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_TRANSFORMATION21,
       g_param_spec_double ("transformation21",
           "Color Transformation selector 21", "Gain21 transformation selector.",
-          -8.0, 7.96875, -0.8125,
+          -8.0, 7.96875, defaultTransform[2][1],
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_TRANSFORMATION22,
       g_param_spec_double ("transformation22",
           "Color Transformation selector 22", "Gain22 transformation selector.",
-          -8.0, 7.96875, 1.75,
+          -8.0, 7.96875, defaultTransform[2][2],
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_TRANSFORMATIONSELECTOR,
       g_param_spec_string ("transformationselector",
           "Color Transformation Selector",
           "(RGBRGB, RGBYUV, YUVRGB) Sets the type of color transformation done by the color transformation selectors.",
-          "RGBRGB",
+          DEFAULT_PROP_TRANSFORMATIONSELECTOR,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_CONFIGFILE,
       g_param_spec_string ("config-file", "Pylon Feature Stream (.pfs) file",
           "Path to PFS file containing configurations for all features. PFS file can be obtained with PylonViewer or PylonFeaturePersistenceSave() function. Configuration file is only applied on plugin startup prior to any other properties. Using configuration file implies setting \"ignore-defaults\"",
-          "", (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          DEFAULT_PROP_CONFIGFILE,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_IGNOREDEFAULTS,
       g_param_spec_boolean ("ignore-defaults",
           "Ignore default values to other properties",
           "(true/false) Apply features only if those are set explicitly. Can only be applied on plugin startup. This property is implicitly set to true if config-file is provided. Setting this to false while config-file is set will lead to strange result and is not recommended",
-          FALSE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+          DEFAULT_PROP_IGNOREDEFAULTS,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 }
 
 static gboolean
@@ -657,67 +715,73 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->caps = NULL;
 
   // Default parameter values
-  src->continuousMode = TRUE;
-  src->limitBandwidth = TRUE;
-  src->setFPS = FALSE;
-  src->demosaicing = FALSE;
+  src->continuousMode = DEFAULT_PROP_CONTINUOUSMODE;
+  src->limitBandwidth = DEFAULT_PROP_LIMITBANDWIDTH;
+  src->setFPS = DEFAULT_PROP_ACQUISITIONFRAMERATEENABLE;
+  src->demosaicing = DEFAULT_PROP_BASLERDEMOSAICING;
 
   for (int i = 0; i < 2; i++) {
-    src->binning[i] = 1;
-    src->center[i] = FALSE;
-    src->flip[i] = FALSE;
-    src->offset[i] = 99999;
-    src->size[i] = 0;
+    src->binning[i] = DEFAULT_PROP_BINNING;
+    src->center[i] = DEFAULT_PROP_CENTER;
+    src->flip[i] = DEFAULT_PROP_FLIP;
+    src->offset[i] = DEFAULT_PROP_OFFSET;
+    src->size[i] = DEFAULT_PROP_SIZE;
     src->maxSize[i] = G_MAXINT;
   }
 
-  src->cameraId = 9999;
-  src->maxBandwidth = 0;
-  src->testImage = 0;
-  src->sensorMode = g_strdup ("normal");
-  src->lightsource = g_strdup ("5000k");
+  src->cameraId = DEFAULT_PROP_CAMERA;
+  src->maxBandwidth = DEFAULT_PROP_MAXBANDWIDTH;
+  src->testImage = DEFAULT_PROP_TESTIMAGE;
+  src->sensorMode = g_strdup (DEFAULT_PROP_SENSORREADOUTMODE);
+  src->lightsource = g_strdup (DEFAULT_PROP_LIGHTSOURCE);
 
   for (int i = 0; i < AUTOF_NUM_FEATURES; i++) {
-    src->autoFeature[i] = g_strdup ("off");
+    src->autoFeature[i] = g_strdup (DEFAULT_PROP_AUTOFEATURE);
   }
 
-  src->reset = g_strdup ("off");
+  src->reset = g_strdup (DEFAULT_PROP_RESET);
   src->pixel_format = g_strdup (DEFAULT_PROP_PIXEL_FORMAT);
-  src->userid = g_strdup ("");
-  src->autoprofile = g_strdup ("default");
-  src->transformationselector = g_strdup ("default");
-  src->fps = 0.0;
+  src->userid = g_strdup (DEFAULT_PROP_USERID);
+  src->autoprofile = g_strdup (DEFAULT_PROP_AUTOPROFILE);
+  src->transformationselector = g_strdup (DEFAULT_PROP_TRANSFORMATIONSELECTOR);
+  src->fps = DEFAULT_PROP_FPS;
 
-  src->blacklevel = 0.0;
-  src->gamma = 1.0;
+  src->blacklevel = DEFAULT_PROP_BLACKLEVEL;
+  src->gamma = DEFAULT_PROP_GAMMA;
 
   for (int i = 0; i < 3; i++) {
-    src->balance[i] = 999.0;
+    src->balance[i] = DEFAULT_PROP_BALANCE;
   }
 
   for (int i = 0; i < 6; i++) {
-    src->hue[i] = 999.0;
-    src->saturation[i] = 999.0;
+    src->hue[i] = DEFAULT_PROP_HUE;
+    src->saturation[i] = DEFAULT_PROP_SATURATION;
   }
 
-  src->sharpnessenhancement = 999.0;
-  src->noisereduction = 999.0;
+  src->sharpnessenhancement = DEFAULT_PROP_DEMOSAICINGSHARPNESSENHANCEMENT;
+  src->noisereduction = DEFAULT_PROP_DEMOSAICINGNOISEREDUCTION;
 
   for (int i = 0; i < AUTOF_NUM_LIMITED; i++) {
-    src->limitedFeature[i].upper = defaultLimitedValue[i];
-    src->limitedFeature[i].lower = defaultLimitedValue[i];
-    src->limitedFeature[i].manual = 0.0;
+    src->limitedFeature[i].manual = DEFAULT_PROP_LIMITED_MANUAL;
   }
 
-  src->brightnesstarget = 999.0;
+  src->limitedFeature[AUTOF_EXPOSURE].lower =
+      DEFAULT_PROP_AUTOEXPOSURELOWERLIMIT;
+  src->limitedFeature[AUTOF_EXPOSURE].upper =
+      DEFAULT_PROP_AUTOEXPOSUREUPPERLIMIT;
+
+  src->limitedFeature[AUTOF_GAIN].lower = DEFAULT_PROP_GAINLOWERLIMIT;
+  src->limitedFeature[AUTOF_GAIN].upper = DEFAULT_PROP_GAINUPPERLIMIT;
+
+  src->brightnesstarget = DEFAULT_PROP_AUTOBRIGHTNESSTARGET;
   for (int j = 0; j < 3; j++) {
     for (int i = 0; i < 3; i++) {
-      src->transformation[j][i] = 999.0;
+      src->transformation[j][i] = defaultTransform[j][i];
     }
   }
 
-  src->configFile = g_strdup ("");
-  src->ignoreDefaults = FALSE;
+  src->configFile = g_strdup (DEFAULT_PROP_CONFIGFILE);
+  src->ignoreDefaults = DEFAULT_PROP_IGNOREDEFAULTS;
 
   for (int i = 0; i < PROP_NUM_PROPERTIES; i++) {
     src->propFlags[i] = GST_PYLONSRC_PROPST_DEFAULT;
@@ -781,16 +845,16 @@ set_prop_implicitly (GObject * object, GST_PYLONSRC_PROP prop,
 
 // Use in gst_pylonsrc_set_property to set related string property
 static inline void
-set_string_prop_implicitly(GObject* object, GST_PYLONSRC_PROP prop,
-  GParamSpec* pspec, const gchar * str_val)
+set_string_prop_implicitly (GObject * object, GST_PYLONSRC_PROP prop,
+    GParamSpec * pspec, const gchar * str_val)
 {
-  GstPylonSrc* src = GST_PYLONSRC(object);
-  if (!is_prop_set(src, prop)) {
+  GstPylonSrc *src = GST_PYLONSRC (object);
+  if (!is_prop_set (src, prop)) {
     GValue val = G_VALUE_INIT;
-    g_value_init(&val, G_TYPE_STRING);
-    g_value_set_string(&val, str_val);
-    gst_pylonsrc_set_property(object, prop, &val, pspec);
-    g_value_unset(&val);
+    g_value_init (&val, G_TYPE_STRING);
+    g_value_set_string (&val, str_val);
+    gst_pylonsrc_set_property (object, prop, &val, pspec);
+    g_value_unset (&val);
   }
 }
 
@@ -950,12 +1014,12 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
     case PROP_EXPOSURE:
       src->limitedFeature[AUTOF_EXPOSURE].manual = g_value_get_double (value);
       // disable autoexposure unless set explicitly
-      set_string_prop_implicitly(object, PROP_AUTOEXPOSURE, pspec, "off");
+      set_string_prop_implicitly (object, PROP_AUTOEXPOSURE, pspec, "off");
       break;
     case PROP_GAIN:
       src->limitedFeature[AUTOF_GAIN].manual = g_value_get_double (value);
       // disable autoexposure unless set explicitly
-      set_string_prop_implicitly(object, PROP_AUTOGAIN, pspec, "off");
+      set_string_prop_implicitly (object, PROP_AUTOGAIN, pspec, "off");
       break;
     case PROP_BLACKLEVEL:
       src->blacklevel = g_value_get_double (value);
@@ -1441,11 +1505,11 @@ gst_pylonsrc_select_device (GstPylonSrc * src)
         ("Failed to initialise the camera"), ("No camera connected"));
     goto error;
   } else if (numDevices == 1) {
-    if (is_prop_set (src, PROP_CAMERA)) {
+    if (is_prop_set (src, PROP_CAMERA) && src->cameraId != 0) {
       GST_DEBUG_OBJECT (src,
           "Camera id was set, but was ignored as only one camera was found.");
+      src->cameraId = 0;
     }
-    src->cameraId = 0;
   } else if (numDevices > 1 && !is_prop_set (src, PROP_CAMERA)) {
     GST_DEBUG_OBJECT (src,
         "Multiple cameras found, and the user didn't specify which camera to use.");
@@ -1477,7 +1541,7 @@ gst_pylonsrc_select_device (GstPylonSrc * src)
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Failed to initialise the camera"), ("No camera selected"));
     goto error;
-  } else if (is_prop_set (src, PROP_CAMERA) && src->cameraId > numDevices) {
+  } else if (is_prop_set (src, PROP_CAMERA) && src->cameraId >= numDevices) {
     GST_DEBUG_OBJECT (src, "No camera found with id %i.", src->cameraId);
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Failed to initialise the camera"), ("No camera connected"));
