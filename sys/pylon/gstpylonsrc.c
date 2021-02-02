@@ -2610,23 +2610,6 @@ error:
   return FALSE;
 }
 
-static _Bool
-gst_pylonsrc_set_properties (GstPylonSrc * src)
-{
-  return gst_pylonsrc_set_offset (src) &&
-      gst_pylonsrc_set_reverse (src) &&
-      gst_pylonsrc_set_pixel_format (src) &&
-      gst_pylonsrc_set_test_image (src) &&
-      gst_pylonsrc_set_readout (src) &&
-      gst_pylonsrc_set_bandwidth (src) &&
-      gst_pylonsrc_set_framerate (src) &&
-      gst_pylonsrc_set_lightsource (src) &&
-      gst_pylonsrc_set_auto_exp_gain_wb (src) &&
-      gst_pylonsrc_set_color (src) &&
-      gst_pylonsrc_set_exposure_gain_level (src) &&
-      gst_pylonsrc_set_pgi (src) && gst_pylonsrc_set_trigger (src);
-}
-
 static gboolean
 gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
 {
@@ -3312,7 +3295,6 @@ gst_pylonsrc_load_configuration (GstPylonSrc * src)
     // For example trying to set AcquisitionFrameRate to 300 will result in 300.030003 and verification failure
     res = PylonFeaturePersistenceLoad (hMap, src->configFile, FALSE);
     PYLONC_CHECK_ERROR (src, res);
-    // We don't really need to reset it, but anyway
     reset_prop (src, PROP_CONFIGFILE);
   }
 
@@ -3327,13 +3309,31 @@ gst_pylonsrc_load_configuration (GstPylonSrc * src)
       }
       read_all_features (src);
     }
-    // We don't really need to reset it, but anyway
     reset_prop (src, PROP_IGNOREDEFAULTS);
   }
 
   return TRUE;
 error:
   return FALSE;
+}
+
+static _Bool
+gst_pylonsrc_set_properties (GstPylonSrc * src)
+{
+  return gst_pylonsrc_load_configuration (src) && // make sure configuration is loaded first
+      gst_pylonsrc_set_resolution (src) && // make sure resolution is set before offset
+      gst_pylonsrc_set_offset (src) &&
+      gst_pylonsrc_set_reverse (src) &&
+      gst_pylonsrc_set_pixel_format (src) &&
+      gst_pylonsrc_set_test_image (src) &&
+      gst_pylonsrc_set_readout (src) &&
+      gst_pylonsrc_set_bandwidth (src) &&
+      gst_pylonsrc_set_framerate (src) &&
+      gst_pylonsrc_set_lightsource (src) &&
+      gst_pylonsrc_set_auto_exp_gain_wb (src) &&
+      gst_pylonsrc_set_color (src) &&
+      gst_pylonsrc_set_exposure_gain_level (src) &&
+      gst_pylonsrc_set_pgi (src) && gst_pylonsrc_set_trigger (src);
 }
 
 static gboolean
@@ -3354,8 +3354,7 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
 
   if (!gst_pylonsrc_select_device (src) ||
       !gst_pylonsrc_connect_device (src) ||
-      !gst_pylonsrc_load_configuration (src) ||
-      !gst_pylonsrc_set_resolution (src))
+      !gst_pylonsrc_set_properties (src))
     goto error;
 
   src->caps = gst_pylonsrc_get_supported_caps (src);
