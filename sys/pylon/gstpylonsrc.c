@@ -193,7 +193,7 @@ G_STATIC_ASSERT (AUTOF_NUM_LIMITED == GST_PYLONSRC_NUM_LIMITED_FEATURES);
 static const char *const featAutoFeature[AUTOF_NUM_FEATURES] =
     { "GainAuto", "ExposureAuto", "BalanceWhiteAuto" };
 static const GST_PYLONSRC_PROP propAutoFeature[AUTOF_NUM_FEATURES] =
-    { PROP_GAIN, PROP_EXPOSURE, PROP_AUTOWHITEBALANCE };
+    { PROP_AUTOGAIN, PROP_AUTOEXPOSURE, PROP_AUTOWHITEBALANCE };
 // Yes,there is no "WhiteBalance" feature, it is only used for logging
 static const char *const featManualFeature[AUTOF_NUM_FEATURES] =
     { "Gain", "ExposureTime", "WhiteBalance" };
@@ -779,6 +779,21 @@ set_prop_implicitly (GObject * object, GST_PYLONSRC_PROP prop,
   }
 }
 
+// Use in gst_pylonsrc_set_property to set related string property
+static inline void
+set_string_prop_implicitly(GObject* object, GST_PYLONSRC_PROP prop,
+  GParamSpec* pspec, const gchar * str_val)
+{
+  GstPylonSrc* src = GST_PYLONSRC(object);
+  if (!is_prop_set(src, prop)) {
+    GValue val = G_VALUE_INIT;
+    g_value_init(&val, G_TYPE_STRING);
+    g_value_set_string(&val, str_val);
+    gst_pylonsrc_set_property(object, prop, &val, pspec);
+    g_value_unset(&val);
+  }
+}
+
 /* plugin's parameters/properties */
 void
 gst_pylonsrc_set_property (GObject * object, guint property_id,
@@ -934,9 +949,13 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
       break;
     case PROP_EXPOSURE:
       src->limitedFeature[AUTOF_EXPOSURE].manual = g_value_get_double (value);
+      // disable autoexposure unless set explicitly
+      set_string_prop_implicitly(object, PROP_AUTOEXPOSURE, pspec, "off");
       break;
     case PROP_GAIN:
       src->limitedFeature[AUTOF_GAIN].manual = g_value_get_double (value);
+      // disable autoexposure unless set explicitly
+      set_string_prop_implicitly(object, PROP_AUTOGAIN, pspec, "off");
       break;
     case PROP_BLACKLEVEL:
       src->blacklevel = g_value_get_double (value);
