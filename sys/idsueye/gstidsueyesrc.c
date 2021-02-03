@@ -397,6 +397,24 @@ gst_idsueyesrc_alloc_memory (GstIdsueyeSrc * src)
   }
 }
 
+#ifdef G_OS_WIN32
+void *
+char_to_ids_unicode (const char *str)
+{
+  size_t newsize = strlen (str) + 1;
+  wchar_t *wcstring = g_new (wchar_t, newsize);
+  size_t convertedChars = 0;
+  mbstowcs_s (&convertedChars, wcstring, newsize, str, _TRUNCATE);
+  return wcstring;
+}
+#else
+void *
+char_to_ids_unicode (const char *str)
+{
+  return g_utf8_to_ucs4 (src->config_file, -1, NULL, NULL, NULL);
+}
+#endif
+
 static gboolean
 gst_idsueyesrc_start (GstBaseSrc * bsrc)
 {
@@ -447,15 +465,15 @@ gst_idsueyesrc_start (GstBaseSrc * bsrc)
   }
 
   if (strlen (src->config_file)) {
-    gunichar *filepath;
+    void *filepath;
     if (!g_file_test (src->config_file, G_FILE_TEST_EXISTS)) {
       GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
           ("Camera file does not exist: %s", src->config_file), (NULL));
       return FALSE;
     }
 
-    /* function requires unicode (wide character) */
-    filepath = g_utf8_to_ucs4 (src->config_file, -1, NULL, NULL, NULL);
+    /* function requires Unicode */
+    filepath = char_to_ids_unicode (src->config_file);
     ret =
         is_ParameterSet (src->hCam, IS_PARAMETERSET_CMD_LOAD_FILE, filepath, 0);
     g_free (filepath);
