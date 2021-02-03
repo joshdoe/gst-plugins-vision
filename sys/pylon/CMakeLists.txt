@@ -25,6 +25,12 @@ target_link_libraries (${libname}
   ${PYLON_LIBRARIES}
   )
 
+if(MSVC)
+  target_compile_options(${libname} PRIVATE /W4)
+else()
+  target_compile_options(${libname} PRIVATE -Wall)
+endif()
+
 if (WIN32)
   install (FILES $<TARGET_PDB_FILE:${libname}> DESTINATION ${PDB_INSTALL_DIR} COMPONENT pdb OPTIONAL)
 endif ()

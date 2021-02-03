@@ -174,7 +174,7 @@ typedef enum _GST_PYLONSRC_PROP
       // But this way you can intuitively access propFlags[] by index
 } GST_PYLONSRC_PROP;
 
-G_STATIC_ASSERT (PROP_NUM_PROPERTIES == GST_PYLONSRC_NUM_PROPS);
+G_STATIC_ASSERT ((int)PROP_NUM_PROPERTIES == GST_PYLONSRC_NUM_PROPS);
 
 typedef enum _GST_PYLONSRC_AUTOFEATURE
 {
@@ -187,8 +187,8 @@ typedef enum _GST_PYLONSRC_AUTOFEATURE
   AUTOF_NUM_LIMITED = 2
 } GST_PYLONSRC_AUTOFEATURE;
 
-G_STATIC_ASSERT (AUTOF_NUM_FEATURES == GST_PYLONSRC_NUM_AUTO_FEATURES);
-G_STATIC_ASSERT (AUTOF_NUM_LIMITED == GST_PYLONSRC_NUM_LIMITED_FEATURES);
+G_STATIC_ASSERT ((int)AUTOF_NUM_FEATURES == GST_PYLONSRC_NUM_AUTO_FEATURES);
+G_STATIC_ASSERT ((int)AUTOF_NUM_LIMITED == GST_PYLONSRC_NUM_LIMITED_FEATURES);
 
 static const char *const featAutoFeature[AUTOF_NUM_FEATURES] =
     { "GainAuto", "ExposureAuto", "BalanceWhiteAuto" };
@@ -2614,7 +2614,7 @@ static gboolean
 gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
 {
   GENAPIC_RESULT res;
-  gint i;
+  size_t i;
   size_t num_streams;
 
   // Create a stream grabber
@@ -2842,7 +2842,7 @@ gst_pylonsrc_read_offset (GstPylonSrc * src)
   gst_pylonsrc_read_offset_axis (src, AXIS_Y);
 }
 
-static _Bool
+static void
 gst_pylonsrc_read_reverse_axis (GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
 {
   if (is_prop_not_set (src, propReverse[axis])) {
@@ -3004,8 +3004,6 @@ gst_pylonsrc_read_limited_feature (GstPylonSrc * src,
 static void
 gst_pylonsrc_read_auto_exp_gain_wb (GstPylonSrc * src)
 {
-  GENAPIC_RESULT res;
-
   for (int i = 0; i < AUTOF_NUM_FEATURES; i++) {
     gst_pylonsrc_read_auto_feature (src, (GST_PYLONSRC_AUTOFEATURE) i);
   }
@@ -3051,13 +3049,13 @@ gst_pylonsrc_read_colour_hue (GstPylonSrc * src, GST_PYLONSRC_COLOUR colour)
   if (is_prop_not_set (src, propColourHue[colour])) {
     GENAPIC_RESULT res = PylonDeviceFeatureFromString (src->deviceHandle,
         "ColorAdjustmentSelector", featColour[colour]);
-    if (res = GENAPI_E_OK) {
+    if (res == GENAPI_E_OK) {
       read_float_feature (src, "ColorAdjustmentHue", &src->hue[colour]);
     }
   }
 }
 
-static _Bool
+static void
 gst_pylonsrc_read_colour_saturation (GstPylonSrc * src,
     GST_PYLONSRC_COLOUR colour)
 {
@@ -3145,8 +3143,6 @@ gst_pylonsrc_read_manual_feature (GstPylonSrc * src,
 static void
 gst_pylonsrc_read_exposure_gain_level (GstPylonSrc * src)
 {
-  GENAPIC_RESULT res;
-
   for (int i = 0; i < AUTOF_NUM_LIMITED; i++) {
     gst_pylonsrc_read_manual_feature (src, (GST_PYLONSRC_AUTOFEATURE) i);
   }
@@ -3211,7 +3207,6 @@ static void
 gst_pylonsrc_read_trigger (GstPylonSrc * src)
 {
   if (is_prop_not_set (src, PROP_CONTINUOUSMODE)) {
-    const char *triggerSelectorValue = "FrameStart";
     _Bool isAvailAcquisitionStart =
         PylonDeviceFeatureIsAvailable (src->deviceHandle,
         "EnumEntry_TriggerSelector_AcquisitionStart");
@@ -3226,7 +3221,7 @@ gst_pylonsrc_read_trigger (GstPylonSrc * src)
   }
 }
 
-static _Bool
+static void
 gst_pylonsrc_read_resolution_axis (GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
 {
   if (is_prop_not_set (src, propBinning[axis])) {
