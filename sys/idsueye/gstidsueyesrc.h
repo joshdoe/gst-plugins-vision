@@ -54,6 +54,8 @@ struct _GstIdsueyeSrc
   gchar *config_file;
   gint num_capture_buffers;
   gint timeout;
+  gdouble exposure;
+  gdouble framerate;
 
   GstClockTime acq_start_time;
   guint32 last_frame_count;

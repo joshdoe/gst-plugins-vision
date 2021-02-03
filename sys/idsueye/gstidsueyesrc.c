@@ -60,6 +60,7 @@ static gboolean gst_idsueyesrc_unlock_stop (GstBaseSrc * src);
 
 static GstFlowReturn gst_idsueyesrc_create (GstPushSrc * src, GstBuffer ** buf);
 
+static gboolean gst_idsueyesrc_set_framerate_exposure (GstIdsueyeSrc * src);
 static gchar *gst_idsueyesrc_get_error_string (GstIdsueyeSrc * src,
     INT error_num);
 
@@ -69,13 +70,17 @@ enum
   PROP_CAMERA_ID,
   PROP_CONFIG_FILE,
   PROP_NUM_CAPTURE_BUFFERS,
-  PROP_TIMEOUT
+  PROP_TIMEOUT,
+  PROP_EXPOSURE,
+  PROP_FRAMERATE
 };
 
 #define DEFAULT_PROP_CAMERA_ID 0
 #define DEFAULT_PROP_CONFIG_FILE ""
 #define DEFAULT_PROP_NUM_CAPTURE_BUFFERS 3
 #define DEFAULT_PROP_TIMEOUT 1000
+#define DEFAULT_PROP_EXPOSURE 0
+#define DEFAULT_PROP_FRAMERATE 0
 
 /* pad templates */
 
@@ -141,6 +146,16 @@ gst_idsueyesrc_class_init (GstIdsueyeSrcClass * klass)
       g_param_spec_int ("timeout", "Timeout (ms)",
           "Timeout in ms (0 to use default)", 0, G_MAXINT, DEFAULT_PROP_TIMEOUT,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+  g_object_class_install_property (gobject_class, PROP_EXPOSURE,
+      g_param_spec_double ("exposure", "Exposure (ms)",
+          "Exposure in ms (0 to max of 1/FPS)", 0, G_MAXDOUBLE,
+          DEFAULT_PROP_EXPOSURE,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+  g_object_class_install_property (gobject_class, PROP_FRAMERATE,
+      g_param_spec_double ("framerate", "Framerate (Hz)",
+          "Framerate in frames per second", 0, G_MAXDOUBLE,
+          DEFAULT_PROP_FRAMERATE,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 }
 
 static void
@@ -172,6 +187,8 @@ gst_idsueyesrc_init (GstIdsueyeSrc * src)
   src->config_file = g_strdup (DEFAULT_PROP_CONFIG_FILE);
   src->num_capture_buffers = DEFAULT_PROP_NUM_CAPTURE_BUFFERS;
   src->timeout = DEFAULT_PROP_TIMEOUT;
+  src->exposure = DEFAULT_PROP_EXPOSURE;
+  src->framerate = DEFAULT_PROP_FRAMERATE;
 
   src->stop_requested = FALSE;
   src->caps = NULL;
@@ -201,6 +218,18 @@ gst_idsueyesrc_set_property (GObject * object, guint property_id,
     case PROP_TIMEOUT:
       src->timeout = g_value_get_int (value);
       break;
+    case PROP_EXPOSURE:
+      src->exposure = g_value_get_double (value);
+      if (src->is_started) {
+        gst_idsueyesrc_set_framerate_exposure (src);
+      }
+      break;
+    case PROP_FRAMERATE:
+      src->framerate = g_value_get_double (value);
+      if (src->is_started) {
+        gst_idsueyesrc_set_framerate_exposure (src);
+      }
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -228,6 +257,12 @@ gst_idsueyesrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_TIMEOUT:
       g_value_set_int (value, src->timeout);
+      break;
+    case PROP_EXPOSURE:
+      g_value_set_double (value, src->exposure);
+      break;
+    case PROP_FRAMERATE:
+      g_value_set_double (value, src->framerate);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -535,6 +570,8 @@ gst_idsueyesrc_start (GstBaseSrc * bsrc)
     return FALSE;
   }
 
+  gst_idsueyesrc_set_framerate_exposure (src);
+
   return TRUE;
 }
 
@@ -768,6 +805,31 @@ gst_idsueyesrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   return GST_FLOW_OK;
 }
 
+
+gboolean
+gst_idsueyesrc_set_framerate_exposure (GstIdsueyeSrc * src)
+{
+  INT ret;
+  gboolean success = TRUE;
+  double new_fps;
+
+  ret = is_SetFrameRate (src->hCam, src->framerate, &new_fps);
+  if (ret != IS_SUCCESS) {
+    GST_WARNING_OBJECT (src, "Failed to set framerate to %.3f (error %d)",
+        src->framerate, ret);
+    success = FALSE;
+  }
+
+  ret =
+      is_Exposure (src->hCam, IS_EXPOSURE_CMD_SET_EXPOSURE, &src->exposure, 8);
+  if (ret != IS_SUCCESS) {
+    GST_WARNING_OBJECT (src, "Failed to set exposure to %.3f (error %d)",
+        src->exposure, ret);
+    success = FALSE;
+  }
+
+  return success;
+}
 
 gchar *
 gst_idsueyesrc_get_error_string (GstIdsueyeSrc * src, INT error_num)
