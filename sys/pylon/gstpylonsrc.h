@@ -39,7 +39,7 @@ enum
   GST_PYLONSRC_NUM_CAPTURE_BUFFERS = 10,
   GST_PYLONSRC_NUM_AUTO_FEATURES = 3,
   GST_PYLONSRC_NUM_LIMITED_FEATURES = 2,
-  GST_PYLONSRC_NUM_PROPS = 66
+  GST_PYLONSRC_NUM_PROPS = 67
 };
 
 typedef enum _GST_PYLONSRC_PROPERTY_STATE
@@ -86,7 +86,7 @@ struct _GstPylonSrc
   guint64 frameNumber;          // Fun note: At 120fps it will take around 4 billion years to overflow this variable.
 
   // Plugin parameters
-  _Bool setFPS, continuousMode, limitBandwidth, demosaicing;
+  _Bool setFPS, continuousMode, limitBandwidth, demosaicing, colorAdjustment;
   _Bool center[2];
   _Bool flip[2];
   _Bool ignoreDefaults;
