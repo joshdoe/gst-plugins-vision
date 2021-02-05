@@ -191,9 +191,16 @@ typedef enum _GST_PYLONSRC_AUTOFEATURE
 G_STATIC_ASSERT ((int) AUTOF_NUM_FEATURES == GST_PYLONSRC_NUM_AUTO_FEATURES);
 G_STATIC_ASSERT ((int) AUTOF_NUM_LIMITED == GST_PYLONSRC_NUM_LIMITED_FEATURES);
 
-static const char *const featDemosaicing[2] = { "DemosaicingMode", "PgiMode" };
-static const char *const featDemosaicingPgi[2] = { "BaslerPGI", "On" };
-static const char *const featDemosaicingSimple[2] = { "Simple", "Off" };
+typedef struct _DemosaicingStrings {
+  const char* name;
+  const char* on;
+  const char* off;
+} DemosaicingStrings;
+
+static const DemosaicingStrings featDemosaicing[2] = { 
+  { "DemosaicingMode", "BaslerPGI", "Simple" },
+  { "PgiMode", "On", "Off" }
+};
 static const char *const featAutoFeature[AUTOF_NUM_FEATURES] =
     { "GainAuto", "ExposureAuto", "BalanceWhiteAuto" };
 static const GST_PYLONSRC_PROP propAutoFeature[AUTOF_NUM_FEATURES] =
@@ -2709,12 +2716,12 @@ gst_pylonsrc_set_pgi (GstPylonSrc * src)
 {
   if (is_prop_implicit (src, PROP_BASLERDEMOSAICING)) {
     const char *demosaicing =
-        feature_alias_available (src, featDemosaicing[0], featDemosaicing[1]);
+        feature_alias_available (src, featDemosaicing[0].name, featDemosaicing[1].name);
     if (demosaicing != NULL) {
       GENAPIC_RESULT res;
-      ptrdiff_t idx = demosaicing - featDemosaicing[0];
-      const char *pgiOn = featDemosaicingPgi[idx];
-      const char *pgiOff = featDemosaicingSimple[idx];
+      ptrdiff_t idx = (demosaicing == featDemosaicing[0].name) ? 0 : 1;
+      const char *pgiOn = featDemosaicing[idx].on;
+      const char *pgiOff = featDemosaicing[idx].off;
 
       if (src->demosaicing) {
         if (strncmp ("bayer", src->pixel_format, 5) != 0) {
@@ -3432,10 +3439,10 @@ gst_pylonsrc_read_pgi (GstPylonSrc * src)
 {
   if (is_prop_not_set (src, PROP_BASLERDEMOSAICING)) {
     const char *demosaicing =
-        feature_alias_readable (src, featDemosaicing[0], featDemosaicing[1]);
+        feature_alias_readable (src, featDemosaicing[0].name, featDemosaicing[1].name);
     if (demosaicing != NULL) {
-      const ptrdiff_t idx = demosaicing - featDemosaicing[0];
-      const char *pgiOn = featDemosaicingPgi[idx];
+      const ptrdiff_t idx = (demosaicing == featDemosaicing[0].name) ? 0 : 1;
+      const char *pgiOn = featDemosaicing[idx].on;
       char *temp = read_string_feature (src, demosaicing);
       if ((temp != NULL) && (strcmp (temp, pgiOn))) {
         src->demosaicing = TRUE;
@@ -3865,7 +3872,17 @@ pylonc_print_camera_info (GstPylonSrc * src, PYLON_DEVICE_HANDLE deviceHandle,
     res =
         PylonDeviceFeatureToString (deviceHandle, "DeviceSerialNumber", serial,
         &siz);
-    PYLONC_CHECK_ERROR (src, res);
+    if(siz <= 2 || res != GENAPI_E_OK) {
+      if(PylonDeviceFeatureIsReadable(deviceHandle, "DeviceID")) {
+        siz = sizeof (serial);
+        res =
+          PylonDeviceFeatureToString (deviceHandle, "DeviceID", serial,
+          &siz);
+      } else {
+        serial[0] = '0';
+        serial[1] = '\0';
+      }
+    }
 
     if (PylonDeviceFeatureIsReadable (deviceHandle, "DeviceUserID")) {
       siz = sizeof (id);
