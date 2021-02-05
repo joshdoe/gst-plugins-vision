@@ -191,15 +191,16 @@ typedef enum _GST_PYLONSRC_AUTOFEATURE
 G_STATIC_ASSERT ((int) AUTOF_NUM_FEATURES == GST_PYLONSRC_NUM_AUTO_FEATURES);
 G_STATIC_ASSERT ((int) AUTOF_NUM_LIMITED == GST_PYLONSRC_NUM_LIMITED_FEATURES);
 
-typedef struct _DemosaicingStrings {
-  const char* name;
-  const char* on;
-  const char* off;
+typedef struct _DemosaicingStrings
+{
+  const char *name;
+  const char *on;
+  const char *off;
 } DemosaicingStrings;
 
-static const DemosaicingStrings featDemosaicing[2] = { 
-  { "DemosaicingMode", "BaslerPGI", "Simple" },
-  { "PgiMode", "On", "Off" }
+static const DemosaicingStrings featDemosaicing[2] = {
+  {"DemosaicingMode", "BaslerPGI", "Simple"},
+  {"PgiMode", "On", "Off"}
 };
 static const char *const featAutoFeature[AUTOF_NUM_FEATURES] =
     { "GainAuto", "ExposureAuto", "BalanceWhiteAuto" };
@@ -474,62 +475,62 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
   g_object_class_install_property (gobject_class, PROP_COLORREDHUE,
       g_param_spec_double ("colorredhue", "Red's hue",
           "Specifies the red colour's hue. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          -4.0, 3.9, DEFAULT_PROP_HUE,
+          -128.0, 127.0, DEFAULT_PROP_HUE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORREDSATURATION,
       g_param_spec_double ("colorredsaturation", "Red's saturation",
           "Specifies the red colour's saturation. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          0.0, 1.9, DEFAULT_PROP_SATURATION,
+          0.0, 255.0, DEFAULT_PROP_SATURATION,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORYELLOWHUE,
       g_param_spec_double ("coloryellowhue", "Yellow's hue",
           "Specifies the yellow colour's hue. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          -4.0, 3.9, DEFAULT_PROP_HUE,
+          -128.0, 127.0, DEFAULT_PROP_HUE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORYELLOWSATURATION,
       g_param_spec_double ("coloryellowsaturation", "Yellow's saturation",
           "Specifies the yellow colour's saturation. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          0.0, 1.9, DEFAULT_PROP_SATURATION,
+          0.0, 255.0, DEFAULT_PROP_SATURATION,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORGREENHUE,
       g_param_spec_double ("colorgreenhue", "Green's hue",
           "Specifies the green colour's hue. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          -4.0, 3.9, DEFAULT_PROP_HUE,
+          -128.0, 127.0, DEFAULT_PROP_HUE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORGREENSATURATION,
       g_param_spec_double ("colorgreensaturation", "Green's saturation",
           "Specifies the green colour's saturation. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          0.0, 1.9, DEFAULT_PROP_SATURATION,
+          0.0, 255.0, DEFAULT_PROP_SATURATION,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORCYANHUE,
       g_param_spec_double ("colorcyanhue", "Cyan's hue",
           "Specifies the cyan colour's hue. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          -4.0, 3.9, DEFAULT_PROP_HUE,
+          -128.0, 127.0, DEFAULT_PROP_HUE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORCYANSATURATION,
       g_param_spec_double ("colorcyansaturation", "Cyan's saturation",
           "Specifies the cyan colour's saturation. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          0.0, 1.9, DEFAULT_PROP_SATURATION,
+          0.0, 255.0, DEFAULT_PROP_SATURATION,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORBLUEHUE,
       g_param_spec_double ("colorbluehue", "Blue's hue",
           "Specifies the blue colour's hue. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          -4.0, 3.9, DEFAULT_PROP_HUE,
+          -128.0, 127.0, DEFAULT_PROP_HUE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORBLUESATURATION,
       g_param_spec_double ("colorbluesaturation", "Blue's saturation",
           "Specifies the blue colour's saturation. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          0.0, 1.9, DEFAULT_PROP_SATURATION,
+          0.0, 255.0, DEFAULT_PROP_SATURATION,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORMAGENTAHUE,
       g_param_spec_double ("colormagentahue", "Magenta's hue",
           "Specifies the magenta colour's hue. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          -4.0, 3.9, DEFAULT_PROP_HUE,
+          -128.0, 127.0, DEFAULT_PROP_HUE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORMAGENTASATURATION,
       g_param_spec_double ("colormagentasaturation", "Magenta's saturation",
           "Specifies the magenta colour's saturation. Note that the this value gets saved on the camera, and running this plugin again without specifying this value will cause the previous value being used. Use the reset parameter or reconnect the camera to reset.",
-          0.0, 1.9, DEFAULT_PROP_SATURATION,
+          0.0, 255.0, DEFAULT_PROP_SATURATION,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_COLORADJUSTMENTENABLE,
       g_param_spec_boolean ("coloradjustment", "Enable color adjustment",
@@ -544,12 +545,12 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
   g_object_class_install_property (gobject_class, PROP_GAIN,
       g_param_spec_double ("gain", "Gain",
           "(dB or raw) Sets the gain added on the camera before sending the frame to the computer. The value of this parameter will be saved to the camera, but it will be set to 0 every time this plugin is launched without specifying gain or overriden if the autogain parameter is set to anything that's not \"off\". Reconnect the camera or use the reset parameter to reset the stored value.",
-          0.0, 12.0, DEFAULT_PROP_LIMITED_MANUAL,
+          0.0, 1000.0, DEFAULT_PROP_LIMITED_MANUAL,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_BLACKLEVEL,
       g_param_spec_double ("blacklevel", "Black Level",
           "(DN) Sets stream's black level. This parameter is processed on the camera before the picture is sent to the computer. The value of this parameter will be saved to the camera, but it will be set to 0 every time this plugin is launched without specifying this parameter. Reconnect the camera or use the reset parameter to reset the stored value.",
-          0.0, 63.75, DEFAULT_PROP_BLACKLEVEL,
+          0.0, 1000.0, DEFAULT_PROP_BLACKLEVEL,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_GAMMA,
       g_param_spec_double ("gamma", "Gamma",
@@ -640,18 +641,18 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_GAINUPPERLIMIT,
       g_param_spec_double ("gainupperlimit", "Auto gain upper limit",
-          "(0-12.00921 dB or raw) Sets the upper limit for the auto gain function.",
-          0.0, 12.00921, DEFAULT_PROP_GAINUPPERLIMIT,
+          "(0-1000 dB or raw) Sets the upper limit for the auto gain function.",
+          0.0, 1000.0, DEFAULT_PROP_GAINUPPERLIMIT,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_GAINLOWERLIMIT,
       g_param_spec_double ("gainlowerlimit", "Auto gain lower limit",
-          "(0-12.00921 dB or raw) Sets the lower limit for the auto gain function.",
-          0.0, 12.00921, DEFAULT_PROP_GAINLOWERLIMIT,
+          "(0-1000 dB or raw) Sets the lower limit for the auto gain function.",
+          0.0, 1000.0, DEFAULT_PROP_GAINLOWERLIMIT,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_AUTOBRIGHTNESSTARGET,
       g_param_spec_double ("autobrightnesstarget", "Auto brightness target",
           "(0.19608-0.80392 or 50-205) Sets the brightness value the auto exposure/gain function should strive for.",
-          0.19608, 0.80392, DEFAULT_PROP_AUTOBRIGHTNESSTARGET,
+          0.19608, 205.0, DEFAULT_PROP_AUTOBRIGHTNESSTARGET,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_AUTOPROFILE,
       g_param_spec_string ("autoprofile", "Auto function minimize profile",
@@ -2084,8 +2085,7 @@ gst_pylonsrc_set_framerate (GstPylonSrc * src)
   if (is_prop_implicit (src, PROP_FPS)) {
     if (is_prop_set (src, PROP_FPS)) {
       // apply only if it is set explicitly (default is zero)
-      const char *fps =
-          feature_alias_available (src, "AcquisitionFrameRate",
+      const char *fps = feature_alias_available (src, "AcquisitionFrameRate",
           "AcquisitionFrameRateAbs");
       if (fps != NULL) {
         res = PylonDeviceSetFloatFeature (src->deviceHandle, fps, src->fps);
@@ -2111,8 +2111,7 @@ gst_pylonsrc_set_lightsource (GstPylonSrc * src)
   char *original = NULL;
   if (is_prop_implicit (src, PROP_LIGHTSOURCE)) {
     // Set lightsource preset
-    const char *preset =
-        feature_alias_available (src, "LightSourcePreset",
+    const char *preset = feature_alias_available (src, "LightSourcePreset",
         "LightSourceSelector");
     if (preset == NULL && feature_available (src, "BslLightSourcePreset")) {
       preset = "BslLightSourcePreset";
@@ -2426,8 +2425,7 @@ gst_pylonsrc_set_colour_hue (GstPylonSrc * src, GST_PYLONSRC_COLOUR colour)
             selector, featColour[colour]);
         PYLONC_CHECK_ERROR (src, res);
 
-        const char *hue =
-            feature_alias_available (src, "ColorAdjustmentHue",
+        const char *hue = feature_alias_available (src, "ColorAdjustmentHue",
             "BslColorAdjustmentHue");
         if (hue != NULL) {
           res =
@@ -2716,7 +2714,8 @@ gst_pylonsrc_set_pgi (GstPylonSrc * src)
 {
   if (is_prop_implicit (src, PROP_BASLERDEMOSAICING)) {
     const char *demosaicing =
-        feature_alias_available (src, featDemosaicing[0].name, featDemosaicing[1].name);
+        feature_alias_available (src, featDemosaicing[0].name,
+        featDemosaicing[1].name);
     if (demosaicing != NULL) {
       GENAPIC_RESULT res;
       ptrdiff_t idx = (demosaicing == featDemosaicing[0].name) ? 0 : 1;
@@ -2905,8 +2904,7 @@ gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
         readoutTime);
   }
   // Output final frame rate [Hz]
-  const char *name =
-      feature_alias_available (src, "ResultingFrameRate",
+  const char *name = feature_alias_available (src, "ResultingFrameRate",
       "ResultingFrameRateAbs");
   if (name != NULL) {
     double frameRate = 0.0;
@@ -3439,7 +3437,8 @@ gst_pylonsrc_read_pgi (GstPylonSrc * src)
 {
   if (is_prop_not_set (src, PROP_BASLERDEMOSAICING)) {
     const char *demosaicing =
-        feature_alias_readable (src, featDemosaicing[0].name, featDemosaicing[1].name);
+        feature_alias_readable (src, featDemosaicing[0].name,
+        featDemosaicing[1].name);
     if (demosaicing != NULL) {
       const ptrdiff_t idx = (demosaicing == featDemosaicing[0].name) ? 0 : 1;
       const char *pgiOn = featDemosaicing[idx].on;
@@ -3872,12 +3871,11 @@ pylonc_print_camera_info (GstPylonSrc * src, PYLON_DEVICE_HANDLE deviceHandle,
     res =
         PylonDeviceFeatureToString (deviceHandle, "DeviceSerialNumber", serial,
         &siz);
-    if(siz <= 2 || res != GENAPI_E_OK) {
-      if(PylonDeviceFeatureIsReadable(deviceHandle, "DeviceID")) {
+    if (siz <= 2 || res != GENAPI_E_OK) {
+      if (PylonDeviceFeatureIsReadable (deviceHandle, "DeviceID")) {
         siz = sizeof (serial);
         res =
-          PylonDeviceFeatureToString (deviceHandle, "DeviceID", serial,
-          &siz);
+            PylonDeviceFeatureToString (deviceHandle, "DeviceID", serial, &siz);
       } else {
         serial[0] = '0';
         serial[1] = '\0';
