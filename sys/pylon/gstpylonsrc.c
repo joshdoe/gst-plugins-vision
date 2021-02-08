@@ -3863,6 +3863,66 @@ gst_pylonsrc_read_resolution (GstPylonSrc * src)
   gst_pylonsrc_read_resolution_axis (src, AXIS_Y);
 }
 
+static void
+gst_pylonsrc_read_packetsize (GstPylonSrc * src)
+{
+  if (is_prop_not_set (src, PROP_PACKETSIZE)) {
+    int64_t temp;
+    GENAPIC_RESULT res = read_integer_feature (src, "GevSCPSPacketSize", &temp);
+    if (res == GENAPI_E_OK) {
+      src->packetSize = temp;
+    }
+  }
+}
+
+static void
+gst_pylonsrc_read_interPacketDelay (GstPylonSrc * src)
+{
+  if (is_prop_not_set (src, PROP_INTERPACKETDELAY)) {
+    int64_t temp;
+    GENAPIC_RESULT res = read_integer_feature (src, "GevSCPD", &temp);
+    if (res == GENAPI_E_OK) {
+      src->interPacketDelay = temp;
+    }
+  }
+}
+
+static void
+gst_pylonsrc_read_frameTransDelay (GstPylonSrc * src)
+{
+  if (is_prop_not_set (src, PROP_FRAMETRANSDELAY)) {
+    int64_t temp;
+    GENAPIC_RESULT res = read_integer_feature (src, "GevSCFTD", &temp);
+    if (res == GENAPI_E_OK) {
+      src->frameTransDelay = temp;
+    }
+  }
+}
+
+static void
+gst_pylonsrc_read_bandwidthReserve (GstPylonSrc * src)
+{
+  if (is_prop_not_set (src, PROP_BANDWIDTHRESERVE)) {
+    int64_t temp;
+    GENAPIC_RESULT res = read_integer_feature (src, "GevSCBWR", &temp);
+    if (res == GENAPI_E_OK) {
+      src->bandwidthReserve = temp;
+    }
+  }
+}
+
+static void
+gst_pylonsrc_read_bandwidthReserveAcc (GstPylonSrc * src)
+{
+  if (is_prop_not_set (src, PROP_BANDWIDTHRESERVEACC)) {
+    int64_t temp;
+    GENAPIC_RESULT res = read_integer_feature (src, "GevSCBWRA", &temp);
+    if (res == GENAPI_E_OK) {
+      src->bandwidthReserveAcc = temp;
+    }
+  }
+}
+
 // read all features from device to plugin struct
 static void
 read_all_features (GstPylonSrc * src)
@@ -3871,11 +3931,11 @@ read_all_features (GstPylonSrc * src)
   gst_pylonsrc_read_reverse (src);
   gst_pylonsrc_read_pixel_format (src);
   gst_pylonsrc_read_test_image (src);
-  //gst_pylonsrc_read_packetsize(src);
-  //gst_pylonsrc_read_interPacketDelay(src);
-  //gst_pylonsrc_read_frameTransDelay(src);
-  //gst_pylonsrc_read_bandwidthReserve(src);
-  //gst_pylonsrc_read_bandwidthReserveAcc(src);
+  gst_pylonsrc_read_packetsize (src);
+  gst_pylonsrc_read_interPacketDelay (src);
+  gst_pylonsrc_read_frameTransDelay (src);
+  gst_pylonsrc_read_bandwidthReserve (src);
+  gst_pylonsrc_read_bandwidthReserveAcc (src);
   gst_pylonsrc_read_readout (src);
   gst_pylonsrc_read_bandwidth (src);
   gst_pylonsrc_read_framerate (src);
