@@ -78,7 +78,8 @@ enum
   PROP_X,
   PROP_Y,
   PROP_WIDTH,
-  PROP_HEIGHT
+  PROP_HEIGHT,
+  PROP_BINNING
 };
 
 #define DEFAULT_PROP_DEVICE_INDEX 0
@@ -92,7 +93,7 @@ enum
 #define DEFAULT_PROP_Y 0
 #define DEFAULT_PROP_WIDTH 0
 #define DEFAULT_PROP_HEIGHT 0
-
+#define DEFAULT_PROP_BINNING 1
 
 /* pad templates */
 static GstStaticPadTemplate gst_qcamsrc_src_template =
@@ -207,6 +208,10 @@ gst_qcamsrc_class_init (GstQcamSrcClass * klass)
       g_param_spec_int ("height", "ROI height", "ROI height", 0, G_MAXINT,
           DEFAULT_PROP_HEIGHT,
           (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
+  g_object_class_install_property (G_OBJECT_CLASS (klass), PROP_BINNING,
+      g_param_spec_int ("binning", "Binning", "Symmetrical binning", 1, 8,
+          DEFAULT_PROP_BINNING,
+          (GParamFlags) (G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE)));
 }
 
 static void
@@ -222,6 +227,7 @@ gst_qcamsrc_reset (GstQcamSrc * src)
   src->y = DEFAULT_PROP_Y;
   src->width = DEFAULT_PROP_WIDTH;
   src->height = DEFAULT_PROP_HEIGHT;
+  src->binning = DEFAULT_PROP_BINNING;
 
   src->last_frame_count = 0;
   src->total_dropped_frames = 0;
@@ -329,6 +335,9 @@ gst_qcamsrc_set_property (GObject * object, guint property_id,
     case PROP_HEIGHT:
       src->height = g_value_get_int (value);
       break;
+    case PROP_BINNING:
+      src->binning = g_value_get_int (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -377,6 +386,9 @@ gst_qcamsrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_HEIGHT:
       g_value_set_int (value, src->height);
+      break;
+    case PROP_BINNING:
+      g_value_set_int (value, src->binning);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -513,6 +525,7 @@ gst_qcamsrc_setup_stream (GstQcamSrc * src)
   }
 
   err = QCam_SetParam (&src->qsettings, qprmImageFormat, src->format);
+  err = QCam_SetParam (&src->qsettings, qprmBinning, src->binning);
   err = QCam_SetParam (&src->qsettings, qprmRoiX, src->x);
   err = QCam_SetParam (&src->qsettings, qprmRoiX, src->y);
   if (src->width > 0)

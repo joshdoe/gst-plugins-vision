@@ -56,6 +56,7 @@ struct _GstQcamSrc
   gint y;
   gint width;
   gint height;
+  gint binning;
 
   GAsyncQueue *queue;
   GstClockTime base_time;
