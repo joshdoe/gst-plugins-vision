@@ -332,15 +332,15 @@ gst_idsueyesrc_set_caps_from_camera (GstIdsueyeSrc * src)
       break;
     case IS_CM_MONO10:
       bpp = 10;
-      videoFormat = GST_VIDEO_FORMAT_GRAY16_BE;
+      videoFormat = GST_VIDEO_FORMAT_GRAY16_LE;
       break;
     case IS_CM_MONO12:
       bpp = 12;
-      videoFormat = GST_VIDEO_FORMAT_GRAY16_BE;
+      videoFormat = GST_VIDEO_FORMAT_GRAY16_LE;
       break;
     case IS_CM_MONO16:
       bpp = 16;
-      videoFormat = GST_VIDEO_FORMAT_GRAY16_BE;
+      videoFormat = GST_VIDEO_FORMAT_GRAY16_LE;
       break;
     case IS_CM_BGR8_PACKED:
       bpp = 24;
@@ -394,7 +394,7 @@ gst_idsueyesrc_set_caps_from_camera (GstIdsueyeSrc * src)
     g_value_unset (&val);
   }
 
-  src->bitsPerPixel = bpp;
+  src->bitsPerPixel = GST_ROUND_UP_8 (bpp);
 }
 
 static gboolean
