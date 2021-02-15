@@ -1460,6 +1460,38 @@ feature_alias_readable (const GstPylonSrc * src, const char *feature,
   }
 }
 
+static GENAPIC_RESULT
+gst_pylonsrc_set_float_feature_alias (GstPylonSrc * src, const char *feature,
+    const char *alias, double value)
+{
+  GENAPIC_RESULT res = GENAPI_E_NODE_NOT_FOUND;
+  const char *name = feature_alias_available (src, feature, alias);
+  if (name != NULL) {
+    res = PylonDeviceSetFloatFeature (src->deviceHandle, name, value);
+    GST_DEBUG_OBJECT (src, "Setting %s to %f", name, value);
+  }
+  return res;
+}
+
+static GENAPIC_RESULT
+gst_pylonsrc_set_float_feature_with_int_alias (GstPylonSrc * src,
+    const char *feature, const char *alias, double value)
+{
+  GENAPIC_RESULT res = GENAPI_E_NODE_NOT_FOUND;
+  const char *name = feature_alias_available (src, feature, alias);
+  if (name != NULL) {
+    if (name == alias) {
+      const int64_t temp = (int64_t) value;
+      res = PylonDeviceSetIntegerFeature (src->deviceHandle, name, temp);
+      GST_DEBUG_OBJECT (src, "Setting %s to %ld", name, temp);
+    } else {
+      res = PylonDeviceSetFloatFeature (src->deviceHandle, name, value);
+      GST_DEBUG_OBJECT (src, "Setting %s to %f", name, value);
+    }
+  }
+  return res;
+}
+
 static gboolean
 gst_pylonsrc_set_trigger (GstPylonSrc * src)
 {
@@ -2085,14 +2117,13 @@ gst_pylonsrc_set_framerate (GstPylonSrc * src)
   if (is_prop_implicit (src, PROP_FPS)) {
     if (is_prop_set (src, PROP_FPS)) {
       // apply only if it is set explicitly (default is zero)
-      const char *fps = feature_alias_available (src, "AcquisitionFrameRate",
-          "AcquisitionFrameRateAbs");
-      if (fps != NULL) {
-        res = PylonDeviceSetFloatFeature (src->deviceHandle, fps, src->fps);
+      res = gst_pylonsrc_set_float_feature_alias (src, "AcquisitionFrameRate",
+          "AcquisitionFrameRateAbs", src->fps);
+      if (res != GENAPI_E_NODE_NOT_FOUND) {
         PYLONC_CHECK_ERROR (src, res);
-        if (src->setFPS) {
-          GST_DEBUG_OBJECT (src, "Capping framerate to %0.2lf.", src->fps);
-        }
+      }
+      if (src->setFPS) {
+        GST_DEBUG_OBJECT (src, "Capping framerate to %0.2lf.", src->fps);
       }
     }
     reset_prop (src, PROP_FPS);
@@ -2242,13 +2273,16 @@ gst_pylonsrc_set_limited_feature (GstPylonSrc * src,
             featManualFeature[feature]);
       }
 
-      const char *upper =
-          feature_alias_available (src, featLimitedUpper[feature],
-          featLimitedUpperAlias[feature]);
-      if (upper != NULL) {
-        res =
-            PylonDeviceSetFloatFeature (src->deviceHandle,
-            upper, src->limitedFeature[feature].upper);
+      if (feature == AUTOF_GAIN) {
+        res = gst_pylonsrc_set_float_feature_with_int_alias (src,
+            featLimitedUpper[feature], featLimitedUpperAlias[feature],
+            src->limitedFeature[feature].upper);
+      } else {
+        res = gst_pylonsrc_set_float_feature_alias (src,
+            featLimitedUpper[feature], featLimitedUpperAlias[feature],
+            src->limitedFeature[feature].upper);
+      }
+      if (res != GENAPI_E_NODE_NOT_FOUND) {
         PYLONC_CHECK_ERROR (src, res);
       }
       reset_prop (src, propLimitedUpper[feature]);
@@ -2272,13 +2306,16 @@ gst_pylonsrc_set_limited_feature (GstPylonSrc * src,
         }
       }
 
-      const char *lower =
-          feature_alias_available (src, featLimitedLower[feature],
-          featLimitedLowerAlias[feature]);
-      if (lower != NULL) {
-        res =
-            PylonDeviceSetFloatFeature (src->deviceHandle,
-            lower, src->limitedFeature[feature].lower);
+      if (feature == AUTOF_GAIN) {
+        res = gst_pylonsrc_set_float_feature_with_int_alias (src,
+            featLimitedLower[feature], featLimitedLowerAlias[feature],
+            src->limitedFeature[feature].lower);
+      } else {
+        res = gst_pylonsrc_set_float_feature_alias (src,
+            featLimitedLower[feature], featLimitedLowerAlias[feature],
+            src->limitedFeature[feature].lower);
+      }
+      if (res != GENAPI_E_NODE_NOT_FOUND) {
         PYLONC_CHECK_ERROR (src, res);
       }
       reset_prop (src, propLimitedLower[feature]);
@@ -2309,17 +2346,10 @@ gst_pylonsrc_set_auto_exp_gain_wb (GstPylonSrc * src)
 
   if (is_prop_implicit (src, PROP_AUTOBRIGHTNESSTARGET)) {
     if (is_prop_set (src, PROP_AUTOBRIGHTNESSTARGET)) {
-      if (feature_available (src, "AutoTargetBrightness")) {
-        res =
-            PylonDeviceSetFloatFeature (src->deviceHandle,
-            "AutoTargetBrightness", src->brightnesstarget);
-        PYLONC_CHECK_ERROR (src, res);
-      } else if (feature_available (src, "AutoTargetValue")) {
-        res =
-            PylonDeviceSetIntegerFeature (src->deviceHandle, "AutoTargetValue",
-            (int64_t) src->brightnesstarget);
-        PYLONC_CHECK_ERROR (src, res);
-      }
+      res =
+          gst_pylonsrc_set_float_feature_with_int_alias (src,
+          "AutoTargetBrightness", "AutoTargetValue", src->brightnesstarget);
+      PYLONC_CHECK_ERROR (src, res);
     }
     reset_prop (src, PROP_AUTOBRIGHTNESSTARGET);
   }
@@ -2377,21 +2407,21 @@ gst_pylonsrc_set_colour_balance (GstPylonSrc * src, GST_PYLONSRC_COLOUR colour)
   if (is_prop_implicit (src, propColourBalance[colour])) {
     if (is_prop_set (src, propColourBalance[colour])) {
       if (strcmp (src->autoFeature[AUTOF_WHITEBALANCE], "off") == 0) {
-        const char *name =
-            feature_alias_available (src, "BalanceRatio", "BalanceRatioAbs");
-        if (name != NULL) {
+        if (feature_available (src, "BalanceRatioSelector")) {
           GENAPIC_RESULT res;
           res =
               PylonDeviceFeatureFromString (src->deviceHandle,
               "BalanceRatioSelector", featColour[colour]);
           PYLONC_CHECK_ERROR (src, res);
-          res =
-              PylonDeviceSetFloatFeature (src->deviceHandle, name,
-              src->balance[colour]);
-          PYLONC_CHECK_ERROR (src, res);
+          GST_DEBUG_OBJECT (src, "BalanceRatioSelector: %s",
+              featColour[colour]);
 
-          GST_DEBUG_OBJECT (src, "%s balance set to %.2lf", featColour[colour],
-              src->balance[colour]);
+          res =
+              gst_pylonsrc_set_float_feature_alias (src, "BalanceRatio",
+              "BalanceRatioAbs", src->balance[colour]);
+          if (res != GENAPI_E_NODE_NOT_FOUND) {
+            PYLONC_CHECK_ERROR (src, res);
+          }
         }
       } else {
         GST_DEBUG_OBJECT (src,
@@ -2624,23 +2654,26 @@ gst_pylonsrc_set_manual_feature (GstPylonSrc * src,
     // Configure exposure/gain
     if (is_prop_implicit (src, propManualFeature[feature])) {
       if (is_prop_set (src, propManualFeature[feature])) {
-        const char *name =
-            feature_alias_available (src, featManualFeature[feature],
-            featManualFeatureAlias[feature]);
-        if (name != NULL) {
-          if (strcmp (src->autoFeature[feature], "off") == 0) {
-            GENAPIC_RESULT res;
-            GST_DEBUG_OBJECT (src, "Setting %s to %0.2lf",
-                name, src->limitedFeature[feature].manual);
+        if (strcmp (src->autoFeature[feature], "off") == 0) {
+          GENAPIC_RESULT res;
+          if (feature == AUTOF_GAIN) {
             res =
-                PylonDeviceSetFloatFeature (src->deviceHandle,
-                name, src->limitedFeature[feature].manual);
-            PYLONC_CHECK_ERROR (src, res);
+                gst_pylonsrc_set_float_feature_with_int_alias (src,
+                featManualFeature[feature], featManualFeatureAlias[feature],
+                src->limitedFeature[feature].manual);
           } else {
-            GST_WARNING_OBJECT (src,
-                "%s has been enabled, skipping setting manual %s.",
-                featAutoFeature[feature], name);
+            res =
+                gst_pylonsrc_set_float_feature_alias (src,
+                featManualFeature[feature], featManualFeatureAlias[feature],
+                src->limitedFeature[feature].manual);
           }
+          if (res != GENAPI_E_NODE_NOT_FOUND) {
+            PYLONC_CHECK_ERROR (src, res);
+          }
+        } else {
+          GST_WARNING_OBJECT (src,
+              "%s has been enabled, skipping setting manual %s.",
+              featAutoFeature[feature], featManualFeature[feature]);
         }
       } else {
         GST_DEBUG_OBJECT (src,
@@ -2670,12 +2703,10 @@ gst_pylonsrc_set_exposure_gain_level (GstPylonSrc * src)
 
   // Configure black level
   if (is_prop_implicit (src, PROP_BLACKLEVEL)) {
-    const char *name =
-        feature_alias_available (src, "BlackLevel", "BlackLevelRaw");
-    if (name != NULL) {
-      GST_DEBUG_OBJECT (src, "Setting black level to %0.2lf", src->blacklevel);
-      res =
-          PylonDeviceSetFloatFeature (src->deviceHandle, name, src->blacklevel);
+    res =
+        gst_pylonsrc_set_float_feature_with_int_alias (src, "BlackLevel",
+        "BlackLevelRaw", src->blacklevel);
+    if (res != GENAPI_E_NODE_NOT_FOUND) {
       PYLONC_CHECK_ERROR (src, res);
     }
     reset_prop (src, PROP_BLACKLEVEL);
@@ -2733,15 +2764,9 @@ gst_pylonsrc_set_pgi (GstPylonSrc * src)
           // PGI Modules (Noise reduction and Sharpness enhancement).
           if (is_prop_implicit (src, PROP_DEMOSAICINGNOISEREDUCTION)) {
             if (is_prop_set (src, PROP_DEMOSAICINGNOISEREDUCTION)) {
-              const char *noise =
-                  feature_alias_available (src, "NoiseReduction",
-                  "NoiseReductionAbs");
-              if (noise != NULL) {
-                GST_DEBUG_OBJECT (src, "Setting PGI noise reduction to %0.2lf",
-                    src->noisereduction);
-                res =
-                    PylonDeviceSetFloatFeature (src->deviceHandle,
-                    noise, src->noisereduction);
+              res = gst_pylonsrc_set_float_feature_alias (src, "NoiseReduction",
+                  "NoiseReductionAbs", src->noisereduction);
+              if (res != GENAPI_E_NODE_NOT_FOUND) {
                 PYLONC_CHECK_ERROR (src, res);
               }
             } else {
@@ -2753,16 +2778,11 @@ gst_pylonsrc_set_pgi (GstPylonSrc * src)
 
           if (is_prop_implicit (src, PROP_DEMOSAICINGSHARPNESSENHANCEMENT)) {
             if (is_prop_set (src, PROP_DEMOSAICINGSHARPNESSENHANCEMENT)) {
-              const char *sharpness =
-                  feature_alias_available (src, "SharpnessEnhancement",
-                  "SharpnessEnhancementAbs");
-              if (sharpness != NULL) {
-                GST_DEBUG_OBJECT (src,
-                    "Setting PGI sharpness enhancement to %0.2lf",
-                    src->sharpnessenhancement);
-                res =
-                    PylonDeviceSetFloatFeature (src->deviceHandle,
-                    sharpness, src->sharpnessenhancement);
+              res =
+                  gst_pylonsrc_set_float_feature_alias (src,
+                  "SharpnessEnhancement", "SharpnessEnhancementAbs",
+                  src->sharpnessenhancement);
+              if (res != GENAPI_E_NODE_NOT_FOUND) {
                 PYLONC_CHECK_ERROR (src, res);
               }
             } else {
@@ -2858,8 +2878,8 @@ gst_pylonsrc_configure_start_acquisition (GstPylonSrc * src)
 
   for (i = 0; i < GST_PYLONSRC_NUM_CAPTURE_BUFFERS; ++i) {
     res =
-        PylonStreamGrabberQueueBuffer (src->streamGrabber, src->bufferHandle[i],
-        (void *) i);
+        PylonStreamGrabberQueueBuffer (src->streamGrabber,
+        src->bufferHandle[i], (void *) i);
     PYLONC_CHECK_ERROR (src, res);
   }
 
@@ -2963,13 +2983,17 @@ read_string_feature (GstPylonSrc * src, const char *feature)
 }
 
 static GENAPIC_RESULT
-read_bool_feature (GstPylonSrc * src, const char *feature, _Bool * result)
+read_bool_feature (GstPylonSrc * src, const char *feature, _Bool *result)
 {
   GENAPIC_RESULT res = GENAPI_E_FAIL;
   if (feature_readable (src, feature)) {
     res = PylonDeviceGetBooleanFeature (src->deviceHandle, feature, result);
-    GST_DEBUG_OBJECT (src, "Reading bool feature: %s = %s", feature,
-        boolalpha (*result));
+    if (res == GENAPI_E_OK) {
+      GST_DEBUG_OBJECT (src, "Reading bool feature: %s = %s", feature,
+          boolalpha (*result));
+    } else {
+      GST_ERROR_OBJECT (src, "Failed to read %s", feature);
+    }
   }
 
   return res;
@@ -2981,8 +3005,12 @@ read_integer_feature (GstPylonSrc * src, const char *feature, int64_t * result)
   GENAPIC_RESULT res = GENAPI_E_FAIL;
   if (feature_readable (src, feature)) {
     res = PylonDeviceGetIntegerFeature (src->deviceHandle, feature, result);
-    GST_DEBUG_OBJECT (src, "Reading integer feature: %s = %ld", feature,
-        *result);
+    if (res == GENAPI_E_OK) {
+      GST_DEBUG_OBJECT (src, "Reading integer feature: %s = %ld", feature,
+          *result);
+    } else {
+      GST_ERROR_OBJECT (src, "Failed to read %s", feature);
+    }
   }
 
   return res;
@@ -2994,7 +3022,12 @@ read_float_feature (GstPylonSrc * src, const char *feature, double *result)
   GENAPIC_RESULT res = GENAPI_E_FAIL;
   if (feature_readable (src, feature)) {
     res = PylonDeviceGetFloatFeature (src->deviceHandle, feature, result);
-    GST_DEBUG_OBJECT (src, "Reading float feature: %s = %f", feature, *result);
+    if (res == GENAPI_E_OK) {
+      GST_DEBUG_OBJECT (src, "Reading float feature: %s = %f", feature,
+          *result);
+    } else {
+      GST_ERROR_OBJECT (src, "Failed to read %s", feature);
+    }
   }
 
   return res;
@@ -3008,7 +3041,40 @@ read_float_feature_alias (GstPylonSrc * src, const char *feature,
   const char *name = feature_alias_readable (src, feature, alias);
   if (name != NULL) {
     res = PylonDeviceGetFloatFeature (src->deviceHandle, name, result);
-    GST_DEBUG_OBJECT (src, "Reading float feature: %s = %f", name, *result);
+    if (res == GENAPI_E_OK) {
+      GST_DEBUG_OBJECT (src, "Reading float feature: %s = %f", name, *result);
+    } else {
+      GST_ERROR_OBJECT (src, "Failed to read %s", name);
+    }
+  }
+
+  return res;
+}
+
+static GENAPIC_RESULT
+read_float_feature_with_int_alias (GstPylonSrc * src, const char *feature,
+    const char *alias, double *result)
+{
+  GENAPIC_RESULT res = GENAPI_E_FAIL;
+  const char *name = feature_alias_readable (src, feature, alias);
+  if (name != NULL) {
+    if (name == feature) {
+      res = PylonDeviceGetFloatFeature (src->deviceHandle, name, result);
+      if (res == GENAPI_E_OK) {
+        GST_DEBUG_OBJECT (src, "Reading float feature: %s = %f", name, *result);
+      }
+    } else {
+      int64_t temp = 0;
+      res = PylonDeviceGetIntegerFeature (src->deviceHandle, name, &temp);
+      if (res == GENAPI_E_OK) {
+        GST_DEBUG_OBJECT (src, "Reading integer feature: %s = %ld", name, temp);
+        *result = (double) temp;
+      }
+    }
+
+    if (res != GENAPI_E_OK) {
+      GST_ERROR_OBJECT (src, "Failed to read %s", name);
+    }
   }
 
   return res;
@@ -3029,9 +3095,11 @@ gst_pylonsrc_read_max_size_axis (GstPylonSrc * src, GST_PYLONSRC_AXIS axis)
       GST_INFO_OBJECT (src, "Read %s value from upper bound of %s",
           featMaxSize[axis], featSize[axis]);
       return maxSize;
+    } else {
+      GST_ERROR_OBJECT (src, "Failed to get upper bound of %s", featSize[axis]);
+      return G_MAXINT;
     }
   }
-  return G_MAXINT;
 }
 
 static void
@@ -3216,13 +3284,27 @@ gst_pylonsrc_read_limited_feature (GstPylonSrc * src,
         "Trying to read limits for unsupported autofeature: %d", (int) feature);
   } else {
     if (is_prop_not_set (src, propLimitedUpper[feature])) {
-      read_float_feature_alias (src, featLimitedUpper[feature],
-          featLimitedUpperAlias[feature], &src->limitedFeature[feature].upper);
+      if (feature == AUTOF_GAIN) {
+        read_float_feature_with_int_alias (src, featLimitedUpper[feature],
+            featLimitedUpperAlias[feature],
+            &src->limitedFeature[feature].upper);
+      } else {
+        read_float_feature_alias (src, featLimitedUpper[feature],
+            featLimitedUpperAlias[feature],
+            &src->limitedFeature[feature].upper);
+      }
     }
 
     if (is_prop_not_set (src, propLimitedLower[feature])) {
-      read_float_feature_alias (src, featLimitedLower[feature],
-          featLimitedLowerAlias[feature], &src->limitedFeature[feature].lower);
+      if (feature == AUTOF_GAIN) {
+        read_float_feature_with_int_alias (src, featLimitedLower[feature],
+            featLimitedLowerAlias[feature],
+            &src->limitedFeature[feature].lower);
+      } else {
+        read_float_feature_alias (src, featLimitedLower[feature],
+            featLimitedLowerAlias[feature],
+            &src->limitedFeature[feature].lower);
+      }
     }
   }
 }
@@ -3240,8 +3322,8 @@ gst_pylonsrc_read_auto_exp_gain_wb (GstPylonSrc * src)
   }
 
   if (is_prop_not_set (src, PROP_AUTOBRIGHTNESSTARGET)) {
-    read_float_feature_alias (src, "AutoTargetBrightness", "AutoTargetValue",
-        &src->brightnesstarget);
+    read_float_feature_with_int_alias (src, "AutoTargetBrightness",
+        "AutoTargetValue", &src->brightnesstarget);
   }
 
   if (is_prop_not_set (src, PROP_AUTOPROFILE)) {
@@ -3292,7 +3374,7 @@ gst_pylonsrc_read_colour_hue (GstPylonSrc * src, GST_PYLONSRC_COLOUR colour)
 {
   if (is_prop_not_set (src, propColourHue[colour])) {
     const char *selector =
-        feature_alias_available (src, "ColorAdjustmentSelector",
+        feature_alias_readable (src, "ColorAdjustmentSelector",
         "BslColorAdjustmentSelector");
     GENAPIC_RESULT res = PylonDeviceFeatureFromString (src->deviceHandle,
         selector, featColour[colour]);
@@ -3317,7 +3399,7 @@ gst_pylonsrc_read_colour_saturation (GstPylonSrc * src,
 {
   if (is_prop_not_set (src, propColourSaturation[colour])) {
     const char *selector =
-        feature_alias_available (src, "ColorAdjustmentSelector",
+        feature_alias_readable (src, "ColorAdjustmentSelector",
         "BslColorAdjustmentSelector");
     GENAPIC_RESULT res = PylonDeviceFeatureFromString (src->deviceHandle,
         selector, featColour[colour]);
@@ -3408,9 +3490,15 @@ gst_pylonsrc_read_manual_feature (GstPylonSrc * src,
         (int) feature);
   } else {
     if (is_prop_not_set (src, propManualFeature[feature])) {
-      read_float_feature_alias (src, featManualFeature[feature],
-          featManualFeatureAlias[feature],
-          &src->limitedFeature[feature].manual);
+      if (feature == AUTOF_GAIN) {
+        read_float_feature_with_int_alias (src, featManualFeature[feature],
+            featManualFeatureAlias[feature],
+            &src->limitedFeature[feature].manual);
+      } else {
+        read_float_feature_alias (src, featManualFeature[feature],
+            featManualFeatureAlias[feature],
+            &src->limitedFeature[feature].manual);
+      }
     }
   }
 }
@@ -3423,7 +3511,7 @@ gst_pylonsrc_read_exposure_gain_level (GstPylonSrc * src)
   }
 
   if (is_prop_not_set (src, PROP_BLACKLEVEL)) {
-    read_float_feature_alias (src, "BlackLevel", "BlackLevelRaw",
+    read_float_feature_with_int_alias (src, "BlackLevel", "BlackLevelRaw",
         &src->blacklevel);
   }
   // Configure gamma correction
