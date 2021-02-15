@@ -100,6 +100,9 @@ static gboolean gst_pylonsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps);
 
 static GstFlowReturn gst_pylonsrc_create (GstPushSrc * bsrc, GstBuffer ** buf);
 
+static void gst_pylonsrc_update_caps (GstPylonSrc * src);
+static gchar *read_string_feature (GstPylonSrc * src, const char *feature);
+
 /* parameters */
 typedef enum _GST_PYLONSRC_PROP
 {
@@ -1355,6 +1358,7 @@ gst_pylonsrc_get_caps (GstBaseSrc * bsrc, GstCaps * filter)
     GST_DEBUG_OBJECT (src, "Could not send caps - no camera connected.");
     return gst_pad_get_pad_template_caps (GST_BASE_SRC_PAD (bsrc));
   } else {
+    gst_pylonsrc_update_caps (src);
     GstCaps *result = gst_caps_copy (src->caps);
     GST_DEBUG_OBJECT (src, "Return caps:\n%" GST_PTR_FORMAT, result);
     return result;
@@ -1387,13 +1391,34 @@ gst_pylonsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
   }
   g_string_free (format, TRUE);
 
-  if (src->pixel_format == NULL)
-    goto unsupported_caps;
+  if (src->pixel_format != NULL) {
+    // check if we need to change PixelFormat
+    char *const current_format = read_string_feature (src, "PixelFormat");
+    const _Bool is_current_format =
+        g_ascii_strcasecmp (src->pixel_format, current_format) == 0;
+    g_free (current_format);
 
-  return TRUE;
+    if (!is_current_format) {
+      GST_DEBUG_OBJECT (src, "Setting PixelFormat to %s", src->pixel_format);
+      GENAPIC_RESULT res;
+      res =
+          PylonDeviceFeatureFromString (src->deviceHandle, "PixelFormat",
+          src->pixel_format);
+      PYLONC_CHECK_ERROR (src, res);
+    }
 
-unsupported_caps:
+    char *pixelSize = read_string_feature (src, "PixelSize");
+
+    if (pixelSize != NULL) {
+      GST_DEBUG_OBJECT (src, "Pixel is %s bits large.", pixelSize + 3);
+      g_free (pixelSize);
+    }
+
+    return TRUE;
+  }
+
   GST_ERROR_OBJECT (bsrc, "Unsupported caps: %" GST_PTR_FORMAT, caps);
+error:
   return FALSE;
 }
 
@@ -1949,38 +1974,24 @@ gst_pylonsrc_get_supported_caps (GstPylonSrc * src)
   return caps;
 }
 
+static void
+gst_pylonsrc_update_caps (GstPylonSrc * src)
+{
+  if (src->caps != NULL) {
+    gst_caps_unref (src->caps);
+  }
+  src->caps = gst_pylonsrc_get_supported_caps (src);
+  // TODO: handle caps renegotiation
+}
+
 static gboolean
 gst_pylonsrc_set_pixel_format (GstPylonSrc * src)
 {
-  // TODO: handle PixelFormat change and caps renegotiation if possible
   if (is_prop_implicit (src, PROP_PIXEL_FORMAT)) {
-    GENAPIC_RESULT res;
-
     GST_DEBUG_OBJECT (src, "Using %s PixelFormat.", src->pixel_format);
-    res =
-        PylonDeviceFeatureFromString (src->deviceHandle, "PixelFormat",
-        src->pixel_format);
-    PYLONC_CHECK_ERROR (src, res);
-
-    // Output the size of a pixel
-    if (PylonDeviceFeatureIsReadable (src->deviceHandle, "PixelSize")) {
-      char pixelSize[10];
-      size_t siz = sizeof (pixelSize);
-
-      res =
-          PylonDeviceFeatureToString (src->deviceHandle, "PixelSize", pixelSize,
-          &siz);
-      PYLONC_CHECK_ERROR (src, res);
-      GST_DEBUG_OBJECT (src, "Pixel is %s bits large.", pixelSize + 3);
-    } else {
-      GST_WARNING_OBJECT (src, "Couldn't read pixel size from the camera");
-    }
     reset_prop (src, PROP_PIXEL_FORMAT);
   }
   return TRUE;
-
-error:
-  return FALSE;
 }
 
 static gboolean
@@ -3722,8 +3733,6 @@ gst_pylonsrc_start (GstBaseSrc * bsrc)
   if (!gst_pylonsrc_select_device (src) ||
       !gst_pylonsrc_connect_device (src) || !gst_pylonsrc_set_properties (src))
     goto error;
-
-  src->caps = gst_pylonsrc_get_supported_caps (src);
 
   return TRUE;
 
