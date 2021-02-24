@@ -43,12 +43,19 @@ GST_DEBUG_CATEGORY_STATIC (gst_klvinspect_debug_category);
 #define GST_CAT_DEFAULT gst_klvinspect_debug_category
 
 /* prototypes */
+static void gst_klvinspect_dispose (GstKlvInspect * object);
+static void gst_klvinspect_set_property (GObject * object, guint prop_id,
+    const GValue * value, GParamSpec * pspec);
+static void gst_klvinspect_get_property (GObject * object, guint prop_id,
+    GValue * value, GParamSpec * pspec);
+
 static GstFlowReturn gst_klvinspect_transform_ip (GstBaseTransform * trans,
     GstBuffer * buf);
 
 enum
 {
-  PROP_0
+  PROP_0,
+  PROP_DUMP_LOCATION
 };
 
 /* pad templates */
@@ -68,6 +75,17 @@ gst_klvinspect_class_init (GstKlvInspectClass * klass)
 {
   GstBaseTransformClass *base_transform_class =
       GST_BASE_TRANSFORM_CLASS (klass);
+  GObjectClass *gobject_class = (GObjectClass *) klass;
+
+  /* register GObject vmethods */
+  gobject_class->set_property = gst_klvinspect_set_property;
+  gobject_class->get_property = gst_klvinspect_get_property;
+  gobject_class->dispose = gst_klvinspect_dispose;
+
+  g_object_class_install_property (gobject_class, PROP_DUMP_LOCATION,
+      g_param_spec_string ("dump-location", "Dump filename",
+          "Location to dump KLV metadata", NULL,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   /* Setting up pads and setting metadata should be moved to
      base_class_init if you intend to subclass this class. */
@@ -92,11 +110,59 @@ gst_klvinspect_class_init (GstKlvInspectClass * klass)
 static void
 gst_klvinspect_init (GstKlvInspect * filt)
 {
+  filt->dump_location = NULL;
+  filt->dump_file = NULL;
 }
 
 static void
-gst_klvinspect_dispose (GstKlvInspect * filt)
+gst_klvinspect_dispose (GstKlvInspect * object)
 {
+  GstKlvInspect *filt = GST_KLVINSPECT (object);
+
+  GST_DEBUG_OBJECT (filt, "disposing");
+
+  /* release all resources */
+  if (filt->dump_location)
+    g_free (filt->dump_location);
+  if (filt->dump_file)
+    fclose (filt->dump_file);
+
+  /* chain up to the parent class */
+  G_OBJECT_CLASS (gst_klvinspect_parent_class)->dispose (object);
+}
+
+static void
+gst_klvinspect_set_property (GObject * object, guint prop_id,
+    const GValue * value, GParamSpec * pspec)
+{
+  GstKlvInspect *filt = GST_KLVINSPECT (object);
+
+  switch (prop_id) {
+    case PROP_DUMP_LOCATION:
+      if (filt->dump_location)
+        g_free (filt->dump_location);
+      filt->dump_location = g_strdup (g_value_get_string (value));
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+  }
+}
+
+static void
+gst_klvinspect_get_property (GObject * object, guint prop_id,
+    GValue * value, GParamSpec * pspec)
+{
+  GstKlvInspect *filt = GST_KLVINSPECT (object);
+
+  switch (prop_id) {
+    case PROP_DUMP_LOCATION:
+      g_value_set_string (value, filt->dump_location);
+      break;
+    default:
+      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      break;
+  }
 }
 
 static GstFlowReturn
@@ -107,6 +173,14 @@ gst_klvinspect_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
   gpointer iter = NULL;
   gint n_klv_meta_found = 0;
 
+  if (filt->dump_location && !filt->dump_file) {
+    GST_DEBUG_OBJECT (filt, "Opening file '%s' to dump KLV data",
+        filt->dump_location);
+    filt->dump_file = g_fopen (filt->dump_location, "wb");
+    if (!filt->dump_file)
+      GST_WARNING_OBJECT (filt, "Unable to open KLV dump file");
+  }
+
   while ((klv_meta = (GstKLVMeta *) gst_buffer_iterate_meta_filtered (buf,
               &iter, GST_KLV_META_API_TYPE))) {
     gsize klv_size;
@@ -115,6 +189,10 @@ gst_klvinspect_transform_ip (GstBaseTransform * trans, GstBuffer * buf)
     if (klv_data) {
       GST_MEMDUMP_OBJECT (filt, "KLV data", klv_data, (guint) klv_size);
       ++n_klv_meta_found;
+
+      if (filt->dump_file) {
+        fwrite (klv_data, klv_size, 1, filt->dump_file);
+      }
     }
   }
 

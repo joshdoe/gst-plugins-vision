@@ -20,6 +20,8 @@
 #ifndef _GST_KLVINSPECT_H_
 #define _GST_KLVINSPECT_H_
 
+#include <stdio.h>
+
 #include <gst/base/gstbasetransform.h>
 
 G_BEGIN_DECLS
@@ -36,6 +38,11 @@ typedef struct _GstKlvInspectClass GstKlvInspectClass;
 struct _GstKlvInspect
 {
   GstBaseTransform base_klvinspect;
+
+  /* properties */
+  gchar* dump_location;
+
+  FILE* dump_file;
 };
 
 struct _GstKlvInspectClass
