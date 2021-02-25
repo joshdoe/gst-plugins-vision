@@ -27,6 +27,7 @@ GStreamer plugins related to the field of machine vision.
 
 - edtpdvsink: Video sink for [EDT PDV Camera Link simulator][2]
 - gigesimsink: Video sink for [A&B Soft GigESim][18] GigE Vision simulator
+- kayasink: Video sink for [KAYA Instruments CXP simulator][16]
 - pleorasink: Video sink for [Pleora eBUS SDK][19] GigE Vision transmitter
 
 ## Other elements
