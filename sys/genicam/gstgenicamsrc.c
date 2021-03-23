@@ -868,6 +868,11 @@ gst_genicamsrc_start (GstBaseSrc * bsrc)
       &src->hDEV);
   HANDLE_GTL_ERROR ("Failed to open device");
 
+  uint32_t num_data_streams;
+  ret = GTL_DevGetNumDataStreams(src->hDEV, &num_data_streams);
+  HANDLE_GTL_ERROR("Failed to get number of data streams");
+  GST_DEBUG_OBJECT(src, "Found %d data streams", num_data_streams);
+
   /* find and open specified data stream id */
   if (!src->stream_id || src->stream_id[0] == 0) {
     size_t id_size;
@@ -1164,8 +1169,12 @@ gst_genicamsrc_stop (GstBaseSrc * bsrc)
   GST_DEBUG_OBJECT (src, "stop");
 
   if (src->hDS) {
+    /* command AcquisitionStop */
+    guint32 val = GUINT32_TO_BE(1);
+    gsize datasize = sizeof(val);
+    GC_ERROR ret = GTL_GCWritePort(src->hDevPort, GENAPI_ACQSTOP, &val, &datasize);
+
     GTL_DSStopAcquisition (src->hDS, ACQ_STOP_FLAGS_DEFAULT);
-    // TODO: also command device AcquisitionStop
     GTL_DSFlushQueue (src->hDS, ACQ_QUEUE_INPUT_TO_OUTPUT);
     GTL_DSFlushQueue (src->hDS, ACQ_QUEUE_OUTPUT_DISCARD);
     GTL_DSClose (src->hDS);
@@ -1188,6 +1197,8 @@ gst_genicamsrc_stop (GstBaseSrc * bsrc)
   }
 
   GTL_GCCloseLib ();
+
+  GST_DEBUG_OBJECT(src, "Closed data stream, device, interface, and library");
 
   gst_genicamsrc_reset (src);
 
