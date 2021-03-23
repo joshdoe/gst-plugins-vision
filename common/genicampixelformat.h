@@ -67,7 +67,13 @@ GstGenicamPixelFormatInfo gst_genicam_pixel_format_infos[] = {
   ,
   {"RGB8", "RGB 8", 0, GST_VIDEO_CAPS_MAKE ("RGB"), 24, 24, 4}
   ,
+  // RGB8Packed deprecated in favor of RGB8
+  {"RGB8Packed", "RGB 8 Packed", 0, GST_VIDEO_CAPS_MAKE("RGB"), 24, 24, 4}
+  ,
   {"BGR8", "BGR 8", 0, GST_VIDEO_CAPS_MAKE ("BGR"), 24, 24, 4}
+  ,
+  // BGR8Packed deprecated in favor of BGR8
+  {"BGR8Packed", "BGR 8 Packed", 0, GST_VIDEO_CAPS_MAKE("BGR"), 24, 24, 4}
   ,
   {"RGBa8", "RGBa 8", 0, GST_VIDEO_CAPS_MAKE ("RGBA"), 32, 32, 4}
   ,
@@ -76,6 +82,11 @@ GstGenicamPixelFormatInfo gst_genicam_pixel_format_infos[] = {
   {"BGRA8Packed", "BGRA 8 Packed", 0, GST_VIDEO_CAPS_MAKE ("BGRA"), 32, 32, 4}
   ,
   {"YUV422Packed", "YUV 422 Packed", 0, GST_VIDEO_CAPS_MAKE ("UYVY"), 16, 16, 4}
+  ,
+  {"YUV8_UYV", "YUV8 UYV", 0, GST_VIDEO_CAPS_MAKE("IYU2"), 24, 24, 4}
+  ,
+  // YUV444Packed deprecated in favor of YUV8_UYV
+  {"YUV444Packed", "YUV 444 Packed", 0, GST_VIDEO_CAPS_MAKE("IYU2"), 24, 24, 4}
   ,
   {"YCbCr422_8", "YCbCr422_8", 0, GST_VIDEO_CAPS_MAKE ("YUY2"), 16, 16, 4}
   ,
@@ -124,6 +135,9 @@ GstGenicamPixelFormatInfo gst_genicam_pixel_format_infos[] = {
   ,
   /* Formats from Basler */
   {"YUV422_YUYV_Packed", "YUV422_YUYV_Packed", 0, GST_VIDEO_CAPS_MAKE ("YUY2"), 16, 16, 4}
+  ,
+  /* Formats from Kaya */
+  {"YUV422_8", "YUV422_8", 0, GST_VIDEO_CAPS_MAKE("UYVY"), 16, 16, 4}
 };
 
 int strcmp_ignore_whitespace (const char *s1, const char *s2)
@@ -186,7 +200,7 @@ gst_genicam_pixel_format_get_info (const char *pixel_format, int endianness)
 
   for (i = 0; i < G_N_ELEMENTS (gst_genicam_pixel_format_infos); i++) {
     GstGenicamPixelFormatInfo *info = &gst_genicam_pixel_format_infos[i];
-    if (strcmp_ignore_whitespace (pixel_format, info->pixel_format_spaced) == 0 &&
+    if (strncasecmp_ignore_whitespace (pixel_format, info->pixel_format_spaced) == 0 &&
         (info->endianness == endianness || info->endianness == 0))
       return info;
   }
