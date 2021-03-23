@@ -14,9 +14,7 @@ if (EURESYS_FOUND)
 	add_subdirectory (euresys)
 endif (EURESYS_FOUND)
 
-#if (GENICAM_FOUND)
-#	add_subdirectory (genicam)
-#endif (GENICAM_FOUND)
+add_subdirectory (gentl)
 
 if (IDSUEYE_FOUND)
 	add_subdirectory (idsueye)

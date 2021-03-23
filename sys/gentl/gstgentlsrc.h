@@ -17,8 +17,8 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifndef _GST_GENICAM_SRC_H_
-#define _GST_GENICAM_SRC_H_
+#ifndef _GST_GENTL_SRC_H_
+#define _GST_GENTL_SRC_H_
 
 #include <gst/base/gstpushsrc.h>
 
@@ -29,18 +29,18 @@
 
 G_BEGIN_DECLS
 
-#define GST_TYPE_GENICAM_SRC   (gst_genicamsrc_get_type())
-#define GST_GENICAM_SRC(obj)   (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_GENICAM_SRC,GstGenicamSrc))
-#define GST_GENICAM_SRC_CLASS(klass)   (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_GENICAM_SRC,GstGenicamSrcClass))
-#define GST_IS_GENICAM_SRC(obj)   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_GENICAM_SRC))
-#define GST_IS_GENICAM_SRC_CLASS(obj)   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_GENICAM_SRC))
+#define GST_TYPE_GENTL_SRC   (gst_gentlsrc_get_type())
+#define GST_GENTL_SRC(obj)   (G_TYPE_CHECK_INSTANCE_CAST((obj),GST_TYPE_GENTL_SRC,GstGenTlSrc))
+#define GST_GENTL_SRC_CLASS(klass)   (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_GENTL_SRC,GstGenTlSrcClass))
+#define GST_IS_GENTL_SRC(obj)   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_GENTL_SRC))
+#define GST_IS_GENTL_SRC_CLASS(obj)   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_GENTL_SRC))
 
-typedef struct _GstGenicamSrc GstGenicamSrc;
-typedef struct _GstGenicamSrcClass GstGenicamSrcClass;
+typedef struct _GstGenTlSrc GstGenTlSrc;
+typedef struct _GstGenTlSrcClass GstGenTlSrcClass;
 
-struct _GstGenicamSrc
+struct _GstGenTlSrc
 {
-  GstPushSrc base_genicamsrc;
+  GstPushSrc base_gentlsrc;
 
   /* camera handle */
   TL_HANDLE hTL;
@@ -72,12 +72,12 @@ struct _GstGenicamSrc
   gboolean stop_requested;
 };
 
-struct _GstGenicamSrcClass
+struct _GstGenTlSrcClass
 {
-  GstPushSrcClass base_genicamsrc_class;
+  GstPushSrcClass base_gentlsrc_class;
 };
 
-GType gst_genicamsrc_get_type (void);
+GType gst_gentlsrc_get_type (void);
 
 G_END_DECLS
 

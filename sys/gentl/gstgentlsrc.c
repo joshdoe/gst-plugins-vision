@@ -17,16 +17,16 @@
  * Boston, MA 02110-1335, USA.
  */
 /**
- * SECTION:element-gstgenicamsrc
+ * SECTION:element-gstgentlsrc
  *
- * The genicamsrc element is a source for GenICam framegrabbers.
+ * The gentlsrc element is a source for GenTL producers.
  *
  * <refsect2>
  * <title>Example launch line</title>
  * |[
- * gst-launch -v genicamsrc ! videoconvert ! autovideosink
+ * gst-launch -v gentlsrc ! videoconvert ! autovideosink
  * ]|
- * Shows video from the default GenICam framegrabber
+ * Shows video from the first found GenTL producer.
  * </refsect2>
  */
 
@@ -43,7 +43,7 @@
 
 #include "unzip.h"
 
-#include "gstgenicamsrc.h"
+#include "gstgentlsrc.h"
 
 #ifdef HAVE_ORC
 #include <orc/orc.h>
@@ -72,27 +72,27 @@
 //#define GENAPI_ACQSTOP 0x40044
 //#define CTI_PATH "C:\\Program Files\\Basler\\pylon 6\\Runtime\\x64\\ProducerGEV.cti"
 
-GST_DEBUG_CATEGORY_STATIC (gst_genicamsrc_debug);
-#define GST_CAT_DEFAULT gst_genicamsrc_debug
+GST_DEBUG_CATEGORY_STATIC (gst_gentlsrc_debug);
+#define GST_CAT_DEFAULT gst_gentlsrc_debug
 
 /* prototypes */
-static void gst_genicamsrc_set_property (GObject * object,
+static void gst_gentlsrc_set_property (GObject * object,
     guint property_id, const GValue * value, GParamSpec * pspec);
-static void gst_genicamsrc_get_property (GObject * object,
+static void gst_gentlsrc_get_property (GObject * object,
     guint property_id, GValue * value, GParamSpec * pspec);
-static void gst_genicamsrc_dispose (GObject * object);
-static void gst_genicamsrc_finalize (GObject * object);
+static void gst_gentlsrc_dispose (GObject * object);
+static void gst_gentlsrc_finalize (GObject * object);
 
-static gboolean gst_genicamsrc_start (GstBaseSrc * src);
-static gboolean gst_genicamsrc_stop (GstBaseSrc * src);
-static GstCaps *gst_genicamsrc_get_caps (GstBaseSrc * src, GstCaps * filter);
-static gboolean gst_genicamsrc_set_caps (GstBaseSrc * src, GstCaps * caps);
-static gboolean gst_genicamsrc_unlock (GstBaseSrc * src);
-static gboolean gst_genicamsrc_unlock_stop (GstBaseSrc * src);
+static gboolean gst_gentlsrc_start (GstBaseSrc * src);
+static gboolean gst_gentlsrc_stop (GstBaseSrc * src);
+static GstCaps *gst_gentlsrc_get_caps (GstBaseSrc * src, GstCaps * filter);
+static gboolean gst_gentlsrc_set_caps (GstBaseSrc * src, GstCaps * caps);
+static gboolean gst_gentlsrc_unlock (GstBaseSrc * src);
+static gboolean gst_gentlsrc_unlock_stop (GstBaseSrc * src);
 
-static GstFlowReturn gst_genicamsrc_create (GstPushSrc * src, GstBuffer ** buf);
+static GstFlowReturn gst_gentlsrc_create (GstPushSrc * src, GstBuffer ** buf);
 
-static gchar *gst_genicamsrc_get_error_string (GstGenicamSrc * src);
+static gchar *gst_gentlsrc_get_error_string (GstGenTlSrc * src);
 
 enum
 {
@@ -118,7 +118,7 @@ enum
 
 /* pad templates */
 
-static GstStaticPadTemplate gst_genicamsrc_src_template =
+static GstStaticPadTemplate gst_gentlsrc_src_template =
 GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
@@ -129,7 +129,7 @@ GST_STATIC_PAD_TEMPLATE ("src",
 #define HANDLE_GTL_ERROR(arg)  \
   if (ret != GC_ERR_SUCCESS) {  \
     GST_ELEMENT_ERROR (src, LIBRARY, FAILED,  \
-      (arg ": %s", gst_genicamsrc_get_error_string (src)), (NULL));  \
+      (arg ": %s", gst_gentlsrc_get_error_string (src)), (NULL));  \
     goto error; \
   }
 
@@ -187,7 +187,7 @@ PGCGetPortURLInfo GTL_GCGetPortURLInfo;
   GST_DEBUG_OBJECT(src, "Failed to bind function " G_STRINGIFY(fcn)); goto error; }
 
 gboolean
-gst_genicamsrc_bind_functions (GstGenicamSrc * src)
+gst_gentlsrc_bind_functions (GstGenTlSrc * src)
 {
   GModule *module;
   const char cti_path[] = CTI_PATH;
@@ -263,37 +263,37 @@ error:
 
 /* class initialization */
 
-G_DEFINE_TYPE (GstGenicamSrc, gst_genicamsrc, GST_TYPE_PUSH_SRC);
+G_DEFINE_TYPE (GstGenTlSrc, gst_gentlsrc, GST_TYPE_PUSH_SRC);
 
 static void
-gst_genicamsrc_class_init (GstGenicamSrcClass * klass)
+gst_gentlsrc_class_init (GstGenTlSrcClass * klass)
 {
   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
   GstElementClass *gstelement_class = GST_ELEMENT_CLASS (klass);
   GstBaseSrcClass *gstbasesrc_class = GST_BASE_SRC_CLASS (klass);
   GstPushSrcClass *gstpushsrc_class = GST_PUSH_SRC_CLASS (klass);
 
-  gobject_class->set_property = gst_genicamsrc_set_property;
-  gobject_class->get_property = gst_genicamsrc_get_property;
-  gobject_class->dispose = gst_genicamsrc_dispose;
-  gobject_class->finalize = gst_genicamsrc_finalize;
+  gobject_class->set_property = gst_gentlsrc_set_property;
+  gobject_class->get_property = gst_gentlsrc_get_property;
+  gobject_class->dispose = gst_gentlsrc_dispose;
+  gobject_class->finalize = gst_gentlsrc_finalize;
 
   gst_element_class_add_pad_template (gstelement_class,
-      gst_static_pad_template_get (&gst_genicamsrc_src_template));
+      gst_static_pad_template_get (&gst_gentlsrc_src_template));
 
   gst_element_class_set_static_metadata (gstelement_class,
-      "GenICam Video Source", "Source/Video",
-      "GenICam framegrabber video source", "Joshua M. Doe <oss@nvl.army.mil>");
+      "GenTL Video Source", "Source/Video",
+      "GenTL framegrabber video source", "Joshua M. Doe <oss@nvl.army.mil>");
 
-  gstbasesrc_class->start = GST_DEBUG_FUNCPTR (gst_genicamsrc_start);
-  gstbasesrc_class->stop = GST_DEBUG_FUNCPTR (gst_genicamsrc_stop);
-  gstbasesrc_class->get_caps = GST_DEBUG_FUNCPTR (gst_genicamsrc_get_caps);
-  gstbasesrc_class->set_caps = GST_DEBUG_FUNCPTR (gst_genicamsrc_set_caps);
-  gstbasesrc_class->unlock = GST_DEBUG_FUNCPTR (gst_genicamsrc_unlock);
+  gstbasesrc_class->start = GST_DEBUG_FUNCPTR (gst_gentlsrc_start);
+  gstbasesrc_class->stop = GST_DEBUG_FUNCPTR (gst_gentlsrc_stop);
+  gstbasesrc_class->get_caps = GST_DEBUG_FUNCPTR (gst_gentlsrc_get_caps);
+  gstbasesrc_class->set_caps = GST_DEBUG_FUNCPTR (gst_gentlsrc_set_caps);
+  gstbasesrc_class->unlock = GST_DEBUG_FUNCPTR (gst_gentlsrc_unlock);
   gstbasesrc_class->unlock_stop =
-      GST_DEBUG_FUNCPTR (gst_genicamsrc_unlock_stop);
+      GST_DEBUG_FUNCPTR (gst_gentlsrc_unlock_stop);
 
-  gstpushsrc_class->create = GST_DEBUG_FUNCPTR (gst_genicamsrc_create);
+  gstpushsrc_class->create = GST_DEBUG_FUNCPTR (gst_gentlsrc_create);
 
   /* Install GObject properties */
   g_object_class_install_property (gobject_class, PROP_INTERFACE_INDEX,
@@ -346,7 +346,7 @@ gst_genicamsrc_class_init (GstGenicamSrcClass * klass)
 }
 
 static void
-gst_genicamsrc_reset (GstGenicamSrc * src)
+gst_gentlsrc_reset (GstGenTlSrc * src)
 {
   src->error_string[0] = 0;
   src->last_frame_count = 0;
@@ -359,7 +359,7 @@ gst_genicamsrc_reset (GstGenicamSrc * src)
 }
 
 static void
-gst_genicamsrc_init (GstGenicamSrc * src)
+gst_gentlsrc_init (GstGenTlSrc * src)
 {
   /* set source as live (no preroll) */
   gst_base_src_set_live (GST_BASE_SRC (src), TRUE);
@@ -381,16 +381,16 @@ gst_genicamsrc_init (GstGenicamSrc * src)
   src->hDEV = NULL;
   src->hDS = NULL;
 
-  gst_genicamsrc_reset (src);
+  gst_gentlsrc_reset (src);
 }
 
 void
-gst_genicamsrc_set_property (GObject * object, guint property_id,
+gst_gentlsrc_set_property (GObject * object, guint property_id,
     const GValue * value, GParamSpec * pspec)
 {
-  GstGenicamSrc *src;
+  GstGenTlSrc *src;
 
-  src = GST_GENICAM_SRC (object);
+  src = GST_GENTL_SRC (object);
 
   switch (property_id) {
     case PROP_INTERFACE_INDEX:
@@ -427,13 +427,13 @@ gst_genicamsrc_set_property (GObject * object, guint property_id,
 }
 
 void
-gst_genicamsrc_get_property (GObject * object, guint property_id,
+gst_gentlsrc_get_property (GObject * object, guint property_id,
     GValue * value, GParamSpec * pspec)
 {
-  GstGenicamSrc *src;
+  GstGenTlSrc *src;
 
-  g_return_if_fail (GST_IS_GENICAM_SRC (object));
-  src = GST_GENICAM_SRC (object);
+  g_return_if_fail (GST_IS_GENTL_SRC (object));
+  src = GST_GENTL_SRC (object);
 
   switch (property_id) {
     case PROP_INTERFACE_INDEX:
@@ -467,25 +467,25 @@ gst_genicamsrc_get_property (GObject * object, guint property_id,
 }
 
 void
-gst_genicamsrc_dispose (GObject * object)
+gst_gentlsrc_dispose (GObject * object)
 {
-  GstGenicamSrc *src;
+  GstGenTlSrc *src;
 
-  g_return_if_fail (GST_IS_GENICAM_SRC (object));
-  src = GST_GENICAM_SRC (object);
+  g_return_if_fail (GST_IS_GENTL_SRC (object));
+  src = GST_GENTL_SRC (object);
 
   /* clean up as possible.  may be called multiple times */
 
-  G_OBJECT_CLASS (gst_genicamsrc_parent_class)->dispose (object);
+  G_OBJECT_CLASS (gst_gentlsrc_parent_class)->dispose (object);
 }
 
 void
-gst_genicamsrc_finalize (GObject * object)
+gst_gentlsrc_finalize (GObject * object)
 {
-  GstGenicamSrc *src;
+  GstGenTlSrc *src;
 
-  g_return_if_fail (GST_IS_GENICAM_SRC (object));
-  src = GST_GENICAM_SRC (object);
+  g_return_if_fail (GST_IS_GENTL_SRC (object));
+  src = GST_GENTL_SRC (object);
 
   /* clean up object here */
 
@@ -494,13 +494,13 @@ gst_genicamsrc_finalize (GObject * object)
     src->caps = NULL;
   }
 
-  G_OBJECT_CLASS (gst_genicamsrc_parent_class)->finalize (object);
+  G_OBJECT_CLASS (gst_gentlsrc_parent_class)->finalize (object);
 }
 
 #define GTL_MAX_STR_SIZE 256
 
 void
-gst_genicam_print_gentl_impl_info (GstGenicamSrc * src)
+gst_gentl_print_gentl_impl_info (GstGenTlSrc * src)
 {
   size_t str_size;
   char id[GTL_MAX_STR_SIZE];
@@ -536,7 +536,7 @@ gst_genicam_print_gentl_impl_info (GstGenicamSrc * src)
 }
 
 void
-gst_genicam_print_system_info (GstGenicamSrc * src)
+gst_gentl_print_system_info (GstGenTlSrc * src)
 {
   size_t str_size;
   char id[GTL_MAX_STR_SIZE];
@@ -573,7 +573,7 @@ gst_genicam_print_system_info (GstGenicamSrc * src)
 }
 
 void
-gst_genicam_print_interface_info (GstGenicamSrc * src, uint32_t index)
+gst_gentl_print_interface_info (GstGenTlSrc * src, uint32_t index)
 {
   GC_ERROR ret;
   size_t str_size;
@@ -587,7 +587,7 @@ gst_genicam_print_interface_info (GstGenicamSrc * src, uint32_t index)
   ret = GTL_TLGetInterfaceID (src->hTL, index, iface_id, &str_size);
   if (ret != GC_ERR_SUCCESS) {
     GST_WARNING_OBJECT (src, "Failed to get interface id (error=%d): %s", ret,
-        gst_genicamsrc_get_error_string (src));
+        gst_gentlsrc_get_error_string (src));
     return;
   }
 
@@ -606,7 +606,7 @@ gst_genicam_print_interface_info (GstGenicamSrc * src, uint32_t index)
 }
 
 void
-gst_genicam_print_device_info (GstGenicamSrc * src, uint32_t index)
+gst_gentl_print_device_info (GstGenTlSrc * src, uint32_t index)
 {
   GC_ERROR ret;
   size_t str_size;
@@ -622,7 +622,7 @@ gst_genicam_print_device_info (GstGenicamSrc * src, uint32_t index)
   ret = GTL_IFGetDeviceID (src->hIF, index, dev_id, &str_size);
   if (ret != GC_ERR_SUCCESS) {
     GST_WARNING_OBJECT (src, "Failed to get device id: %s",
-        gst_genicamsrc_get_error_string (src));
+        gst_gentlsrc_get_error_string (src));
     return;
   }
 
@@ -650,7 +650,7 @@ gst_genicam_print_device_info (GstGenicamSrc * src, uint32_t index)
       index, id, vendor, model, tl_type, display_name, access_status);
 }
 
-//void gst_genicam_print_stream_info (GstGenicamSrc * src)
+//void gst_gentl_print_stream_info (GstGenTlSrc * src)
 //{
 //    GC_ERROR ret;
 //    size_t str_size;
@@ -665,7 +665,7 @@ gst_genicam_print_device_info (GstGenicamSrc * src, uint32_t index)
 //
 //    //ret = GTL_DevGetDataStreamID(src->hIF, index, dev_id, &str_size);
 //    //if (ret != GC_ERR_SUCCESS) {
-//    //    GST_WARNING_OBJECT (src, "Failed to get stream id: %s", gst_genicamsrc_get_error_string(src));
+//    //    GST_WARNING_OBJECT (src, "Failed to get stream id: %s", gst_gentlsrc_get_error_string(src));
 //    //    return;
 //    //}
 //
@@ -688,7 +688,7 @@ gst_genicam_print_device_info (GstGenicamSrc * src, uint32_t index)
 
 
 static size_t
-gst_genicamsrc_get_payload_size (GstGenicamSrc * src)
+gst_gentlsrc_get_payload_size (GstGenTlSrc * src)
 {
   GC_ERROR ret;
   INFO_DATATYPE info_datatype;
@@ -732,7 +732,7 @@ error:
 }
 
 static gboolean
-gst_genicamsrc_prepare_buffers (GstGenicamSrc * src)
+gst_gentlsrc_prepare_buffers (GstGenTlSrc * src)
 {
   size_t payload_size;
   guint i;
@@ -740,7 +740,7 @@ gst_genicamsrc_prepare_buffers (GstGenicamSrc * src)
   GC_ERROR ret;
 
   /* TODO: query Data Stream features to find min/max num_buffers */
-  payload_size = gst_genicamsrc_get_payload_size (src);
+  payload_size = gst_gentlsrc_get_payload_size (src);
   if (payload_size == 0) {
     GST_DEBUG_OBJECT(src, "Payload size is zero");
     return FALSE;
@@ -764,9 +764,9 @@ error:
 }
 
 static gboolean
-gst_genicamsrc_start (GstBaseSrc * bsrc)
+gst_gentlsrc_start (GstBaseSrc * bsrc)
 {
-  GstGenicamSrc *src = GST_GENICAM_SRC (bsrc);
+  GstGenTlSrc *src = GST_GENTL_SRC (bsrc);
   GC_ERROR ret;
   uint32_t i, num_ifaces, num_devs;
   guint32 width, height, bpp, stride;
@@ -775,8 +775,8 @@ gst_genicamsrc_start (GstBaseSrc * bsrc)
   GST_DEBUG_OBJECT (src, "start");
 
   /* bind functions from CTI */
-  /* TODO: Enumerate CTI files in env var GENICAM_GENTL64_PATH */
-  if (!gst_genicamsrc_bind_functions (src)) {
+  /* TODO: Enumerate CTI files in env var GENTL_GENTL64_PATH */
+  if (!gst_gentlsrc_bind_functions (src)) {
     GST_ELEMENT_ERROR (src, LIBRARY, INIT,
         ("GenTL CTI could not be opened: %s", g_module_error ()), (NULL));
     return FALSE;
@@ -786,13 +786,13 @@ gst_genicamsrc_start (GstBaseSrc * bsrc)
   ret = GTL_GCInitLib ();
   HANDLE_GTL_ERROR ("GenTL Producer library could not be initialized");
 
-  gst_genicam_print_gentl_impl_info (src);
+  gst_gentl_print_gentl_impl_info (src);
 
   /* open GenTL, print info, and update interface list */
   ret = GTL_TLOpen (&src->hTL);
   HANDLE_GTL_ERROR ("System module failed to open");
 
-  gst_genicam_print_system_info (src);
+  gst_gentl_print_system_info (src);
 
   ret = GTL_TLUpdateInterfaceList (src->hTL, NULL, src->timeout);
   HANDLE_GTL_ERROR ("Failed to update interface list within timeout");
@@ -803,7 +803,7 @@ gst_genicamsrc_start (GstBaseSrc * bsrc)
   if (num_ifaces > 0) {
     GST_DEBUG_OBJECT (src, "Found %d GenTL interfaces", num_ifaces);
     for (i = 0; i < num_ifaces; ++i) {
-      gst_genicam_print_interface_info (src, i);
+      gst_gentl_print_interface_info (src, i);
     }
   } else {
     GST_ELEMENT_ERROR (src, LIBRARY, FAILED, ("No interfaces found"), (NULL));
@@ -839,7 +839,7 @@ gst_genicamsrc_start (GstBaseSrc * bsrc)
   HANDLE_GTL_ERROR ("Failed to get number of devices");
   if (num_devs > 0) {
     for (i = 0; i < num_devs; ++i) {
-      gst_genicam_print_device_info (src, i);
+      gst_gentl_print_device_info (src, i);
     }
   } else {
     GST_ELEMENT_ERROR (src, LIBRARY, FAILED,
@@ -1037,7 +1037,7 @@ gst_genicamsrc_start (GstBaseSrc * bsrc)
   }
 
   {
-    // TODO: use Genicam node map for this
+    // TODO: use GenTl node map for this
     guint32 val = 0;
     size_t datasize = 4;
     ret = GTL_GCReadPort (src->hDevPort, GENAPI_WIDTH, &val, &datasize);
@@ -1050,7 +1050,7 @@ gst_genicamsrc_start (GstBaseSrc * bsrc)
     bpp = 8;
   }
 
-  if (!gst_genicamsrc_prepare_buffers (src)) {
+  if (!gst_gentlsrc_prepare_buffers (src)) {
     GST_ELEMENT_ERROR (src, RESOURCE, TOO_LAZY, ("Failed to prepare buffers"),
         (NULL));
     goto error;
@@ -1068,7 +1068,7 @@ gst_genicamsrc_start (GstBaseSrc * bsrc)
   HANDLE_GTL_ERROR ("Failed to start stream acquisition");
 
   {
-    // TODO: use Genicam node map for this
+    // TODO: use GenTl node map for this
     guint32 val;
     size_t datasize;
 
@@ -1162,9 +1162,9 @@ error:
 }
 
 static gboolean
-gst_genicamsrc_stop (GstBaseSrc * bsrc)
+gst_gentlsrc_stop (GstBaseSrc * bsrc)
 {
-  GstGenicamSrc *src = GST_GENICAM_SRC (bsrc);
+  GstGenTlSrc *src = GST_GENTL_SRC (bsrc);
 
   GST_DEBUG_OBJECT (src, "stop");
 
@@ -1200,15 +1200,15 @@ gst_genicamsrc_stop (GstBaseSrc * bsrc)
 
   GST_DEBUG_OBJECT(src, "Closed data stream, device, interface, and library");
 
-  gst_genicamsrc_reset (src);
+  gst_gentlsrc_reset (src);
 
   return TRUE;
 }
 
 static GstCaps *
-gst_genicamsrc_get_caps (GstBaseSrc * bsrc, GstCaps * filter)
+gst_gentlsrc_get_caps (GstBaseSrc * bsrc, GstCaps * filter)
 {
-  GstGenicamSrc *src = GST_GENICAM_SRC (bsrc);
+  GstGenTlSrc *src = GST_GENTL_SRC (bsrc);
   GstCaps *caps;
 
   if (src->hDS == NULL) {
@@ -1232,9 +1232,9 @@ gst_genicamsrc_get_caps (GstBaseSrc * bsrc, GstCaps * filter)
 }
 
 static gboolean
-gst_genicamsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
+gst_gentlsrc_set_caps (GstBaseSrc * bsrc, GstCaps * caps)
 {
-  GstGenicamSrc *src = GST_GENICAM_SRC (bsrc);
+  GstGenTlSrc *src = GST_GENTL_SRC (bsrc);
   GstVideoInfo vinfo;
   GstStructure *s = gst_caps_get_structure (caps, 0);
 
@@ -1256,9 +1256,9 @@ unsupported_caps:
 }
 
 static gboolean
-gst_genicamsrc_unlock (GstBaseSrc * bsrc)
+gst_gentlsrc_unlock (GstBaseSrc * bsrc)
 {
-  GstGenicamSrc *src = GST_GENICAM_SRC (bsrc);
+  GstGenTlSrc *src = GST_GENTL_SRC (bsrc);
 
   GST_LOG_OBJECT (src, "unlock");
 
@@ -1268,9 +1268,9 @@ gst_genicamsrc_unlock (GstBaseSrc * bsrc)
 }
 
 static gboolean
-gst_genicamsrc_unlock_stop (GstBaseSrc * bsrc)
+gst_gentlsrc_unlock_stop (GstBaseSrc * bsrc)
 {
-  GstGenicamSrc *src = GST_GENICAM_SRC (bsrc);
+  GstGenTlSrc *src = GST_GENTL_SRC (bsrc);
 
   GST_LOG_OBJECT (src, "unlock_stop");
 
@@ -1280,7 +1280,7 @@ gst_genicamsrc_unlock_stop (GstBaseSrc * bsrc)
 }
 
 static GstBuffer *
-gst_genicamsrc_get_buffer (GstGenicamSrc * src)
+gst_gentlsrc_get_buffer (GstGenTlSrc * src)
 {
   GC_ERROR ret;
   EVENT_NEW_BUFFER_DATA new_buffer_data;
@@ -1360,16 +1360,16 @@ error:
 }
 
 static GstFlowReturn
-gst_genicamsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
+gst_gentlsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 {
-  GstGenicamSrc *src = GST_GENICAM_SRC (psrc);
+  GstGenTlSrc *src = GST_GENTL_SRC (psrc);
   guint32 dropped_frames = 0;
   GstClock *clock;
   GstClockTime clock_time;
 
   GST_LOG_OBJECT (src, "create");
 
-  *buf = gst_genicamsrc_get_buffer (src);
+  *buf = gst_gentlsrc_get_buffer (src);
   if (!*buf) {
     return GST_FLOW_ERROR;
   }
@@ -1390,12 +1390,12 @@ gst_genicamsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   //src->last_frame_count = circ_handle.FrameCount;
 
   /* create GstBuffer then release circ buffer back to acquisition */
-  //*buf = gst_genicamsrc_create_buffer_from_circ_handle (src, &circ_handle);
+  //*buf = gst_gentlsrc_create_buffer_from_circ_handle (src, &circ_handle);
   //ret =
   //    BiCirStatusSet (src->board, &src->buffer_array, circ_handle, BIAVAILABLE);
   //if (ret != BI_OK) {
   //  GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-  //      ("Failed to release buffer: %s", gst_genicamsrc_get_error_string (src,
+  //      ("Failed to release buffer: %s", gst_gentlsrc_get_error_string (src,
   //              ret)), (NULL));
   //  return GST_FLOW_ERROR;
   //}
@@ -1424,7 +1424,7 @@ error:
 }
 
 gchar *
-gst_genicamsrc_get_error_string (GstGenicamSrc * src)
+gst_gentlsrc_get_error_string (GstGenTlSrc * src)
 {
   size_t error_string_size = MAX_ERROR_STRING_LEN;
   GC_ERROR error_code;
@@ -1436,17 +1436,17 @@ gst_genicamsrc_get_error_string (GstGenicamSrc * src)
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  GST_DEBUG_CATEGORY_INIT (gst_genicamsrc_debug, "genicamsrc", 0,
-      "debug category for genicamsrc element");
-  gst_element_register (plugin, "genicamsrc", GST_RANK_NONE,
-      gst_genicamsrc_get_type ());
+  GST_DEBUG_CATEGORY_INIT (gst_gentlsrc_debug, "gentlsrc", 0,
+      "debug category for gentlsrc element");
+  gst_element_register (plugin, "gentlsrc", GST_RANK_NONE,
+      gst_gentlsrc_get_type ());
 
   return TRUE;
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
-    genicam,
-    "GenICam frame grabber source",
+    gentl,
+    "GenTL frame grabber source",
     plugin_init, GST_PACKAGE_VERSION, GST_PACKAGE_LICENSE, GST_PACKAGE_NAME,
     GST_PACKAGE_ORIGIN);
