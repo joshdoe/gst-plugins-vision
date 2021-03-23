@@ -583,9 +583,10 @@ gst_genicam_print_interface_info (GstGenicamSrc * src, uint32_t index)
   char display_name[GTL_MAX_STR_SIZE];
   INFO_DATATYPE datatype;
 
+  str_size = GTL_MAX_STR_SIZE;
   ret = GTL_TLGetInterfaceID (src->hTL, index, iface_id, &str_size);
   if (ret != GC_ERR_SUCCESS) {
-    GST_WARNING_OBJECT (src, "Failed to get interface id: %s",
+    GST_WARNING_OBJECT (src, "Failed to get interface id (error=%d): %s", ret,
         gst_genicamsrc_get_error_string (src));
     return;
   }
