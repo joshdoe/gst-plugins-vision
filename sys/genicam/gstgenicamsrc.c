@@ -51,6 +51,27 @@
 #define orc_memcpy memcpy
 #endif
 
+// "C:\\BitFlow SDK 6.20\\Bin64\\BFGTL.cti";
+// "C:\\Program Files\\Basler\\pylon 5\\Runtime\\x64\\ProducerGEV.cti";
+
+// EVT
+#define GENAPI_WIDTH 0xA000
+#define GENAPI_HEIGHT 0xA004
+#define GENAPI_PAYLOAD_SIZE 0xD008
+#define GENAPI_ACQMODE 0xB000
+#define GENAPI_ACQSTART 0xB004
+#define GENAPI_ACQSTOP 0xB008
+#define CTI_PATH "C:\\Program Files\\EVT\\eSDK\\bin\\EmergentGenTL.cti"
+
+// Basler
+//#define GENAPI_WIDTH 0x30204
+//#define GENAPI_HEIGHT 0x30224
+//#define GENAPI_PAYLOAD_SIZE 0x10088
+//#define GENAPI_ACQMODE 0x40004
+//#define GENAPI_ACQSTART 0x40024
+//#define GENAPI_ACQSTOP 0x40044
+//#define CTI_PATH "C:\\Program Files\\Basler\\pylon 6\\Runtime\\x64\\ProducerGEV.cti"
+
 GST_DEBUG_CATEGORY_STATIC (gst_genicamsrc_debug);
 #define GST_CAT_DEFAULT gst_genicamsrc_debug
 
@@ -169,9 +190,7 @@ gboolean
 gst_genicamsrc_bind_functions (GstGenicamSrc * src)
 {
   GModule *module;
-  //const char cti_path[] = "C:\\BitFlow SDK 6.20\\Bin64\\BFGTL.cti";
-  const char cti_path[] =
-      "C:\\Program Files\\Basler\\pylon 5\\Runtime\\x64\\ProducerGEV.cti";
+  const char cti_path[] = CTI_PATH;
   gboolean ret = TRUE;
 
   GST_DEBUG_OBJECT (src, "Trying to bind functions from '%s'", cti_path);
@@ -686,13 +705,15 @@ gst_genicamsrc_get_payload_size (GstGenicamSrc * src)
     ret =
         GTL_DSGetInfo (src->hDS, STREAM_INFO_PAYLOAD_SIZE, &info_datatype,
         &payload_size, &info_size);
+    GST_DEBUG_OBJECT(src, "Payload size defined by stream info: %d", payload_size);
   } else {
     guint32 val = 0;
     size_t datasize = 4;
     // TODO: use node map
-    ret = GTL_GCReadPort (src->hDevPort, 0x10088, &val, &datasize);
+    ret = GTL_GCReadPort (src->hDevPort, GENAPI_PAYLOAD_SIZE, &val, &datasize);
     HANDLE_GTL_ERROR ("Failed to get payload size");
     payload_size = GUINT32_FROM_BE (val);
+    GST_DEBUG_OBJECT(src, "Payload size defined by node map: %d", payload_size);
 
     //PORT_HANDLE port_handle;
     //ret = GTL_DevGetPort(src->hDEV, &port_handle);
@@ -720,6 +741,7 @@ gst_genicamsrc_prepare_buffers (GstGenicamSrc * src)
   /* TODO: query Data Stream features to find min/max num_buffers */
   payload_size = gst_genicamsrc_get_payload_size (src);
   if (payload_size == 0) {
+    GST_DEBUG_OBJECT(src, "Payload size is zero");
     return FALSE;
   }
 
@@ -731,13 +753,14 @@ gst_genicamsrc_prepare_buffers (GstGenicamSrc * src)
     HANDLE_GTL_ERROR ("Failed to queue buffer");
   }
 
+  ret = GTL_DSFlushQueue (src->hDS, ACQ_QUEUE_ALL_TO_INPUT);
+  HANDLE_GTL_ERROR("Failed to queue all buffers to input");
+
   return TRUE;
 
 error:
   return FALSE;
 }
-
-
 
 static gboolean
 gst_genicamsrc_start (GstBaseSrc * bsrc)
@@ -751,6 +774,7 @@ gst_genicamsrc_start (GstBaseSrc * bsrc)
   GST_DEBUG_OBJECT (src, "start");
 
   /* bind functions from CTI */
+  /* TODO: Enumerate CTI files in env var GENICAM_GENTL64_PATH */
   if (!gst_genicamsrc_bind_functions (src)) {
     GST_ELEMENT_ERROR (src, LIBRARY, INIT,
         ("GenTL CTI could not be opened: %s", g_module_error ()), (NULL));
@@ -776,7 +800,7 @@ gst_genicamsrc_start (GstBaseSrc * bsrc)
   ret = GTL_TLGetNumInterfaces (src->hTL, &num_ifaces);
   HANDLE_GTL_ERROR ("Failed to get number of interfaces");
   if (num_ifaces > 0) {
-    GST_DEBUG_OBJECT (src, "Found %dGenTL interfaces", num_ifaces);
+    GST_DEBUG_OBJECT (src, "Found %d GenTL interfaces", num_ifaces);
     for (i = 0; i < num_ifaces; ++i) {
       gst_genicam_print_interface_info (src, i);
     }
@@ -1010,13 +1034,13 @@ gst_genicamsrc_start (GstBaseSrc * bsrc)
     // TODO: use Genicam node map for this
     guint32 val = 0;
     size_t datasize = 4;
-    ret = GTL_GCReadPort (src->hDevPort, 0x30204, &val, &datasize);
+    ret = GTL_GCReadPort (src->hDevPort, GENAPI_WIDTH, &val, &datasize);
     HANDLE_GTL_ERROR ("Failed to get width");
     width = GUINT32_FROM_BE (val);
-    ret = GTL_GCReadPort (src->hDevPort, 0x30224, &val, &datasize);
+    ret = GTL_GCReadPort (src->hDevPort, GENAPI_HEIGHT, &val, &datasize);
     HANDLE_GTL_ERROR ("Failed to get height");
     height = GUINT32_FROM_BE (val);
-
+    GST_DEBUG_OBJECT(src, "Width and height %dx%d", width, height);
     bpp = 8;
   }
 
@@ -1043,15 +1067,17 @@ gst_genicamsrc_start (GstBaseSrc * bsrc)
     size_t datasize;
 
     /* set AcquisitionMode to Continuous */
-    val = GUINT32_TO_BE (2);
+    // TODO: "Continuous" value can have different integer values, we need
+    // to look it up in the node map (EVT is 0, Basler is 2)
+    val = GUINT32_TO_BE (0);
     datasize = sizeof (val);
-    ret = GTL_GCWritePort (src->hDevPort, 0x40004, &val, &datasize);
+    ret = GTL_GCWritePort (src->hDevPort, GENAPI_ACQMODE, &val, &datasize);
     HANDLE_GTL_ERROR ("Failed to start device acquisition");
 
     /* send AcquisitionStart command */
     val = GUINT32_TO_BE (1);
     datasize = sizeof (val);
-    ret = GTL_GCWritePort (src->hDevPort, 0x40024, &val, &datasize);
+    ret = GTL_GCWritePort (src->hDevPort, GENAPI_ACQSTART, &val, &datasize);
     HANDLE_GTL_ERROR ("Failed to start device acquisition");
   }
 
