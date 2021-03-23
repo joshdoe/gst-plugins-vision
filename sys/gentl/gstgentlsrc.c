@@ -41,6 +41,8 @@
 #include <gst/base/gstpushsrc.h>
 #include <gst/video/video.h>
 
+#include "genicampixelformat.h"
+
 #include "unzip.h"
 
 #include "gstgentlsrc.h"
@@ -57,6 +59,7 @@
 // EVT
 #define GENAPI_WIDTH 0xA000
 #define GENAPI_HEIGHT 0xA004
+#define GENAPI_PIXFMT 0xA008
 #define GENAPI_PAYLOAD_SIZE 0xD008
 #define GENAPI_ACQMODE 0xB000
 #define GENAPI_ACQSTART 0xB004
@@ -122,9 +125,13 @@ static GstStaticPadTemplate gst_gentlsrc_src_template =
 GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE
-        ("{ GRAY8, GRAY16_LE, GRAY16_BE, BGRA }"))
-    );
+  GST_STATIC_CAPS(GST_VIDEO_CAPS_MAKE
+  ("{ GRAY8, GRAY16_LE, GRAY16_BE, BGRA, UYVY }") ";"
+    GST_GENICAM_PIXEL_FORMAT_MAKE_BAYER8("{ bggr, grbg, rggb, gbrg }") ";"
+    GST_GENICAM_PIXEL_FORMAT_MAKE_BAYER16
+    ("{ bggr16, grbg16, rggb16, gbrg16 }", "1234")
+  )
+);
 
 #define HANDLE_GTL_ERROR(arg)  \
   if (ret != GC_ERR_SUCCESS) {  \
@@ -769,7 +776,7 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
   GstGenTlSrc *src = GST_GENTL_SRC (bsrc);
   GC_ERROR ret;
   uint32_t i, num_ifaces, num_devs;
-  guint32 width, height, bpp, stride;
+  guint32 width, height, stride;
   GstVideoInfo vinfo;
 
   GST_DEBUG_OBJECT (src, "start");
@@ -1047,7 +1054,53 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
     HANDLE_GTL_ERROR ("Failed to get height");
     height = GUINT32_FROM_BE (val);
     GST_DEBUG_OBJECT(src, "Width and height %dx%d", width, height);
-    bpp = 8;
+
+    ret = GTL_GCReadPort(src->hDevPort, GENAPI_PIXFMT, &val, &datasize);
+    HANDLE_GTL_ERROR("Failed to get height");
+    const char* genicam_pixfmt;
+    guint32 pixfmt_enum = GUINT32_FROM_BE(val);
+    switch (pixfmt_enum) {
+
+    case 0x01080009:
+      genicam_pixfmt = "BayerRG8";
+      break;
+    case 0x01100011:
+      genicam_pixfmt = "BayerRG12";
+      break;
+    case 0x02180014:
+      genicam_pixfmt = "RGB8Packed";
+      break;
+    case 0x02180015:
+      genicam_pixfmt = "BGR8Packed";
+      break;
+    case 0x0210001F:
+      genicam_pixfmt = "YUV422Packed";
+      break;
+    case 0x02180020:
+      genicam_pixfmt = "YUV444Packed";
+      break;
+    default:
+      GST_ELEMENT_ERROR(src, RESOURCE, TOO_LAZY, ("Unrecognized PixelFormat enum value: %d", pixfmt_enum),
+        (NULL));
+      goto error;
+    }
+
+    /* create caps */
+    if (src->caps) {
+      gst_caps_unref(src->caps);
+      src->caps = NULL;
+    }
+
+    src->caps = gst_genicam_pixel_format_caps_from_pixel_format(genicam_pixfmt, G_LITTLE_ENDIAN, width, height, 30, 1, 1, 1);
+    gst_video_info_from_caps(&vinfo, src->caps);
+    if (!src->caps) {
+      GST_ELEMENT_ERROR(src, STREAM, WRONG_TYPE,
+        ("Unknown or unsupported pixel format (%s).", genicam_pixfmt), (NULL));
+      goto error;
+    }
+
+    src->height = vinfo.height;
+    src->gst_stride = GST_VIDEO_INFO_COMP_STRIDE(&vinfo, 0);
   }
 
   if (!gst_gentlsrc_prepare_buffers (src)) {
@@ -1086,45 +1139,6 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
     ret = GTL_GCWritePort (src->hDevPort, GENAPI_ACQSTART, &val, &datasize);
     HANDLE_GTL_ERROR ("Failed to start device acquisition");
   }
-
-  /* create caps */
-  if (src->caps) {
-    gst_caps_unref (src->caps);
-    src->caps = NULL;
-  }
-
-  gst_video_info_init (&vinfo);
-
-  if (bpp <= 8) {
-    gst_video_info_set_format (&vinfo, GST_VIDEO_FORMAT_GRAY8, width, height);
-    src->caps = gst_video_info_to_caps (&vinfo);
-  } else if (bpp > 8 && bpp <= 16) {
-    GValue val = G_VALUE_INIT;
-    GstStructure *s;
-
-    if (G_BYTE_ORDER == G_LITTLE_ENDIAN) {
-      gst_video_info_set_format (&vinfo, GST_VIDEO_FORMAT_GRAY16_LE, width,
-          height);
-    } else if (G_BYTE_ORDER == G_BIG_ENDIAN) {
-      gst_video_info_set_format (&vinfo, GST_VIDEO_FORMAT_GRAY16_BE, width,
-          height);
-    }
-    src->caps = gst_video_info_to_caps (&vinfo);
-
-    /* set bpp, extra info for GRAY16 so elements can scale properly */
-    s = gst_caps_get_structure (src->caps, 0);
-    g_value_init (&val, G_TYPE_INT);
-    g_value_set_int (&val, bpp);
-    gst_structure_set_value (s, "bpp", &val);
-    g_value_unset (&val);
-  } else {
-    GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
-        ("Unknown or unsupported bit depth (%d).", bpp), (NULL));
-    return FALSE;
-  }
-
-  src->height = vinfo.height;
-  src->gst_stride = GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0);
 
   GST_DEBUG_OBJECT (src, "starting acquisition");
 //TODO: start acquisition engine

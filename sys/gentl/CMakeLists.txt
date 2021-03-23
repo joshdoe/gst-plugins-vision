@@ -8,6 +8,7 @@ set (HEADERS
 
 include_directories (AFTER
   ${GSTREAMER_INCLUDE_DIR}/..
+  ${PROJECT_SOURCE_DIR}/common
   )
 
 set (libname gstgentl)
