@@ -98,7 +98,7 @@ GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE
-        ("{ GRAY8, GRAY16_LE, RGB, BGR, RGBA, BGRA, IYU1, IYU2, UYVY }"))
+        ("{ GRAY8, GRAY16_LE, RGB, RGBA, IYU1, IYU2, UYVY }"))
     );
 
 /* class initialization */
@@ -573,13 +573,7 @@ gst_kayasink_set_kaya_caps (GstKayaSink * sink, GstCaps * caps)
       format = "RGB8";
       break;
     case GST_VIDEO_FORMAT_RGBA:
-      format = "RGBa8";
-      break;
-    case GST_VIDEO_FORMAT_BGR:
-      format = "BGR8";
-      break;
-    case GST_VIDEO_FORMAT_BGRA:
-      format = "BGRa8";
+      format = "RGBA8";
       break;
     case GST_VIDEO_FORMAT_IYU1:
       format = "YUV411_8_UYYVYY";
@@ -588,10 +582,12 @@ gst_kayasink_set_kaya_caps (GstKayaSink * sink, GstCaps * caps)
       format = "YUV8_UYV";
       break;
     case GST_VIDEO_FORMAT_UYVY:
-      format = "YUV422_8_UYVY";
+      format = "YUV422_8";
       break;
     default:
-      goto error;
+        GST_ELEMENT_ERROR(sink, LIBRARY, FAILED,
+            ("Unsupported pixel format: %s.", gst_video_format_to_string(GST_VIDEO_INFO_FORMAT(&sink->vinfo))), (NULL));
+      return FALSE;
   }
 
   ret =
