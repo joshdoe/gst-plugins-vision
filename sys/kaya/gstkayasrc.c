@@ -130,7 +130,7 @@ gst_kayasrc_class_init (GstKayaSrcClass * klass)
   GstPushSrcClass *gstpushsrc_class = GST_PUSH_SRC_CLASS (klass);
   int i;
 
-  GST_DEBUG_CATEGORY_INIT(GST_CAT_DEFAULT, "kayasrc", 0,
+  GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "kayasrc", 0,
       "Kaya CoaXPress video source");
 
   gobject_class->set_property = gst_kayasrc_set_property;

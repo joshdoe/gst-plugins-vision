@@ -585,8 +585,10 @@ gst_kayasink_set_kaya_caps (GstKayaSink * sink, GstCaps * caps)
       format = "YUV422_8";
       break;
     default:
-        GST_ELEMENT_ERROR(sink, LIBRARY, FAILED,
-            ("Unsupported pixel format: %s.", gst_video_format_to_string(GST_VIDEO_INFO_FORMAT(&sink->vinfo))), (NULL));
+      GST_ELEMENT_ERROR (sink, LIBRARY, FAILED,
+          ("Unsupported pixel format: %s.",
+              gst_video_format_to_string (GST_VIDEO_INFO_FORMAT (&sink->
+                      vinfo))), (NULL));
       return FALSE;
   }
 
