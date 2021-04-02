@@ -34,6 +34,7 @@
 #include "config.h"
 #endif
 
+#include <stdio.h>
 #include <string.h>
 
 #include <gst/gst.h>
@@ -841,8 +842,52 @@ gst_kayasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 {
   GstKayaSrc *src = GST_KAYA_SRC (psrc);
   gint64 dropped_frames = 0;
-
+  static FILE *temperature_file = NULL;
+  static gint64 temp_log_last_time = 0;
   GST_LOG_OBJECT (src, "create");
+
+  if (g_getenv ("GST_KAYA_FPGA_TEMP_LOG")) {
+    if (temperature_file == NULL) {
+      const char *envvar = g_getenv ("GST_KAYA_FPGA_TEMP_LOG");
+      gboolean write_header;
+      gchar *log_filename;
+      if (atoi (envvar) == 1) {
+        GDateTime *dt = g_date_time_new_now_local ();
+        log_filename =
+            g_date_time_format (dt, "kaya_fgpa_temp_%Y%m%d_%H%M%S.csv");
+        g_date_time_unref (dt);
+      } else {
+        log_filename = g_strdup (envvar);
+      }
+
+      write_header = !g_file_test (log_filename, G_FILE_TEST_EXISTS);
+
+      GST_DEBUG_OBJECT (src, "Opening FPGA temp log file (%s)", log_filename);
+      temperature_file = fopen (log_filename, "a");
+      if (!temperature_file) {
+        GST_ERROR_OBJECT (src, "Failed to open log file");
+        return GST_FLOW_ERROR;
+      }
+      g_free (log_filename);
+
+      if (write_header) {
+        fprintf (temperature_file, "IsoTime, UnixTime, KayaFpgaTemp\n");
+      }
+    }
+
+    if (temperature_file && g_get_real_time () - temp_log_last_time >= 1000000) {
+      GDateTime *dt = g_date_time_new_now_local ();
+      gchar *time_str = g_date_time_format (dt, "%Y-%m-%dT%H:%M:%S, %s");
+      int fg_temp = KYFG_GetGrabberValueInt (src->fg_data->fg_handle,
+          "DeviceTemperature");
+      GST_DEBUG_OBJECT (src, "FPGA temp: %d", fg_temp);
+      fprintf (temperature_file, "%s, %d\n", time_str, fg_temp);
+      fflush (temperature_file);
+      g_date_time_unref (dt);
+      g_free (time_str);
+      temp_log_last_time = g_get_real_time ();
+    }
+  }
 
   if (!src->acquisition_started) {
     FGSTATUS ret;
