@@ -36,6 +36,9 @@
 
 #include <gst/video/video.h>
 
+#include "aq2_prm_user.h"
+#include "corhw_prm_user.h"
+
 #include "gstsaperasrc.h"
 
 GST_DEBUG_CATEGORY_STATIC (gst_saperasrc_debug);
@@ -180,6 +183,92 @@ gst_saperasrc_pro_callback (SapProCallbackInfo * pInfo)
   /* TODO: handle buffer */
 }
 
+typedef struct COR_PACK
+{
+  UINT32 deviceIndex;           // device to access
+  UINT32 prmIndex;              // one of CORHW_DEVICE_PRM_xxx
+  UINT32 prmSize;               // size in bytes of the variable size input data following
+} CORCMD_DEVICE_PARAMETER, *PCORCMD_DEVICE_PARAMETER;
+
+#define CORCMD_USER_DEVICE_PARAMETER_READ             (CORMAN_CORECO_CMD + 97)
+
+float
+gst_saperasrc_get_fpga_temperature (GstSaperaSrc * src)
+{
+  CORSERVER server;
+  CORCMD_DEVICE_PARAMETER parameters = { 0 };
+  CORHW_DEVICE_PARAMETER_GET_TEMPERATURE_DATA data = { 0 };
+
+  if (!SapManager::GetServerHandle (src->server_index, &server)) {
+    GST_WARNING_OBJECT (src, "Failed to get server handle");
+    return 0;
+  }
+
+  parameters.prmIndex = CORHW_USER_DEVICE_PRM_GET_TEMPERATURE;
+  parameters.deviceIndex = AQ2_TEMPERATURE_INDEX_FPGA;  //Board Specific
+  parameters.prmSize = sizeof (data);
+
+  UINT32 status =
+      CorManControl (server, CORCMD_USER_DEVICE_PARAMETER_READ, &parameters,
+      sizeof (parameters), &data, sizeof (data));
+  if (status) {
+    GST_WARNING_OBJECT (src, "Failed to query temperature: %08X", status);
+    return 0;
+  }
+
+  return data.value / 1000.0f;
+}
+
+void
+gst_saperasrc_log_fpga_temperature (GstSaperaSrc * src)
+{
+  static FILE *temperature_file = NULL;
+  static gint64 temp_log_last_time = 0;
+
+  if (g_getenv ("GST_SAPERA_FPGA_TEMP_LOG")) {
+    if (temperature_file == NULL) {
+      const char *envvar = g_getenv ("GST_SAPERA_FPGA_TEMP_LOG");
+      gboolean write_header;
+      gchar *log_filename;
+      if (atoi (envvar) == 1) {
+        GDateTime *dt = g_date_time_new_now_local ();
+        log_filename =
+            g_date_time_format (dt, "sapera_fgpa_temp_%Y%m%d_%H%M%S.csv");
+        g_date_time_unref (dt);
+      } else {
+        log_filename = g_strdup (envvar);
+      }
+
+      write_header = !g_file_test (log_filename, G_FILE_TEST_EXISTS);
+
+      GST_DEBUG_OBJECT (src, "Opening FPGA temp log file (%s)", log_filename);
+      temperature_file = fopen (log_filename, "a");
+      if (!temperature_file) {
+        GST_ERROR_OBJECT (src, "Failed to open log file");
+        return;
+      }
+      g_free (log_filename);
+
+      if (write_header) {
+        fprintf (temperature_file, "IsoTime, UnixTime, KayaFpgaTemp\n");
+      }
+    }
+
+    if (temperature_file && g_get_real_time () - temp_log_last_time >= 1000000) {
+      GDateTime *dt = g_date_time_new_now_local ();
+      gchar *time_str = g_date_time_format (dt, "%Y-%m-%dT%H:%M:%S, %s");
+      float fg_temp = gst_saperasrc_get_fpga_temperature (src);
+      GST_DEBUG_OBJECT (src, "FPGA temp: %,3f", fg_temp);
+      fprintf (temperature_file, "%s, %.3f\n", time_str, fg_temp);
+      fflush (temperature_file);
+      g_date_time_unref (dt);
+      g_free (time_str);
+      temp_log_last_time = g_get_real_time ();
+    }
+  }
+}
+
+
 gboolean
 gst_saperasrc_init_objects (GstSaperaSrc * src)
 {
@@ -241,7 +330,6 @@ gst_saperasrc_create_objects (GstSaperaSrc * src)
       return FALSE;
     }
   }
-
   //if (!src->sap_acq->GetParameter (CORACQ_PRM_VIDEO, &video_type)) {
   //  gst_saperasrc_destroy_objects (src);
   //  return FALSE;
@@ -281,7 +369,7 @@ gst_saperasrc_create_objects (GstSaperaSrc * src)
   /* Create transfer object */
   if (src->sap_xfer && !*src->sap_xfer) {
     if (!src->sap_xfer->Create ()) {
-        GST_ERROR_OBJECT (src, "Failed to create SapTransfer");
+      GST_ERROR_OBJECT (src, "Failed to create SapTransfer");
       gst_saperasrc_destroy_objects (src);
       return FALSE;
     }
@@ -292,7 +380,7 @@ gst_saperasrc_create_objects (GstSaperaSrc * src)
   /* Create processing object */
   if (src->sap_pro && !*src->sap_pro) {
     if (!src->sap_pro->Create ()) {
-        GST_ERROR_OBJECT (src, "Failed to create SapProcessing");
+      GST_ERROR_OBJECT (src, "Failed to create SapProcessing");
       gst_saperasrc_destroy_objects (src);
       return FALSE;
     }
@@ -655,7 +743,8 @@ gst_saperasrc_start (GstBaseSrc * bsrc)
   }
 
   gst_video_info_init (&vinfo);
-  gst_video_info_set_format (&vinfo, gst_format, src->sap_buffers->GetWidth (), src->sap_buffers->GetHeight ());
+  gst_video_info_set_format (&vinfo, gst_format, src->sap_buffers->GetWidth (),
+      src->sap_buffers->GetHeight ());
   src->caps = gst_video_info_to_caps (&vinfo);
 
   src->width = vinfo.width;
@@ -747,6 +836,10 @@ gst_saperasrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 {
   GstSaperaSrc *src = GST_SAPERA_SRC (psrc);
 
+  GST_LOG_OBJECT (src, "create");
+
+  gst_saperasrc_log_fpga_temperature (src);
+
   g_mutex_lock (&src->buffer_mutex);
   while (src->buffer == NULL)
     g_cond_wait (&src->buffer_cond, &src->buffer_mutex);
@@ -776,4 +869,5 @@ GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,
     GST_VERSION_MINOR,
     sapera,
     "Teledyne DALSA Sapera frame grabber source",
-    plugin_init, GST_PACKAGE_VERSION, GST_PACKAGE_LICENSE, GST_PACKAGE_NAME, GST_PACKAGE_ORIGIN)
+    plugin_init, GST_PACKAGE_VERSION, GST_PACKAGE_LICENSE, GST_PACKAGE_NAME,
+    GST_PACKAGE_ORIGIN)

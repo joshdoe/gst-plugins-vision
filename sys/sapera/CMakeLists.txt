@@ -19,7 +19,9 @@ target_link_libraries (${libname}
   ${GSTREAMER_LIBRARY}
   ${GSTREAMER_BASE_LIBRARY}
   ${GSTREAMER_VIDEO_LIBRARY}
-  ${SAPERA_LIBRARIES})
+  ${SAPERA_LIBRARIES}
+  "C:\\Program Files\\Teledyne DALSA\\Sapera\\Lib\\Win64\\corapi.lib"
+  )
 
 if (WIN32)
   install (FILES $<TARGET_PDB_FILE:${libname}> DESTINATION ${PDB_INSTALL_DIR} COMPONENT pdb OPTIONAL)
