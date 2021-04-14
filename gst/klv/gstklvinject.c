@@ -45,7 +45,10 @@ GST_DEBUG_CATEGORY_STATIC (gst_klvinject_debug_category);
 
 /* prototypes */
 static GstFlowReturn gst_klvinject_transform_ip (GstBaseTransform * trans,
-    GstBuffer * buf);
+    GstBuffer * inbuf);
+
+static GstFlowReturn gst_klvinject_prepare_output_buffer (GstBaseTransform *
+    trans, GstBuffer * input, GstBuffer ** outbuf);
 
 enum
 {
@@ -85,9 +88,8 @@ gst_klvinject_class_init (GstKlvInjectClass * klass)
 
   base_transform_class->transform_ip =
       GST_DEBUG_FUNCPTR (gst_klvinject_transform_ip);
-
-  base_transform_class->passthrough_on_same_caps = TRUE;
-  base_transform_class->transform_ip_on_passthrough = TRUE;
+  base_transform_class->prepare_output_buffer =
+      GST_DEBUG_FUNCPTR (gst_klvinject_prepare_output_buffer);
 }
 
 static void
@@ -187,6 +189,18 @@ gst_klvinject_add_test_meta (GstKlvInject * filt, GstBuffer * buf)
 
     gst_buffer_add_klv_meta_take_data (buf, klv_data, klv_size);
   }
+}
+
+static GstFlowReturn
+gst_klvinject_prepare_output_buffer (GstBaseTransform * trans,
+    GstBuffer * inbuf, GstBuffer ** outbuf)
+{
+  GstFlowReturn ret = GST_FLOW_OK;
+  GstKlvInject *filt = GST_KLVINJECT (trans);
+
+  *outbuf = gst_buffer_copy (inbuf);
+
+  return GST_FLOW_OK;
 }
 
 static GstFlowReturn
