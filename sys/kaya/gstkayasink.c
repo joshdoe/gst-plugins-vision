@@ -357,7 +357,7 @@ gst_kayasink_start (GstBaseSink * basesink)
   GST_DEBUG_OBJECT (sink, "Starting");
 
   /* find and list all KAYA interfaces */
-  ret = KY_DeviceScan (&num_ifaces);
+  num_ifaces = KYFG_Scan (NULL, 0);
   if (num_ifaces == 0) {
     GST_ELEMENT_ERROR (sink, LIBRARY, FAILED, ("No KAYA interfaces found"),
         (NULL));
@@ -587,8 +587,8 @@ gst_kayasink_set_kaya_caps (GstKayaSink * sink, GstCaps * caps)
     default:
       GST_ELEMENT_ERROR (sink, LIBRARY, FAILED,
           ("Unsupported pixel format: %s.",
-              gst_video_format_to_string (GST_VIDEO_INFO_FORMAT (&sink->
-                      vinfo))), (NULL));
+              gst_video_format_to_string (GST_VIDEO_INFO_FORMAT
+                  (&sink->vinfo))), (NULL));
       return FALSE;
   }
 
