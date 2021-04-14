@@ -115,7 +115,7 @@ gst_klvinject_add_test_meta (GstKlvInject * filt, GstBuffer * buf)
   };
   GstByteWriter bw;
   /* NOTE: MISB defines MISP time, which is NOT UTC, but use UTC for now */
-  gint64 utc_us = -1;
+  guint64 utc_us = -1;
 
 #if GST_CHECK_VERSION(1,14,0)
   GstReferenceTimestampMeta *time_meta;
@@ -124,6 +124,8 @@ gst_klvinject_add_test_meta (GstKlvInject * filt, GstBuffer * buf)
       gst_static_caps_get (&unix_reference));
   if (time_meta) {
     utc_us = time_meta->timestamp / 1000;
+    GST_LOG_OBJECT (filt, "Found timestamp meta: %d.%06d sec", utc_us / 1000000,
+        utc_us % 1000000);
   }
 #endif
 
@@ -132,6 +134,8 @@ gst_klvinject_add_test_meta (GstKlvInject * filt, GstBuffer * buf)
     utc_us = g_date_time_to_unix (dt) * 1000000;        /* microseconds */
     utc_us += g_date_time_get_microsecond (dt);
     g_date_time_unref (dt);
+    GST_LOG_OBJECT (filt, "Grabbed time now: %d.%06d sec", utc_us / 1000000,
+        utc_us % 1000000);
   }
 
   gst_byte_writer_init (&bw);
