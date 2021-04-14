@@ -25,14 +25,18 @@
 
 #include "gstklvinject.h"
 #include "gstklvinspect.h"
+#include "gstklvtimestamp.h"
 
 static gboolean
 plugin_init (GstPlugin * plugin)
 {
-  return gst_element_register (plugin, "klvinspect", GST_RANK_NONE,
-      GST_TYPE_KLVINSPECT)
-      && gst_element_register (plugin, "klvinject", GST_RANK_NONE,
-      GST_TYPE_KLVINJECT);
+  return
+      gst_element_register (plugin, "klvinspect",
+      GST_RANK_NONE, GST_TYPE_KLVINSPECT) &&
+      gst_element_register (plugin, "klvinject",
+      GST_RANK_NONE, GST_TYPE_KLVINJECT) &&
+      gst_element_register (plugin, "klvtimestamp",
+      GST_RANK_NONE, GST_TYPE_KLVTIMESTAMP);
 }
 
 GST_PLUGIN_DEFINE (GST_VERSION_MAJOR,

@@ -1,10 +1,12 @@
 set (SOURCES
   gstklv.c
   gstklvinject.c
+  gstklvtimestamp.c
   gstklvinspect.c)
     
 set (HEADERS
   gstklvinject.h
+  gstklvtimestamp.h
   gstklvinspect.h)
 
 include_directories (AFTER
