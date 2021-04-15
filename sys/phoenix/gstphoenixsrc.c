@@ -768,6 +768,68 @@ unsupported_caps:
   return FALSE;
 }
 
+static guint
+gst_phoenixsrc_get_fpga_temperature (GstPhoenixSrc * src)
+{
+  etStat eStat = PHX_OK;        /* Phoenix status variable */
+  ui32 fpga_temp = 0;           /* Phoenix Get/Set intermediate variable */
+  eStat = PHX_ParameterGet (src->hCamera, PHX_FPGA_CORE_TEMP, &fpga_temp);
+  if (PHX_OK != eStat) {
+    GST_WARNING_OBJECT (src, "Failed to query FPGA temperature");
+    return 0;
+  }
+  return fpga_temp;
+}
+
+static void
+gst_phoenixsrc_log_fpga_temperature (GstPhoenixSrc * src)
+{
+  static FILE *temperature_file = NULL;
+  static gint64 temp_log_last_time = 0;
+
+  if (g_getenv ("GST_PHOENIX_FPGA_TEMP_LOG")) {
+    if (temperature_file == NULL) {
+      const char *envvar = g_getenv ("GST_PHOENIX_FPGA_TEMP_LOG");
+      gboolean write_header;
+      gchar *log_filename;
+      if (atoi (envvar) == 1) {
+        GDateTime *dt = g_date_time_new_now_local ();
+        log_filename =
+            g_date_time_format (dt, "phoenix_fgpa_temp_%Y%m%d_%H%M%S.csv");
+        g_date_time_unref (dt);
+      } else {
+        log_filename = g_strdup (envvar);
+      }
+
+      write_header = !g_file_test (log_filename, G_FILE_TEST_EXISTS);
+
+      GST_DEBUG_OBJECT (src, "Opening FPGA temp log file (%s)", log_filename);
+      temperature_file = fopen (log_filename, "a");
+      if (!temperature_file) {
+        GST_ERROR_OBJECT (src, "Failed to open log file");
+        return;
+      }
+      g_free (log_filename);
+
+      if (write_header) {
+        fprintf (temperature_file, "IsoTime, UnixTime, KayaFpgaTemp\n");
+      }
+    }
+
+    if (temperature_file && g_get_real_time () - temp_log_last_time >= 1000000) {
+      GDateTime *dt = g_date_time_new_now_local ();
+      gchar *time_str = g_date_time_format (dt, "%Y-%m-%dT%H:%M:%S, %s");
+      float fg_temp = gst_phoenixsrc_get_fpga_temperature (src);
+      GST_DEBUG_OBJECT (src, "FPGA temp: %,3f", fg_temp);
+      fprintf (temperature_file, "%s, %.3f\n", time_str, fg_temp);
+      fflush (temperature_file);
+      g_date_time_unref (dt);
+      g_free (time_str);
+      temp_log_last_time = g_get_real_time ();
+    }
+  }
+}
+
 static GstFlowReturn
 gst_phoenixsrc_create (GstPushSrc * src, GstBuffer ** buf)
 {
@@ -781,8 +843,14 @@ gst_phoenixsrc_create (GstPushSrc * src, GstBuffer ** buf)
   guint n;
   GstMapInfo minfo;
 
+  GST_LOG_OBJECT (src, "create");
+
+  gst_phoenixsrc_log_fpga_temperature (src);
+
   /* Start acquisition */
   if (!phoenixsrc->acq_started) {
+    GST_LOG_OBJECT (src, "starting acquisition");
+
     /* make class instance pointer available to the callback, and flush cache */
     PHX_ParameterSet (phoenixsrc->hCamera,
         PHX_EVENT_CONTEXT | PHX_CACHE_FLUSH, (void *) phoenixsrc);
