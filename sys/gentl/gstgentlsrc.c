@@ -122,16 +122,16 @@ enum
 /* pad templates */
 
 static GstStaticPadTemplate gst_gentlsrc_src_template =
-GST_STATIC_PAD_TEMPLATE ("src",
+    GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
-  GST_STATIC_CAPS(GST_VIDEO_CAPS_MAKE
-  ("{ GRAY8, GRAY16_LE, GRAY16_BE, BGRA, UYVY }") ";"
-    GST_GENICAM_PIXEL_FORMAT_MAKE_BAYER8("{ bggr, grbg, rggb, gbrg }") ";"
-    GST_GENICAM_PIXEL_FORMAT_MAKE_BAYER16
-    ("{ bggr16, grbg16, rggb16, gbrg16 }", "1234")
-  )
-);
+    GST_STATIC_CAPS (GST_VIDEO_CAPS_MAKE
+        ("{ GRAY8, GRAY16_LE, GRAY16_BE, BGRA, UYVY }") ";"
+        GST_GENICAM_PIXEL_FORMAT_MAKE_BAYER8 ("{ bggr, grbg, rggb, gbrg }") ";"
+        GST_GENICAM_PIXEL_FORMAT_MAKE_BAYER16
+        ("{ bggr16, grbg16, rggb16, gbrg16 }", "1234")
+    )
+    );
 
 #define HANDLE_GTL_ERROR(arg)  \
   if (ret != GC_ERR_SUCCESS) {  \
@@ -297,8 +297,7 @@ gst_gentlsrc_class_init (GstGenTlSrcClass * klass)
   gstbasesrc_class->get_caps = GST_DEBUG_FUNCPTR (gst_gentlsrc_get_caps);
   gstbasesrc_class->set_caps = GST_DEBUG_FUNCPTR (gst_gentlsrc_set_caps);
   gstbasesrc_class->unlock = GST_DEBUG_FUNCPTR (gst_gentlsrc_unlock);
-  gstbasesrc_class->unlock_stop =
-      GST_DEBUG_FUNCPTR (gst_gentlsrc_unlock_stop);
+  gstbasesrc_class->unlock_stop = GST_DEBUG_FUNCPTR (gst_gentlsrc_unlock_stop);
 
   gstpushsrc_class->create = GST_DEBUG_FUNCPTR (gst_gentlsrc_create);
 
@@ -713,7 +712,8 @@ gst_gentlsrc_get_payload_size (GstGenTlSrc * src)
     ret =
         GTL_DSGetInfo (src->hDS, STREAM_INFO_PAYLOAD_SIZE, &info_datatype,
         &payload_size, &info_size);
-    GST_DEBUG_OBJECT(src, "Payload size defined by stream info: %d", payload_size);
+    GST_DEBUG_OBJECT (src, "Payload size defined by stream info: %d",
+        payload_size);
   } else {
     guint32 val = 0;
     size_t datasize = 4;
@@ -721,7 +721,8 @@ gst_gentlsrc_get_payload_size (GstGenTlSrc * src)
     ret = GTL_GCReadPort (src->hDevPort, GENAPI_PAYLOAD_SIZE, &val, &datasize);
     HANDLE_GTL_ERROR ("Failed to get payload size");
     payload_size = GUINT32_FROM_BE (val);
-    GST_DEBUG_OBJECT(src, "Payload size defined by node map: %d", payload_size);
+    GST_DEBUG_OBJECT (src, "Payload size defined by node map: %d",
+        payload_size);
 
     //PORT_HANDLE port_handle;
     //ret = GTL_DevGetPort(src->hDEV, &port_handle);
@@ -749,7 +750,7 @@ gst_gentlsrc_prepare_buffers (GstGenTlSrc * src)
   /* TODO: query Data Stream features to find min/max num_buffers */
   payload_size = gst_gentlsrc_get_payload_size (src);
   if (payload_size == 0) {
-    GST_DEBUG_OBJECT(src, "Payload size is zero");
+    GST_DEBUG_OBJECT (src, "Payload size is zero");
     return FALSE;
   }
 
@@ -762,7 +763,7 @@ gst_gentlsrc_prepare_buffers (GstGenTlSrc * src)
   }
 
   ret = GTL_DSFlushQueue (src->hDS, ACQ_QUEUE_ALL_TO_INPUT);
-  HANDLE_GTL_ERROR("Failed to queue all buffers to input");
+  HANDLE_GTL_ERROR ("Failed to queue all buffers to input");
 
   return TRUE;
 
@@ -876,9 +877,9 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
   HANDLE_GTL_ERROR ("Failed to open device");
 
   uint32_t num_data_streams;
-  ret = GTL_DevGetNumDataStreams(src->hDEV, &num_data_streams);
-  HANDLE_GTL_ERROR("Failed to get number of data streams");
-  GST_DEBUG_OBJECT(src, "Found %d data streams", num_data_streams);
+  ret = GTL_DevGetNumDataStreams (src->hDEV, &num_data_streams);
+  HANDLE_GTL_ERROR ("Failed to get number of data streams");
+  GST_DEBUG_OBJECT (src, "Found %d data streams", num_data_streams);
 
   /* find and open specified data stream id */
   if (!src->stream_id || src->stream_id[0] == 0) {
@@ -1053,54 +1054,57 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
     ret = GTL_GCReadPort (src->hDevPort, GENAPI_HEIGHT, &val, &datasize);
     HANDLE_GTL_ERROR ("Failed to get height");
     height = GUINT32_FROM_BE (val);
-    GST_DEBUG_OBJECT(src, "Width and height %dx%d", width, height);
+    GST_DEBUG_OBJECT (src, "Width and height %dx%d", width, height);
 
-    ret = GTL_GCReadPort(src->hDevPort, GENAPI_PIXFMT, &val, &datasize);
-    HANDLE_GTL_ERROR("Failed to get height");
-    const char* genicam_pixfmt;
-    guint32 pixfmt_enum = GUINT32_FROM_BE(val);
+    ret = GTL_GCReadPort (src->hDevPort, GENAPI_PIXFMT, &val, &datasize);
+    HANDLE_GTL_ERROR ("Failed to get height");
+    const char *genicam_pixfmt;
+    guint32 pixfmt_enum = GUINT32_FROM_BE (val);
     switch (pixfmt_enum) {
 
-    case 0x01080009:
-      genicam_pixfmt = "BayerRG8";
-      break;
-    case 0x01100011:
-      genicam_pixfmt = "BayerRG12";
-      break;
-    case 0x02180014:
-      genicam_pixfmt = "RGB8Packed";
-      break;
-    case 0x02180015:
-      genicam_pixfmt = "BGR8Packed";
-      break;
-    case 0x0210001F:
-      genicam_pixfmt = "YUV422Packed";
-      break;
-    case 0x02180020:
-      genicam_pixfmt = "YUV444Packed";
-      break;
-    default:
-      GST_ELEMENT_ERROR(src, RESOURCE, TOO_LAZY, ("Unrecognized PixelFormat enum value: %d", pixfmt_enum),
-        (NULL));
-      goto error;
+      case 0x01080009:
+        genicam_pixfmt = "BayerRG8";
+        break;
+      case 0x01100011:
+        genicam_pixfmt = "BayerRG12";
+        break;
+      case 0x02180014:
+        genicam_pixfmt = "RGB8Packed";
+        break;
+      case 0x02180015:
+        genicam_pixfmt = "BGR8Packed";
+        break;
+      case 0x0210001F:
+        genicam_pixfmt = "YUV422Packed";
+        break;
+      case 0x02180020:
+        genicam_pixfmt = "YUV444Packed";
+        break;
+      default:
+        GST_ELEMENT_ERROR (src, RESOURCE, TOO_LAZY,
+            ("Unrecognized PixelFormat enum value: %d", pixfmt_enum), (NULL));
+        goto error;
     }
 
     /* create caps */
     if (src->caps) {
-      gst_caps_unref(src->caps);
+      gst_caps_unref (src->caps);
       src->caps = NULL;
     }
 
-    src->caps = gst_genicam_pixel_format_caps_from_pixel_format(genicam_pixfmt, G_LITTLE_ENDIAN, width, height, 30, 1, 1, 1);
-    gst_video_info_from_caps(&vinfo, src->caps);
+    src->caps =
+        gst_genicam_pixel_format_caps_from_pixel_format (genicam_pixfmt,
+        G_LITTLE_ENDIAN, width, height, 30, 1, 1, 1);
+    gst_video_info_from_caps (&vinfo, src->caps);
     if (!src->caps) {
-      GST_ELEMENT_ERROR(src, STREAM, WRONG_TYPE,
-        ("Unknown or unsupported pixel format (%s).", genicam_pixfmt), (NULL));
+      GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
+          ("Unknown or unsupported pixel format (%s).", genicam_pixfmt),
+          (NULL));
       goto error;
     }
 
     src->height = vinfo.height;
-    src->gst_stride = GST_VIDEO_INFO_COMP_STRIDE(&vinfo, 0);
+    src->gst_stride = GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0);
   }
 
   if (!gst_gentlsrc_prepare_buffers (src)) {
@@ -1184,9 +1188,10 @@ gst_gentlsrc_stop (GstBaseSrc * bsrc)
 
   if (src->hDS) {
     /* command AcquisitionStop */
-    guint32 val = GUINT32_TO_BE(1);
-    gsize datasize = sizeof(val);
-    GC_ERROR ret = GTL_GCWritePort(src->hDevPort, GENAPI_ACQSTOP, &val, &datasize);
+    guint32 val = GUINT32_TO_BE (1);
+    gsize datasize = sizeof (val);
+    GC_ERROR ret =
+        GTL_GCWritePort (src->hDevPort, GENAPI_ACQSTOP, &val, &datasize);
 
     GTL_DSStopAcquisition (src->hDS, ACQ_STOP_FLAGS_DEFAULT);
     GTL_DSFlushQueue (src->hDS, ACQ_QUEUE_INPUT_TO_OUTPUT);
@@ -1212,7 +1217,7 @@ gst_gentlsrc_stop (GstBaseSrc * bsrc)
 
   GTL_GCCloseLib ();
 
-  GST_DEBUG_OBJECT(src, "Closed data stream, device, interface, and library");
+  GST_DEBUG_OBJECT (src, "Closed data stream, device, interface, and library");
 
   gst_gentlsrc_reset (src);
 
