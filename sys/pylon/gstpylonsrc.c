@@ -1079,6 +1079,9 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
       src->saturation[COLOUR_MAGENTA] = g_value_get_double (value);
       set_prop_implicitly (object, PROP_COLORADJUSTMENTENABLE, pspec);
       break;
+    case PROP_COLORADJUSTMENTENABLE:
+      src->colorAdjustment = g_value_get_boolean(value);
+      break;
     case PROP_MAXBANDWIDTH:
       src->maxBandwidth = g_value_get_int (value);
       break;
@@ -1325,6 +1328,9 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_COLORMAGENTASATURATION:
       g_value_set_double (value, src->saturation[COLOUR_MAGENTA]);
+      break;
+    case PROP_COLORADJUSTMENTENABLE:
+      g_value_set_boolean(value, src->colorAdjustment);
       break;
     case PROP_MAXBANDWIDTH:
       g_value_set_int (value, src->maxBandwidth);
