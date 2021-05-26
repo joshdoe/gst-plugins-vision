@@ -1192,7 +1192,17 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
     const char *genicam_pixfmt;
     guint32 pixfmt_enum = GUINT32_FROM_BE (val);
     switch (pixfmt_enum) {
-
+      case 0x1:                // Basler Ace
+      case 0x01080001:
+        genicam_pixfmt = "Mono8";
+        break;
+      case 0x5:                // Basler Ace
+      case 0x01100005:
+        genicam_pixfmt = "Mono12";
+        break;
+      case 0x1100010:          // Basler Ace
+        genicam_pixfmt = "BayerGR12";
+        break;
       case 0x01080009:
         genicam_pixfmt = "BayerRG8";
         break;
