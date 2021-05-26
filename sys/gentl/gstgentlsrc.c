@@ -34,6 +34,9 @@
 #include "config.h"
 #endif
 
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+
 #include <gmodule.h>
 
 #include <gio/gio.h>
@@ -42,6 +45,7 @@
 #include <gst/video/video.h>
 
 #include "genicampixelformat.h"
+#include "get_unix_ns.h"
 
 #include "unzip.h"
 
@@ -64,6 +68,11 @@
 #define GENAPI_ACQMODE 0xB000
 #define GENAPI_ACQSTART 0xB004
 #define GENAPI_ACQSTOP 0xB008
+#define GENAPI_TICK_FREQ_LOW 0x0940
+#define GENAPI_TICK_FREQ_HIGH 0x093C
+#define GENAPI_TIMESTAMP_CONTROL_LATCH 0x944
+#define GENAPI_TIMESTAMP_VALUE_LOW 0x094C
+#define GENAPI_TIMESTAMP_VALUE_HIGH 0x0948
 #define CTI_PATH "C:\\Program Files\\EVT\\eSDK\\bin\\EmergentGenTL.cti"
 
 // Basler
@@ -354,6 +363,9 @@ gst_gentlsrc_class_init (GstGenTlSrcClass * klass)
 static void
 gst_gentlsrc_reset (GstGenTlSrc * src)
 {
+  src->gentl_latched_ticks = 0;
+  src->unix_latched_time = 0;
+
   src->error_string[0] = 0;
   src->last_frame_count = 0;
   src->total_dropped_frames = 0;
@@ -771,6 +783,64 @@ error:
   return FALSE;
 }
 
+static guint64
+gst_gentlsrc_get_gev_tick_frequency (GstGenTlSrc * src)
+{
+  GC_ERROR ret;
+
+  if (!GENAPI_TICK_FREQ_HIGH || !GENAPI_TICK_FREQ_LOW)
+    return 0;
+
+  guint32 freq_low, freq_high;
+  size_t datasize = 4;
+  ret = GTL_GCReadPort (src->hDevPort, GENAPI_TICK_FREQ_LOW, &freq_low, &datasize);     // GevTimestampTickFrequencyLow
+  HANDLE_GTL_ERROR ("Failed to get GevTimestampTickFrequencyLow");
+  ret = GTL_GCReadPort (src->hDevPort, GENAPI_TICK_FREQ_HIGH, &freq_high, &datasize);   // GevTimestampTickFrequencyHigh
+  HANDLE_GTL_ERROR ("Failed to get GevTimestampTickFrequencyHigh");
+
+  guint64 tick_frequency =
+      GUINT64_FROM_BE ((guint64) freq_low << 32 | freq_high);
+  GST_DEBUG_OBJECT (src, "GEV Timestamp tick frequency is %llu",
+      tick_frequency);
+
+  return tick_frequency;
+
+error:
+  return 0;
+}
+
+static guint64
+gst_gentlsrc_get_gev_timestamp_ticks (GstGenTlSrc * src)
+{
+  GC_ERROR ret;
+  size_t datasize = 4;
+  guint32 val, ts_low, ts_high;
+
+  val = GUINT32_TO_BE (2);
+  datasize = sizeof (val);
+  ret = GTL_GCWritePort (src->hDevPort, GENAPI_TIMESTAMP_CONTROL_LATCH, &val, &datasize);       // GevTimestampControlLatch
+  HANDLE_GTL_ERROR ("Failed to latch timestamp GevTimestampControlLatch");
+
+  ret = GTL_GCReadPort (src->hDevPort, GENAPI_TIMESTAMP_VALUE_LOW, &ts_low, &datasize); // GevTimestampValueLow
+  HANDLE_GTL_ERROR ("Failed to get GevTimestampValueLow");
+  ret = GTL_GCReadPort (src->hDevPort, GENAPI_TIMESTAMP_VALUE_HIGH, &ts_high, &datasize);       // GevTimestampValueHigh
+  HANDLE_GTL_ERROR ("Failed to get GevTimestampValueHigh");
+  guint64 ticks = GUINT64_FROM_BE ((guint64) ts_low << 32 | ts_high);
+  GST_LOG_OBJECT (src, "Timestamp ticks are %llu", ticks);
+
+  return ticks;
+
+error:
+  return 0;
+}
+
+static void
+gst_gentlsrc_src_latch_timestamps (GstGenTlSrc * src)
+{
+  src->unix_latched_time = get_unix_ns ();
+  src->gentl_latched_ticks = gst_gentlsrc_get_gev_timestamp_ticks (src);
+}
+
 static gboolean
 gst_gentlsrc_start (GstBaseSrc * bsrc)
 {
@@ -1044,6 +1114,8 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
     }
   }
 
+  src->tick_frequency = gst_gentlsrc_get_gev_tick_frequency (src);
+
   {
     // TODO: use GenTl node map for this
     guint32 val = 0;
@@ -1298,6 +1370,8 @@ gst_gentlsrc_unlock_stop (GstBaseSrc * bsrc)
   return TRUE;
 }
 
+static GstStaticCaps unix_reference = GST_STATIC_CAPS ("timestamp/x-unix");
+
 static GstBuffer *
 gst_gentlsrc_get_buffer (GstGenTlSrc * src)
 {
@@ -1311,6 +1385,8 @@ gst_gentlsrc_get_buffer (GstGenTlSrc * src)
   bool8_t buffer_is_incomplete, is_acquiring;
   guint8 *data_ptr;
   GstMapInfo minfo;
+  GstClockTime unix_ts;
+  uint64_t buf_timestamp_ticks;
 
   datasize = sizeof (new_buffer_data);
   ret =
@@ -1328,6 +1404,13 @@ gst_gentlsrc_get_buffer (GstGenTlSrc * src)
         ("Unsupported payload type: %d", payload_type), (NULL));
     goto error;
   }
+
+  datasize = sizeof (buf_timestamp_ticks);
+  ret =
+      GTL_DSGetBufferInfo (src->hDS, new_buffer_data.BufferHandle,
+      BUFFER_INFO_TIMESTAMP, &datatype, &buf_timestamp_ticks, &datasize);
+  HANDLE_GTL_ERROR ("Failed to get buffer timestamp");
+  GST_LOG_OBJECT (src, "Buffer GentTL timestamp: %llu", buf_timestamp_ticks);
 
   datasize = sizeof (frame_id);
   ret =
@@ -1371,6 +1454,24 @@ gst_gentlsrc_get_buffer (GstGenTlSrc * src)
 
   GTL_DSQueueBuffer (src->hDS, new_buffer_data.BufferHandle);
   HANDLE_GTL_ERROR ("Failed to queue buffer");
+
+  if (src->tick_frequency) {
+    gint64 nanoseconds_after_latch;
+    gint64 ticks_after_latch;
+
+    /* resync system clock and buffer clock periodically */
+    if (GST_CLOCK_DIFF (src->unix_latched_time, get_unix_ns ()) > GST_SECOND) {
+      gst_gentlsrc_src_latch_timestamps (src);
+    }
+
+    ticks_after_latch = buf_timestamp_ticks - src->gentl_latched_ticks;
+    nanoseconds_after_latch = (gint64)
+        (ticks_after_latch * ((double) GST_SECOND / src->tick_frequency));
+    unix_ts = src->unix_latched_time + nanoseconds_after_latch;
+    GST_LOG_OBJECT (src, "Adding Unix timestamp: %llu", unix_ts);
+    gst_buffer_add_reference_timestamp_meta (buf,
+        gst_static_caps_get (&unix_reference), unix_ts, GST_CLOCK_TIME_NONE);
+  }
 
   return buf;
 
