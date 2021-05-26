@@ -1471,17 +1471,28 @@ gst_gentlsrc_get_buffer (GstGenTlSrc * src)
   GstClockTime unix_ts;
   uint64_t buf_timestamp_ticks;
 
-  datasize = sizeof (new_buffer_data);
-  ret =
-      GTL_EventGetData (src->hNewBufferEvent, &new_buffer_data, &datasize,
-      src->timeout);
-  HANDLE_GTL_ERROR ("Failed to get New Buffer event within timeout period");
 
-  datasize = sizeof (payload_type);
-  ret =
-      GTL_DSGetBufferInfo (src->hDS, new_buffer_data.BufferHandle,
-      BUFFER_INFO_PAYLOADTYPE, &datatype, &payload_type, &datasize);
-  HANDLE_GTL_ERROR ("Failed to get payload type");
+  /* sometimes we get non-image payloads, try several times for an image */
+  for (int i = 0; i < 5; ++i) {
+    datasize = sizeof (new_buffer_data);
+    ret =
+        GTL_EventGetData (src->hNewBufferEvent, &new_buffer_data, &datasize,
+        src->timeout);
+    HANDLE_GTL_ERROR ("Failed to get New Buffer event within timeout period");
+
+    datasize = sizeof (payload_type);
+    ret =
+        GTL_DSGetBufferInfo (src->hDS, new_buffer_data.BufferHandle,
+        BUFFER_INFO_PAYLOADTYPE, &datatype, &payload_type, &datasize);
+    HANDLE_GTL_ERROR ("Failed to get payload type");
+    if (payload_type != PAYLOAD_TYPE_IMAGE) {
+      GST_WARNING_OBJECT (src, "Non-image payload type, trying again");
+      continue;
+    } else {
+      break;
+    }
+  }
+
   if (payload_type != PAYLOAD_TYPE_IMAGE) {
     GST_ELEMENT_ERROR (src, STREAM, TOO_LAZY,
         ("Unsupported payload type: %d", payload_type), (NULL));
