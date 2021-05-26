@@ -1340,6 +1340,9 @@ gst_gentlsrc_get_buffer (GstGenTlSrc * src)
       GTL_DSGetBufferInfo (src->hDS, new_buffer_data.BufferHandle,
       BUFFER_INFO_IS_INCOMPLETE, &datatype, &buffer_is_incomplete, &datasize);
   HANDLE_GTL_ERROR ("Failed to get complete flag");
+  if (buffer_is_incomplete) {
+    GST_WARNING_OBJECT (src, "Buffer is incomplete");
+  }
 
   datasize = sizeof (buffer_size);
   ret =
