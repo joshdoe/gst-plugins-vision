@@ -886,8 +886,17 @@ error:
 static void
 gst_gentlsrc_src_latch_timestamps (GstGenTlSrc * src)
 {
-  src->unix_latched_time = get_unix_ns ();
-  src->gentl_latched_ticks = gst_gentlsrc_get_gev_timestamp_ticks (src);
+  guint64 unix_ts, gev_ts;
+
+  unix_ts = get_unix_ns ();
+  gev_ts = gst_gentlsrc_get_gev_timestamp_ticks (src);
+
+  if (gev_ts != 0) {
+    src->unix_latched_time = unix_ts;
+    src->gentl_latched_ticks = gev_ts;
+  } else {
+    GST_WARNING_OBJECT (src, "Failed to latch GEV time, using old latch value");
+  }
 }
 
 static gboolean
