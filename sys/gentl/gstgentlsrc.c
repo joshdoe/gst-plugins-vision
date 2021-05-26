@@ -1323,6 +1323,11 @@ gst_gentlsrc_get_buffer (GstGenTlSrc * src)
       GTL_DSGetBufferInfo (src->hDS, new_buffer_data.BufferHandle,
       BUFFER_INFO_PAYLOADTYPE, &datatype, &payload_type, &datasize);
   HANDLE_GTL_ERROR ("Failed to get payload type");
+  if (payload_type != PAYLOAD_TYPE_IMAGE) {
+    GST_ELEMENT_ERROR (src, STREAM, TOO_LAZY,
+        ("Unsupported payload type: %d", payload_type), (NULL));
+    goto error;
+  }
 
   datasize = sizeof (frame_id);
   ret =
@@ -1348,11 +1353,6 @@ gst_gentlsrc_get_buffer (GstGenTlSrc * src)
       BUFFER_INFO_BASE, &datatype, &data_ptr, &datasize);
   HANDLE_GTL_ERROR ("Failed to get buffer pointer");
 
-  if (payload_type != PAYLOAD_TYPE_IMAGE) {
-    GST_ELEMENT_ERROR (src, STREAM, TOO_LAZY,
-        ("Unsupported payload type: %d", payload_type), (NULL));
-    goto error;
-  }
   // TODO: what if strides aren't same?
 
   buf = gst_buffer_new_allocate (NULL, buffer_size, NULL);
@@ -1361,7 +1361,7 @@ gst_gentlsrc_get_buffer (GstGenTlSrc * src)
         ("Failed to allocate buffer"), (NULL));
     goto error;
   }
-
+  // TODO: try to eliminate this memcpy by using gst_buffer_new_wrapped_full
   gst_buffer_map (buf, &minfo, GST_MAP_WRITE);
   orc_memcpy (minfo.data, (void *) data_ptr, minfo.size);
   gst_buffer_unmap (buf, &minfo);
