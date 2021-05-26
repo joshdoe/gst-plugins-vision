@@ -38,6 +38,40 @@ G_BEGIN_DECLS
 typedef struct _GstGenTlSrc GstGenTlSrc;
 typedef struct _GstGenTlSrcClass GstGenTlSrcClass;
 
+typedef struct _GstGenTlProducer GstGenTlProducer;
+struct _GstGenTlProducer
+{
+  gchar* cti_path;
+  guint32 acquisition_mode_value;
+
+  guint64 width;
+  guint64 height;
+  guint64 pixel_format;
+  guint64 payload_size;
+  guint64 acquisition_mode;
+  guint64 acquisition_start;
+  guint64 acquisition_stop;
+  guint64 tick_frequency_low;
+  guint64 tick_frequency_high;
+  guint64 timestamp_control_latch;
+  guint64 timestamp_low;
+  guint64 timestamp_high;
+};
+
+
+/**
+* GstGenTlSrcProducer:
+* @GST_GENTLSRC_PRODUCER_BASLER: Basler producer
+* @GST_GENTLSRC_PRODUCER_EVT: EVT producer
+*
+* Producer to use.
+*/
+typedef enum {
+  GST_GENTLSRC_PRODUCER_BASLER,
+  GST_GENTLSRC_PRODUCER_EVT,
+} GstGenTlSrcProducer;
+
+
 struct _GstGenTlSrc
 {
   GstPushSrc base_gentlsrc;
@@ -50,8 +84,10 @@ struct _GstGenTlSrc
   PORT_HANDLE hDevPort;
   EVENT_HANDLE hNewBufferEvent;
   char error_string[MAX_ERROR_STRING_LEN];
+  GstGenTlProducer producer;
 
   /* properties */
+  GstGenTlSrcProducer producer_prop;
   guint interface_index;
   gchar *interface_id;
   guint device_index;

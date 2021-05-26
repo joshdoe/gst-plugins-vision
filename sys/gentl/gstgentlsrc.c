@@ -60,29 +60,61 @@
 // "C:\\BitFlow SDK 6.20\\Bin64\\BFGTL.cti";
 // "C:\\Program Files\\Basler\\pylon 5\\Runtime\\x64\\ProducerGEV.cti";
 
-// EVT
-#define GENAPI_WIDTH 0xA000
-#define GENAPI_HEIGHT 0xA004
-#define GENAPI_PIXFMT 0xA008
-#define GENAPI_PAYLOAD_SIZE 0xD008
-#define GENAPI_ACQMODE 0xB000
-#define GENAPI_ACQSTART 0xB004
-#define GENAPI_ACQSTOP 0xB008
-#define GENAPI_TICK_FREQ_LOW 0x0940
-#define GENAPI_TICK_FREQ_HIGH 0x093C
-#define GENAPI_TIMESTAMP_CONTROL_LATCH 0x944
-#define GENAPI_TIMESTAMP_VALUE_LOW 0x094C
-#define GENAPI_TIMESTAMP_VALUE_HIGH 0x0948
-#define CTI_PATH "C:\\Program Files\\EVT\\eSDK\\bin\\EmergentGenTL.cti"
+static void
+initialize_evt_addresses (GstGenTlProducer * producer)
+{
+  memset (producer, 0, sizeof (producer));
+  producer->cti_path =
+      g_strdup ("C:\\Program Files\\EVT\\eSDK\\bin\\EmergentGenTL.cti");
+  producer->acquisition_mode_value = 0;
+  producer->width = 0xA000;
+  producer->height = 0xA004;
+  producer->pixel_format = 0xA008;
+  producer->payload_size = 0xD008;
+  producer->acquisition_mode = 0xB000;
+  producer->acquisition_start = 0xB004;
+  producer->acquisition_stop = 0xB008;
+  producer->tick_frequency_low = 0x0940;
+  producer->tick_frequency_high = 0x093C;
+  producer->timestamp_control_latch = 0x944;
+  producer->timestamp_low = 0x094C;
+  producer->timestamp_high = 0x0948;
+}
 
-// Basler
-//#define GENAPI_WIDTH 0x30204
-//#define GENAPI_HEIGHT 0x30224
-//#define GENAPI_PAYLOAD_SIZE 0x10088
-//#define GENAPI_ACQMODE 0x40004
-//#define GENAPI_ACQSTART 0x40024
-//#define GENAPI_ACQSTOP 0x40044
-//#define CTI_PATH "C:\\Program Files\\Basler\\pylon 6\\Runtime\\x64\\ProducerGEV.cti"
+static void
+initialize_basler_addresses (GstGenTlProducer * producer)
+{
+  memset (producer, 0, sizeof (producer));
+  producer->cti_path =
+      g_strdup
+      ("C:\\Program Files\\Basler\\pylon 5\\Runtime\\x64\\ProducerGEV.cti");
+  producer->acquisition_mode_value = 2;
+  producer->width = 0x30204;
+  producer->height = 0x30224;
+  producer->pixel_format = 0x30024;
+  producer->payload_size = 0x10088;
+  producer->acquisition_mode = 0x40004;
+  producer->acquisition_start = 0x40024;
+  producer->acquisition_stop = 0x40044;
+}
+
+#define GST_TYPE_GENTLSRC_PRODUCER (gst_gentlsrc_producer_get_type())
+static GType
+gst_gentlsrc_producer_get_type (void)
+{
+  static GType gentlsrc_producer_type = 0;
+  static const GEnumValue gentlsrc_producer[] = {
+    {GST_GENTLSRC_PRODUCER_BASLER, "Basler producer", "basler"},
+    {GST_GENTLSRC_PRODUCER_EVT, "EVT producer", "evt"},
+    {0, NULL, NULL},
+  };
+
+  if (!gentlsrc_producer_type) {
+    gentlsrc_producer_type =
+        g_enum_register_static ("GstGenTlSrcProducer", gentlsrc_producer);
+  }
+  return gentlsrc_producer_type;
+}
 
 GST_DEBUG_CATEGORY_STATIC (gst_gentlsrc_debug);
 #define GST_CAT_DEFAULT gst_gentlsrc_debug
@@ -109,6 +141,7 @@ static gchar *gst_gentlsrc_get_error_string (GstGenTlSrc * src);
 enum
 {
   PROP_0,
+  PROP_PRODUCER,
   PROP_INTERFACE_INDEX,
   PROP_INTERFACE_ID,
   PROP_DEVICE_INDEX,
@@ -119,6 +152,7 @@ enum
   PROP_TIMEOUT
 };
 
+#define DEFAULT_PROP_PRODUCER GST_GENTLSRC_PRODUCER_BASLER
 #define DEFAULT_PROP_INTERFACE_INDEX 0
 #define DEFAULT_PROP_INTERFACE_ID ""
 #define DEFAULT_PROP_DEVICE_INDEX 0
@@ -206,7 +240,7 @@ gboolean
 gst_gentlsrc_bind_functions (GstGenTlSrc * src)
 {
   GModule *module;
-  const char cti_path[] = CTI_PATH;
+  const char *cti_path = src->producer.cti_path;
   gboolean ret = TRUE;
 
   GST_DEBUG_OBJECT (src, "Trying to bind functions from '%s'", cti_path);
@@ -311,6 +345,12 @@ gst_gentlsrc_class_init (GstGenTlSrcClass * klass)
   gstpushsrc_class->create = GST_DEBUG_FUNCPTR (gst_gentlsrc_create);
 
   /* Install GObject properties */
+  g_object_class_install_property (gobject_class, PROP_PRODUCER,
+      g_param_spec_enum ("producer", "Producer", "GenTL producer",
+          GST_TYPE_GENTLSRC_PRODUCER, DEFAULT_PROP_PRODUCER,
+          G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE |
+          GST_PARAM_MUTABLE_PLAYING));
+
   g_object_class_install_property (gobject_class, PROP_INTERFACE_INDEX,
       g_param_spec_uint ("interface-index", "Interface index",
           "Interface index number, zero-based, overridden by interface-id",
@@ -386,6 +426,7 @@ gst_gentlsrc_init (GstGenTlSrc * src)
   gst_base_src_set_format (GST_BASE_SRC (src), GST_FORMAT_TIME);
 
   /* initialize member variables */
+  src->producer_prop = DEFAULT_PROP_PRODUCER;
   src->interface_index = DEFAULT_PROP_INTERFACE_INDEX;
   src->interface_id = g_strdup (DEFAULT_PROP_INTERFACE_ID);
   src->num_capture_buffers = DEFAULT_PROP_NUM_CAPTURE_BUFFERS;
@@ -411,6 +452,9 @@ gst_gentlsrc_set_property (GObject * object, guint property_id,
   src = GST_GENTL_SRC (object);
 
   switch (property_id) {
+    case PROP_PRODUCER:
+      src->producer_prop = g_value_get_enum (value);
+      break;
     case PROP_INTERFACE_INDEX:
       src->interface_index = g_value_get_uint (value);
       break;
@@ -454,6 +498,9 @@ gst_gentlsrc_get_property (GObject * object, guint property_id,
   src = GST_GENTL_SRC (object);
 
   switch (property_id) {
+    case PROP_PRODUCER:
+      g_value_set_enum (value, src->producer_prop);
+      break;
     case PROP_INTERFACE_INDEX:
       g_value_set_uint (value, src->interface_index);
       break;
@@ -730,7 +777,9 @@ gst_gentlsrc_get_payload_size (GstGenTlSrc * src)
     guint32 val = 0;
     size_t datasize = 4;
     // TODO: use node map
-    ret = GTL_GCReadPort (src->hDevPort, GENAPI_PAYLOAD_SIZE, &val, &datasize);
+    ret =
+        GTL_GCReadPort (src->hDevPort, src->producer.payload_size, &val,
+        &datasize);
     HANDLE_GTL_ERROR ("Failed to get payload size");
     payload_size = GUINT32_FROM_BE (val);
     GST_DEBUG_OBJECT (src, "Payload size defined by node map: %d",
@@ -788,14 +837,14 @@ gst_gentlsrc_get_gev_tick_frequency (GstGenTlSrc * src)
 {
   GC_ERROR ret;
 
-  if (!GENAPI_TICK_FREQ_HIGH || !GENAPI_TICK_FREQ_LOW)
+  if (!src->producer.tick_frequency_high || !src->producer.tick_frequency_low)
     return 0;
 
   guint32 freq_low, freq_high;
   size_t datasize = 4;
-  ret = GTL_GCReadPort (src->hDevPort, GENAPI_TICK_FREQ_LOW, &freq_low, &datasize);     // GevTimestampTickFrequencyLow
+  ret = GTL_GCReadPort (src->hDevPort, src->producer.tick_frequency_low, &freq_low, &datasize); // GevTimestampTickFrequencyLow
   HANDLE_GTL_ERROR ("Failed to get GevTimestampTickFrequencyLow");
-  ret = GTL_GCReadPort (src->hDevPort, GENAPI_TICK_FREQ_HIGH, &freq_high, &datasize);   // GevTimestampTickFrequencyHigh
+  ret = GTL_GCReadPort (src->hDevPort, src->producer.tick_frequency_high, &freq_high, &datasize);       // GevTimestampTickFrequencyHigh
   HANDLE_GTL_ERROR ("Failed to get GevTimestampTickFrequencyHigh");
 
   guint64 tick_frequency =
@@ -818,12 +867,12 @@ gst_gentlsrc_get_gev_timestamp_ticks (GstGenTlSrc * src)
 
   val = GUINT32_TO_BE (2);
   datasize = sizeof (val);
-  ret = GTL_GCWritePort (src->hDevPort, GENAPI_TIMESTAMP_CONTROL_LATCH, &val, &datasize);       // GevTimestampControlLatch
+  ret = GTL_GCWritePort (src->hDevPort, src->producer.timestamp_control_latch, &val, &datasize);        // GevTimestampControlLatch
   HANDLE_GTL_ERROR ("Failed to latch timestamp GevTimestampControlLatch");
 
-  ret = GTL_GCReadPort (src->hDevPort, GENAPI_TIMESTAMP_VALUE_LOW, &ts_low, &datasize); // GevTimestampValueLow
+  ret = GTL_GCReadPort (src->hDevPort, src->producer.timestamp_low, &ts_low, &datasize);        // GevTimestampValueLow
   HANDLE_GTL_ERROR ("Failed to get GevTimestampValueLow");
-  ret = GTL_GCReadPort (src->hDevPort, GENAPI_TIMESTAMP_VALUE_HIGH, &ts_high, &datasize);       // GevTimestampValueHigh
+  ret = GTL_GCReadPort (src->hDevPort, src->producer.timestamp_high, &ts_high, &datasize);      // GevTimestampValueHigh
   HANDLE_GTL_ERROR ("Failed to get GevTimestampValueHigh");
   guint64 ticks = GUINT64_FROM_BE ((guint64) ts_low << 32 | ts_high);
   GST_LOG_OBJECT (src, "Timestamp ticks are %llu", ticks);
@@ -851,6 +900,14 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
   GstVideoInfo vinfo;
 
   GST_DEBUG_OBJECT (src, "start");
+
+  if (src->producer_prop == GST_GENTLSRC_PRODUCER_BASLER) {
+    initialize_basler_addresses (&src->producer);
+  } else if (src->producer_prop == GST_GENTLSRC_PRODUCER_EVT) {
+    initialize_evt_addresses (&src->producer);
+  } else {
+    g_assert_not_reached ();
+  }
 
   /* bind functions from CTI */
   /* TODO: Enumerate CTI files in env var GENTL_GENTL64_PATH */
@@ -1120,15 +1177,17 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
     // TODO: use GenTl node map for this
     guint32 val = 0;
     size_t datasize = 4;
-    ret = GTL_GCReadPort (src->hDevPort, GENAPI_WIDTH, &val, &datasize);
+    ret = GTL_GCReadPort (src->hDevPort, src->producer.width, &val, &datasize);
     HANDLE_GTL_ERROR ("Failed to get width");
     width = GUINT32_FROM_BE (val);
-    ret = GTL_GCReadPort (src->hDevPort, GENAPI_HEIGHT, &val, &datasize);
+    ret = GTL_GCReadPort (src->hDevPort, src->producer.height, &val, &datasize);
     HANDLE_GTL_ERROR ("Failed to get height");
     height = GUINT32_FROM_BE (val);
     GST_DEBUG_OBJECT (src, "Width and height %dx%d", width, height);
 
-    ret = GTL_GCReadPort (src->hDevPort, GENAPI_PIXFMT, &val, &datasize);
+    ret =
+        GTL_GCReadPort (src->hDevPort, src->producer.pixel_format, &val,
+        &datasize);
     HANDLE_GTL_ERROR ("Failed to get height");
     const char *genicam_pixfmt;
     guint32 pixfmt_enum = GUINT32_FROM_BE (val);
@@ -1204,15 +1263,19 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
     /* set AcquisitionMode to Continuous */
     // TODO: "Continuous" value can have different integer values, we need
     // to look it up in the node map (EVT is 0, Basler is 2)
-    val = GUINT32_TO_BE (0);
+    val = GUINT32_TO_BE (src->producer.acquisition_mode_value);
     datasize = sizeof (val);
-    ret = GTL_GCWritePort (src->hDevPort, GENAPI_ACQMODE, &val, &datasize);
+    ret =
+        GTL_GCWritePort (src->hDevPort, src->producer.acquisition_mode, &val,
+        &datasize);
     HANDLE_GTL_ERROR ("Failed to start device acquisition");
 
     /* send AcquisitionStart command */
     val = GUINT32_TO_BE (1);
     datasize = sizeof (val);
-    ret = GTL_GCWritePort (src->hDevPort, GENAPI_ACQSTART, &val, &datasize);
+    ret =
+        GTL_GCWritePort (src->hDevPort, src->producer.acquisition_start, &val,
+        &datasize);
     HANDLE_GTL_ERROR ("Failed to start device acquisition");
   }
 
@@ -1263,7 +1326,8 @@ gst_gentlsrc_stop (GstBaseSrc * bsrc)
     guint32 val = GUINT32_TO_BE (1);
     gsize datasize = sizeof (val);
     GC_ERROR ret =
-        GTL_GCWritePort (src->hDevPort, GENAPI_ACQSTOP, &val, &datasize);
+        GTL_GCWritePort (src->hDevPort, src->producer.acquisition_stop, &val,
+        &datasize);
 
     GTL_DSStopAcquisition (src->hDS, ACQ_STOP_FLAGS_DEFAULT);
     GTL_DSFlushQueue (src->hDS, ACQ_QUEUE_INPUT_TO_OUTPUT);
