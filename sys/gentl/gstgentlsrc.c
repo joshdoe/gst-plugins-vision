@@ -137,6 +137,7 @@ static gboolean gst_gentlsrc_unlock_stop (GstBaseSrc * src);
 static GstFlowReturn gst_gentlsrc_create (GstPushSrc * src, GstBuffer ** buf);
 
 static gchar *gst_gentlsrc_get_error_string (GstGenTlSrc * src);
+static void gst_gentlsrc_cleanup_tl (GstGenTlSrc * src);
 
 enum
 {
@@ -404,6 +405,9 @@ gst_gentlsrc_class_init (GstGenTlSrcClass * klass)
           "Attributes", "Attributes to change, comma separated key=value pairs",
           DEFAULT_PROP_ATTRIBUTES, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
 
+  klass->hTL = NULL;
+  g_mutex_init (&klass->tl_mutex);
+  klass->tl_refcount = 0;
 }
 
 static void
@@ -967,59 +971,62 @@ gst_gentlsrc_set_attributes (GstGenTlSrc * src)
 }
 
 static gboolean
-gst_gentlsrc_start (GstBaseSrc * bsrc)
+gst_gentlsrc_open_tl (GstGenTlSrc * src)
 {
-  GstGenTlSrc *src = GST_GENTL_SRC (bsrc);
+  GstGenTlSrcClass *klass = GST_GENTL_SRC_GET_CLASS (src);
   GC_ERROR ret;
-  uint32_t i, num_ifaces, num_devs;
-  guint32 width, height, stride;
-  GstVideoInfo vinfo;
+  uint32_t i, num_ifaces;
 
-  GST_DEBUG_OBJECT (src, "start");
-
-  if (src->producer_prop == GST_GENTLSRC_PRODUCER_BASLER) {
-    initialize_basler_addresses (&src->producer);
-  } else if (src->producer_prop == GST_GENTLSRC_PRODUCER_EVT) {
-    initialize_evt_addresses (&src->producer);
+  /* open framegrabber if it isn't already opened */
+  if (klass->tl_refcount > 0) {
+    GST_DEBUG_OBJECT (src,
+        "Framegrabber interface already opened in this process, reusing");
+    src->hTL = klass->hTL;
+    klass->tl_refcount++;
   } else {
-    g_assert_not_reached ();
-  }
+    /* initialize library and print info */
+    ret = GTL_GCInitLib ();
+    //HANDLE_GTL_ERROR ("GenTL Producer library could not be initialized");
 
-  /* bind functions from CTI */
-  /* TODO: Enumerate CTI files in env var GENTL_GENTL64_PATH */
-  if (!gst_gentlsrc_bind_functions (src)) {
-    GST_ELEMENT_ERROR (src, LIBRARY, INIT,
-        ("GenTL CTI could not be opened: %s", g_module_error ()), (NULL));
-    return FALSE;
-  }
+    gst_gentl_print_gentl_impl_info (src);
 
-  /* initialize library and print info */
-  ret = GTL_GCInitLib ();
-  HANDLE_GTL_ERROR ("GenTL Producer library could not be initialized");
+    /* open GenTL, print info, and update interface list */
+    ret = GTL_TLOpen (&src->hTL);
+    HANDLE_GTL_ERROR ("System module failed to open");
 
-  gst_gentl_print_gentl_impl_info (src);
+    gst_gentl_print_system_info (src);
 
-  /* open GenTL, print info, and update interface list */
-  ret = GTL_TLOpen (&src->hTL);
-  HANDLE_GTL_ERROR ("System module failed to open");
+    ret = GTL_TLUpdateInterfaceList (src->hTL, NULL, src->timeout);
+    HANDLE_GTL_ERROR ("Failed to update interface list within timeout");
 
-  gst_gentl_print_system_info (src);
-
-  ret = GTL_TLUpdateInterfaceList (src->hTL, NULL, src->timeout);
-  HANDLE_GTL_ERROR ("Failed to update interface list within timeout");
-
-  /* print info for all interfaces and open specified interface */
-  ret = GTL_TLGetNumInterfaces (src->hTL, &num_ifaces);
-  HANDLE_GTL_ERROR ("Failed to get number of interfaces");
-  if (num_ifaces > 0) {
-    GST_DEBUG_OBJECT (src, "Found %d GenTL interfaces", num_ifaces);
-    for (i = 0; i < num_ifaces; ++i) {
-      gst_gentl_print_interface_info (src, i);
+    /* print info for all interfaces and open specified interface */
+    ret = GTL_TLGetNumInterfaces (src->hTL, &num_ifaces);
+    HANDLE_GTL_ERROR ("Failed to get number of interfaces");
+    if (num_ifaces > 0) {
+      GST_DEBUG_OBJECT (src, "Found %d GenTL interfaces", num_ifaces);
+      for (i = 0; i < num_ifaces; ++i) {
+        gst_gentl_print_interface_info (src, i);
+      }
+    } else {
+      GST_ELEMENT_ERROR (src, LIBRARY, FAILED, ("No interfaces found"), (NULL));
+      goto error;
     }
-  } else {
-    GST_ELEMENT_ERROR (src, LIBRARY, FAILED, ("No interfaces found"), (NULL));
-    goto error;
+
+    klass->hTL = src->hTL;
+    klass->tl_refcount++;
   }
+
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_gentlsrc_open_interface (GstGenTlSrc * src)
+{
+  GstGenTlSrcClass *klass = GST_GENTL_SRC_GET_CLASS (src);
+  GC_ERROR ret;
 
   if (!src->interface_id || src->interface_id[0] == 0) {
     size_t id_size;
@@ -1041,6 +1048,54 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
   GST_DEBUG_OBJECT (src, "Trying to open interface '%s'", src->interface_id);
   ret = GTL_TLOpenInterface (src->hTL, src->interface_id, &src->hIF);
   HANDLE_GTL_ERROR ("Interface module failed to open");
+
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_gentlsrc_start (GstBaseSrc * bsrc)
+{
+  GstGenTlSrc *src = GST_GENTL_SRC (bsrc);
+  GstGenTlSrcClass *klass = GST_GENTL_SRC_GET_CLASS (src);
+  GC_ERROR ret;
+  uint32_t i, num_devs;
+  guint32 width, height, stride;
+  GstVideoInfo vinfo;
+
+  GST_DEBUG_OBJECT (src, "start");
+
+  if (src->producer_prop == GST_GENTLSRC_PRODUCER_BASLER) {
+    initialize_basler_addresses (&src->producer);
+  } else if (src->producer_prop == GST_GENTLSRC_PRODUCER_EVT) {
+    initialize_evt_addresses (&src->producer);
+  } else {
+    g_assert_not_reached ();
+  }
+
+  /* bind functions from CTI */
+  /* TODO: Enumerate CTI files in env var GENTL_GENTL64_PATH */
+  if (!gst_gentlsrc_bind_functions (src)) {
+    GST_ELEMENT_ERROR (src, LIBRARY, INIT,
+        ("GenTL CTI could not be opened: %s", g_module_error ()), (NULL));
+    return FALSE;
+  }
+
+  g_mutex_lock (&klass->tl_mutex);
+
+  if (!gst_gentlsrc_open_tl (src)) {
+    g_mutex_unlock (&klass->tl_mutex);
+    goto error;
+  }
+
+  if (!gst_gentlsrc_open_interface (src)) {
+    g_mutex_unlock (&klass->tl_mutex);
+    goto error;
+  }
+
+  g_mutex_unlock (&klass->tl_mutex);
 
   ret = GTL_IFUpdateDeviceList (src->hIF, NULL, src->timeout);
   HANDLE_GTL_ERROR ("Failed to update device list within timeout");
@@ -1392,14 +1447,30 @@ error:
     src->hIF = NULL;
   }
 
-  if (src->hTL) {
-    GTL_TLClose (src->hTL);
-    src->hTL = NULL;
-  }
-
-  GTL_GCCloseLib ();
+  gst_gentlsrc_cleanup_tl (src);
 
   return FALSE;
+}
+
+static void
+gst_gentlsrc_cleanup_tl (GstGenTlSrc * src)
+{
+  GstGenTlSrcClass *klass = GST_GENTL_SRC_GET_CLASS (src);
+  if (src->hTL) {
+    g_mutex_lock (&klass->tl_mutex);
+    GST_DEBUG_OBJECT (src, "Framegrabber open with refcount=%d",
+        klass->tl_refcount);
+    klass->tl_refcount--;
+    if (klass->tl_refcount == 0) {
+      GST_DEBUG_OBJECT (src, "Framegrabber ref dropped to 0, closing");
+      GTL_TLClose (src->hTL);
+      src->hTL = NULL;
+    }
+    g_mutex_unlock (&klass->tl_mutex);
+    src->hTL = NULL;
+
+    GTL_GCCloseLib ();
+  }
 }
 
 static gboolean
@@ -1434,12 +1505,7 @@ gst_gentlsrc_stop (GstBaseSrc * bsrc)
     src->hIF = NULL;
   }
 
-  if (src->hTL) {
-    GTL_TLClose (src->hTL);
-    src->hTL = NULL;
-  }
-
-  GTL_GCCloseLib ();
+  gst_gentlsrc_cleanup_tl (src);
 
   GST_DEBUG_OBJECT (src, "Closed data stream, device, interface, and library");
 

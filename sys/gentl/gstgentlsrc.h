@@ -34,6 +34,8 @@ G_BEGIN_DECLS
 #define GST_GENTL_SRC_CLASS(klass)   (G_TYPE_CHECK_CLASS_CAST((klass),GST_TYPE_GENTL_SRC,GstGenTlSrcClass))
 #define GST_IS_GENTL_SRC(obj)   (G_TYPE_CHECK_INSTANCE_TYPE((obj),GST_TYPE_GENTL_SRC))
 #define GST_IS_GENTL_SRC_CLASS(obj)   (G_TYPE_CHECK_CLASS_TYPE((klass),GST_TYPE_GENTL_SRC))
+#define GST_GENTL_SRC_GET_CLASS(klass) \
+    (G_TYPE_INSTANCE_GET_CLASS ((klass), GST_TYPE_GENTL_SRC, GstGenTlSrcClass))
 
 typedef struct _GstGenTlSrc GstGenTlSrc;
 typedef struct _GstGenTlSrcClass GstGenTlSrcClass;
@@ -116,6 +118,9 @@ struct _GstGenTlSrc
 struct _GstGenTlSrcClass
 {
   GstPushSrcClass base_gentlsrc_class;
+  TL_HANDLE hTL;
+  GMutex tl_mutex;
+  guint tl_refcount;
 };
 
 GType gst_gentlsrc_get_type (void);
