@@ -96,6 +96,7 @@ struct _GstGenTlSrc
   gchar *stream_id;
   guint num_capture_buffers;
   gint timeout;
+  gchar* attributes;
 
   GstClockTime acq_start_time;
   guint32 last_frame_count;

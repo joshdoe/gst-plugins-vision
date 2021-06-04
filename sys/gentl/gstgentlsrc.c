@@ -149,7 +149,8 @@ enum
   PROP_STREAM_INDEX,
   PROP_STREAM_ID,
   PROP_NUM_CAPTURE_BUFFERS,
-  PROP_TIMEOUT
+  PROP_TIMEOUT,
+  PROP_ATTRIBUTES
 };
 
 #define DEFAULT_PROP_PRODUCER GST_GENTLSRC_PRODUCER_BASLER
@@ -161,6 +162,7 @@ enum
 #define DEFAULT_PROP_STREAM_ID ""
 #define DEFAULT_PROP_NUM_CAPTURE_BUFFERS 3
 #define DEFAULT_PROP_TIMEOUT 1000
+#define DEFAULT_PROP_ATTRIBUTES ""
 
 /* pad templates */
 
@@ -397,6 +399,10 @@ gst_gentlsrc_class_init (GstGenTlSrcClass * klass)
           "Timeout (ms)",
           "Timeout in ms (0 to use default)", 0, G_MAXINT,
           DEFAULT_PROP_TIMEOUT, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
+  g_object_class_install_property (G_OBJECT_CLASS (klass),
+      PROP_ATTRIBUTES, g_param_spec_string ("attributes",
+          "Attributes", "Attributes to change, comma separated key=value pairs",
+          DEFAULT_PROP_ATTRIBUTES, G_PARAM_STATIC_STRINGS | G_PARAM_READWRITE));
 
 }
 
@@ -431,6 +437,7 @@ gst_gentlsrc_init (GstGenTlSrc * src)
   src->interface_id = g_strdup (DEFAULT_PROP_INTERFACE_ID);
   src->num_capture_buffers = DEFAULT_PROP_NUM_CAPTURE_BUFFERS;
   src->timeout = DEFAULT_PROP_TIMEOUT;
+  src->attributes = g_strdup (DEFAULT_PROP_ATTRIBUTES);
 
   src->stop_requested = FALSE;
   src->caps = NULL;
@@ -482,6 +489,11 @@ gst_gentlsrc_set_property (GObject * object, guint property_id,
     case PROP_TIMEOUT:
       src->timeout = g_value_get_int (value);
       break;
+    case PROP_ATTRIBUTES:
+      if (src->attributes)
+        g_free (src->attributes);
+      src->attributes = g_strdup (g_value_get_string (value));
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
       break;
@@ -524,6 +536,9 @@ gst_gentlsrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_TIMEOUT:
       g_value_set_int (value, src->timeout);
+      break;
+    case PROP_ATTRIBUTES:
+      g_value_set_string (value, src->attributes);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -899,6 +914,58 @@ gst_gentlsrc_src_latch_timestamps (GstGenTlSrc * src)
   }
 }
 
+static void
+gst_gentlsrc_set_attributes (GstGenTlSrc * src)
+{
+  gchar **pairs;
+  int i;
+  guint32 val;
+  size_t datasize;
+  GC_ERROR ret;
+
+  if (!src->attributes || src->attributes == 0) {
+    return;
+  }
+
+  GST_DEBUG_OBJECT (src, "Trying to set following attributes: '%s'",
+      src->attributes);
+
+  pairs = g_strsplit (src->attributes, ";", 0);
+
+  for (i = 0;; i++) {
+    gchar **pair;
+
+    if (!pairs[i])
+      break;
+
+    pair = g_strsplit (pairs[i], "=", 2);
+
+    if (!pair[0] || !pair[1]) {
+      GST_WARNING_OBJECT (src, "Failed to parse attribute/value: '%s'", pair);
+      continue;
+    }
+
+    GST_DEBUG_OBJECT (src, "Setting attribute, '%s'='%s'", pair[0], pair[1]);
+
+    val = GUINT32_TO_BE (atoi (pair[1]));
+    datasize = sizeof (val);
+    ret =
+        GTL_GCWritePort (src->hDevPort, strtol (pair[0], NULL, 16), &val,
+        &datasize);
+    if (ret != GC_ERR_SUCCESS) {
+      GST_WARNING_OBJECT (src, "Failed to set attribute: %s",
+          gst_gentlsrc_get_error_string (src));
+    }
+    g_strfreev (pair);
+  }
+  g_strfreev (pairs);
+
+  if (src->attributes) {
+    g_free (src->attributes);
+    src->attributes = NULL;
+  }
+}
+
 static gboolean
 gst_gentlsrc_start (GstBaseSrc * bsrc)
 {
@@ -1181,6 +1248,8 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
   }
 
   src->tick_frequency = gst_gentlsrc_get_gev_tick_frequency (src);
+
+  gst_gentlsrc_set_attributes (src);
 
   {
     // TODO: use GenTl node map for this
