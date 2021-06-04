@@ -1185,7 +1185,7 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
       GST_ELEMENT_ERROR (src, RESOURCE, TOO_LAZY,
           ("file url not supported yet"), (NULL));
       goto error;
-    } else if (g_str_has_prefix (url, "local")) {
+    } else if (g_ascii_strncasecmp (url, "local", 5) == 0) {
       GError *err = NULL;
       GMatchInfo *matchInfo;
       GRegex *regex;
@@ -1196,7 +1196,7 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
 
       regex =
           g_regex_new
-          ("local:(?:///)?(?<filename>[^;]+);(?<address>[^;]+);(?<length>[^?]+)(?:[?]SchemaVersion=([^&]+))?",
+          ("[lL]ocal:(?:///)?(?<filename>[^;]+);(?<address>[^;]+);(?<length>[^?]+)(?:[?]SchemaVersion=([^&]+))?",
           (GRegexCompileFlags) 0, (GRegexMatchFlags) 0, &err);
       if (!regex) {
         goto error;
@@ -1225,6 +1225,7 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
         gchar *xml;
 
         zipfilepath = g_build_filename (g_get_tmp_dir (), filename, NULL);
+        GST_DEBUG_OBJECT (src, "Writing XML ZIP file to %s", zipfilepath);
         if (!g_file_set_contents (zipfilepath, buf, len, &err)) {
           GST_ELEMENT_ERROR (src, RESOURCE, TOO_LAZY,
               ("Failed to write zipped XML to %s", zipfilepath), (NULL));
@@ -1270,6 +1271,7 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
         g_free (zipfilepath);
 
         zipfilepath = g_build_filename (g_get_tmp_dir (), xmlfilename, NULL);
+        GST_DEBUG_OBJECT (src, "Writing XML file to %s", zipfilepath);
         g_file_set_contents (zipfilepath, xml, fileinfo.uncompressed_size,
             &err);
         g_free (zipfilepath);
