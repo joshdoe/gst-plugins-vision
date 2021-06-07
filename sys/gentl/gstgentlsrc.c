@@ -1726,6 +1726,8 @@ gst_gentlsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
 
   GST_LOG_OBJECT (src, "create");
 
+  gst_gentlsrc_set_attributes (src);
+
   *buf = gst_gentlsrc_get_buffer (src);
   if (!*buf) {
     return GST_FLOW_ERROR;
