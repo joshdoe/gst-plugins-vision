@@ -1687,6 +1687,8 @@ gst_gentlsrc_get_buffer (GstGenTlSrc * src)
   GTL_DSQueueBuffer (src->hDS, new_buffer_data.BufferHandle);
   HANDLE_GTL_ERROR ("Failed to queue buffer");
 
+  GST_BUFFER_OFFSET (buf) = frame_id;
+
   if (src->tick_frequency) {
     gint64 nanoseconds_after_latch;
     gint64 ticks_after_latch;
@@ -1762,7 +1764,6 @@ gst_gentlsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   GST_BUFFER_TIMESTAMP (*buf) =
       GST_CLOCK_DIFF (gst_element_get_base_time (GST_ELEMENT (src)),
       clock_time);
-  //GST_BUFFER_OFFSET (*buf) = circ_handle.FrameCount - 1;
 
   if (src->stop_requested) {
     if (*buf != NULL) {
