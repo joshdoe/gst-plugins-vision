@@ -1471,7 +1471,8 @@ gst_gentlsrc_cleanup_tl (GstGenTlSrc * src)
     g_mutex_unlock (&klass->tl_mutex);
     src->hTL = NULL;
 
-    GTL_GCCloseLib ();
+    // don't close library, otherwise we can't reopen in the same process
+    //GTL_GCCloseLib ();
   }
 }
 
