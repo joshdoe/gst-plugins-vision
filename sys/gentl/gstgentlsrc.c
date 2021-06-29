@@ -186,6 +186,13 @@ static GstStaticPadTemplate gst_gentlsrc_src_template =
     goto error; \
   }
 
+#define HANDLE_GTL_WARNING(arg)  \
+  if (ret != GC_ERR_SUCCESS) {  \
+    GST_ELEMENT_WARNING (src, LIBRARY, FAILED,  \
+      (arg ": %s", gst_gentlsrc_get_error_string (src)), (NULL));  \
+    goto error; \
+  }
+
 PGCGetInfo GTL_GCGetInfo;
 PGCGetLastError GTL_GCGetLastError;
 PGCInitLib GTL_GCInitLib;
@@ -887,12 +894,12 @@ gst_gentlsrc_get_gev_timestamp_ticks (GstGenTlSrc * src)
   val = GUINT32_TO_BE (2);
   datasize = sizeof (val);
   ret = GTL_GCWritePort (src->hDevPort, src->producer.timestamp_control_latch, &val, &datasize);        // GevTimestampControlLatch
-  HANDLE_GTL_ERROR ("Failed to latch timestamp GevTimestampControlLatch");
+  HANDLE_GTL_WARNING ("Failed to latch timestamp GevTimestampControlLatch");
 
   ret = GTL_GCReadPort (src->hDevPort, src->producer.timestamp_low, &ts_low, &datasize);        // GevTimestampValueLow
-  HANDLE_GTL_ERROR ("Failed to get GevTimestampValueLow");
+  HANDLE_GTL_WARNING ("Failed to get GevTimestampValueLow");
   ret = GTL_GCReadPort (src->hDevPort, src->producer.timestamp_high, &ts_high, &datasize);      // GevTimestampValueHigh
-  HANDLE_GTL_ERROR ("Failed to get GevTimestampValueHigh");
+  HANDLE_GTL_WARNING ("Failed to get GevTimestampValueHigh");
   guint64 ticks = GUINT64_FROM_BE ((guint64) ts_low << 32 | ts_high);
   GST_LOG_OBJECT (src, "Timestamp ticks are %llu", ticks);
 
