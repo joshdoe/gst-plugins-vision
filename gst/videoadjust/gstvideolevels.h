@@ -83,14 +83,14 @@ struct _GstVideoLevels
   gint upper_input;
   gint lower_output;
   gint upper_output;
+  gfloat lower_pix_sat;
+  gfloat upper_pix_sat;
 
   /* tables */
   gpointer lookup_table;
 
   GstVideoLevelsAuto auto_adjust;
   guint64 interval;
-  gfloat lower_pix_sat;
-  gfloat upper_pix_sat;
   gint nbins;
   gint * histogram;
 

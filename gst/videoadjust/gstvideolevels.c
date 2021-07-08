@@ -61,6 +61,8 @@ enum
   PROP_HIGHOUT,
   PROP_AUTO,
   PROP_INTERVAL,
+  PROP_LOWER_SATURATION,
+  PROP_UPPER_SATURATION,
   PROP_LAST
 };
 
@@ -72,6 +74,8 @@ static GParamSpec *properties[PROP_LAST];
 #define DEFAULT_PROP_HIGHOUT  255
 #define DEFAULT_PROP_AUTO 0
 #define DEFAULT_PROP_INTERVAL (GST_SECOND / 2)
+#define DEFAULT_PROP_LOW_SAT 0.01
+#define DEFAULT_PROP_HIGH_SAT 0.01
 
 /* the capabilities of the inputs and outputs */
 static GstStaticPadTemplate gst_videolevels_src_template =
@@ -224,6 +228,14 @@ gst_videolevels_class_init (GstVideoLevelsClass * klass)
       g_param_spec_uint64 ("interval", "Interval",
           "Interval of time between adjustments (in nanoseconds)", 1,
           G_MAXUINT64, DEFAULT_PROP_INTERVAL, G_PARAM_READWRITE));
+  g_object_class_install_property (gobject_class, PROP_LOWER_SATURATION,
+      g_param_spec_double ("lower-saturation", "Lower saturation",
+          "The fraction of the histogram to saturate on the low end when auto is enabled",
+          0, 0.99, DEFAULT_PROP_LOW_SAT, G_PARAM_READWRITE));
+  g_object_class_install_property (gobject_class, PROP_UPPER_SATURATION,
+      g_param_spec_double ("upper-saturation", "Upper saturation",
+          "The fraction of the histogram to saturate on the upper end when auto is enabled",
+          0, 0.99, DEFAULT_PROP_HIGH_SAT, G_PARAM_READWRITE));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&gst_videolevels_sink_template));
@@ -305,6 +317,14 @@ gst_videolevels_set_property (GObject * object, guint prop_id,
       videolevels->interval = g_value_get_uint64 (value);
       videolevels->last_auto_timestamp = GST_CLOCK_TIME_NONE;
       break;
+    case PROP_LOWER_SATURATION:
+      videolevels->lower_pix_sat = g_value_get_double (value);
+      gst_videolevels_calculate_lut (videolevels);
+      break;
+    case PROP_UPPER_SATURATION:
+      videolevels->upper_pix_sat = g_value_get_double (value);
+      gst_videolevels_calculate_lut (videolevels);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -345,6 +365,12 @@ gst_videolevels_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_INTERVAL:
       g_value_set_uint64 (value, videolevels->interval);
+      break;
+    case PROP_LOWER_SATURATION:
+      g_value_set_double (value, videolevels->lower_pix_sat);
+      break;
+    case PROP_UPPER_SATURATION:
+      g_value_set_double (value, videolevels->upper_pix_sat);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -689,13 +715,12 @@ gst_videolevels_reset (GstVideoLevels * videolevels)
   videolevels->upper_input = DEFAULT_PROP_HIGHIN;
   videolevels->lower_output = DEFAULT_PROP_LOWOUT;
   videolevels->upper_output = DEFAULT_PROP_HIGHOUT;
+  videolevels->lower_pix_sat = DEFAULT_PROP_LOW_SAT;
+  videolevels->upper_pix_sat = DEFAULT_PROP_HIGH_SAT;
 
   videolevels->auto_adjust = DEFAULT_PROP_AUTO;
   videolevels->interval = DEFAULT_PROP_INTERVAL;
   videolevels->last_auto_timestamp = GST_CLOCK_TIME_NONE;
-
-  videolevels->lower_pix_sat = 0.01f;
-  videolevels->upper_pix_sat = 0.01f;
 
   /* if GRAY8, this will be set in set_info */
   videolevels->nbins = 4096;
