@@ -385,7 +385,7 @@ gst_videolevels_get_property (GObject * object, guint prop_id, GValue * value,
 {
   GstVideoLevels *videolevels = GST_VIDEOLEVELS (object);
 
-  GST_DEBUG_OBJECT (videolevels, "getting property %s", pspec->name);
+  GST_LOG_OBJECT (videolevels, "getting property %s", pspec->name);
 
   switch (prop_id) {
     case PROP_LOWIN:
