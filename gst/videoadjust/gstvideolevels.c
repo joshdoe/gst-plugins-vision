@@ -1020,6 +1020,7 @@ gst_videolevels_check_passthrough (GstVideoLevels * levels)
 {
   gboolean passthrough;
   if (levels->bpp_in == 8 &&
+      levels->auto_adjust == GST_VIDEOLEVELS_AUTO_OFF &&
       levels->lower_input == levels->lower_output &&
       levels->upper_input == levels->upper_output) {
     passthrough = TRUE;
