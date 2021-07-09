@@ -63,6 +63,10 @@ enum
   PROP_INTERVAL,
   PROP_LOWER_SATURATION,
   PROP_UPPER_SATURATION,
+  PROP_ROI_X,
+  PROP_ROI_Y,
+  PROP_ROI_WIDTH,
+  PROP_ROI_HEIGHT,
   PROP_LAST
 };
 
@@ -76,6 +80,10 @@ static GParamSpec *properties[PROP_LAST];
 #define DEFAULT_PROP_INTERVAL (GST_SECOND / 2)
 #define DEFAULT_PROP_LOW_SAT 0.01
 #define DEFAULT_PROP_HIGH_SAT 0.01
+#define DEFAULT_PROP_ROI_X -1
+#define DEFAULT_PROP_ROI_Y -1
+#define DEFAULT_PROP_ROI_WIDTH 0
+#define DEFAULT_PROP_ROI_HEIGHT 0
 
 /* the capabilities of the inputs and outputs */
 static GstStaticPadTemplate gst_videolevels_src_template =
@@ -236,6 +244,22 @@ gst_videolevels_class_init (GstVideoLevelsClass * klass)
       g_param_spec_double ("upper-saturation", "Upper saturation",
           "The fraction of the histogram to saturate on the upper end when auto is enabled",
           0, 0.99, DEFAULT_PROP_HIGH_SAT, G_PARAM_READWRITE));
+  g_object_class_install_property (gobject_class, PROP_ROI_X,
+      g_param_spec_int ("roi-x", "ROI x",
+          "Starting column of the ROI when auto is enabled (-1 centers ROI)",
+          -1, G_MAXINT, DEFAULT_PROP_ROI_X, G_PARAM_READWRITE));
+  g_object_class_install_property (gobject_class, PROP_ROI_Y,
+      g_param_spec_int ("roi-y", "ROI y",
+          "Starting row of the ROI when auto is enabled (-1 centers ROI)",
+          -1, G_MAXINT, DEFAULT_PROP_ROI_Y, G_PARAM_READWRITE));
+  g_object_class_install_property (gobject_class, PROP_ROI_WIDTH,
+      g_param_spec_int ("roi-width", "ROI width",
+          "Width of the ROI when auto is enabled (0 uses 1/2 of the image width)",
+          0, G_MAXINT, DEFAULT_PROP_ROI_WIDTH, G_PARAM_READWRITE));
+  g_object_class_install_property (gobject_class, PROP_ROI_HEIGHT,
+      g_param_spec_int ("roi-height", "ROI height",
+          "Height of the ROI when auto is enabled (0 uses 1/2 of the image height)",
+          0, G_MAXINT, DEFAULT_PROP_ROI_HEIGHT, G_PARAM_READWRITE));
 
   gst_element_class_add_pad_template (gstelement_class,
       gst_static_pad_template_get (&gst_videolevels_sink_template));
@@ -325,6 +349,22 @@ gst_videolevels_set_property (GObject * object, guint prop_id,
       videolevels->upper_pix_sat = g_value_get_double (value);
       gst_videolevels_calculate_lut (videolevels);
       break;
+    case PROP_ROI_X:
+      videolevels->roi_x = g_value_get_int (value);
+      videolevels->check_roi = TRUE;
+      break;
+    case PROP_ROI_Y:
+      videolevels->roi_y = g_value_get_int (value);
+      videolevels->check_roi = TRUE;
+      break;
+    case PROP_ROI_WIDTH:
+      videolevels->roi_width = g_value_get_int (value);
+      videolevels->check_roi = TRUE;
+      break;
+    case PROP_ROI_HEIGHT:
+      videolevels->roi_height = g_value_get_int (value);
+      videolevels->check_roi = TRUE;
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -371,6 +411,18 @@ gst_videolevels_get_property (GObject * object, guint prop_id, GValue * value,
       break;
     case PROP_UPPER_SATURATION:
       g_value_set_double (value, videolevels->upper_pix_sat);
+      break;
+    case PROP_ROI_X:
+      g_value_set_int (value, videolevels->roi_x);
+      break;
+    case PROP_ROI_Y:
+      g_value_set_int (value, videolevels->roi_y);
+      break;
+    case PROP_ROI_WIDTH:
+      g_value_set_int (value, videolevels->roi_width);
+      break;
+    case PROP_ROI_HEIGHT:
+      g_value_set_int (value, videolevels->roi_height);
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -597,6 +649,8 @@ gst_videolevels_set_caps (GstBaseTransform * trans, GstCaps * incaps,
 
   levels->nbins = MIN (4096, 1 << levels->bpp_in);
 
+  levels->check_roi = TRUE;
+
   res = gst_videolevels_calculate_lut (levels);
 
   return res;
@@ -717,9 +771,15 @@ gst_videolevels_reset (GstVideoLevels * videolevels)
   videolevels->upper_output = DEFAULT_PROP_HIGHOUT;
   videolevels->lower_pix_sat = DEFAULT_PROP_LOW_SAT;
   videolevels->upper_pix_sat = DEFAULT_PROP_HIGH_SAT;
+  videolevels->roi_x = DEFAULT_PROP_ROI_X;
+  videolevels->roi_y = DEFAULT_PROP_ROI_Y;
+  videolevels->roi_width = DEFAULT_PROP_ROI_WIDTH;
+  videolevels->roi_height = DEFAULT_PROP_ROI_HEIGHT;
 
   videolevels->auto_adjust = DEFAULT_PROP_AUTO;
   videolevels->interval = DEFAULT_PROP_INTERVAL;
+
+  videolevels->check_roi = TRUE;
   videolevels->last_auto_timestamp = GST_CLOCK_TIME_NONE;
 
   /* if GRAY8, this will be set in set_info */
@@ -830,29 +890,67 @@ gst_videolevels_calculate_histogram (GstVideoLevels * videolevels,
   GST_LOG_OBJECT (videolevels, "Calculating histogram");
   if (videolevels->bpp_in > 8) {
     if (endianness == G_BYTE_ORDER) {
-      for (r = 0; r < videolevels->height; r++) {
-        for (c = 0; c < videolevels->width; c++) {
+      for (r = videolevels->roi_y;
+          r < videolevels->roi_y + videolevels->roi_height; r++) {
+        for (c = videolevels->roi_x;
+            c < videolevels->roi_x + videolevels->roi_width; c++) {
           hist[GINT_CLAMP (data[c + r * stride / 2] * factor, 0, nbins - 1)]++;
         }
       }
     } else {
-      for (r = 0; r < videolevels->height; r++) {
-        for (c = 0; c < videolevels->width; c++) {
-          hist[GINT_CLAMP (GUINT16_FROM_BE (data[c +
-                          r * stride / 2]) * factor, 0, nbins - 1)]++;
+      for (r = videolevels->roi_y;
+          r < videolevels->roi_y + videolevels->roi_height; r++) {
+        for (c = videolevels->roi_x;
+            c < videolevels->roi_x + videolevels->roi_width; c++) {
+          hist[GINT_CLAMP (GUINT16_FROM_BE (data[c + r * stride / 2]) * factor,
+                  0, nbins - 1)]++;
         }
       }
     }
   } else {
     guint8 *data8 = (guint8 *) data;
-    for (r = 0; r < videolevels->height; r++) {
-      for (c = 0; c < videolevels->width; c++) {
+    for (r = videolevels->roi_y;
+        r < videolevels->roi_y + videolevels->roi_height; r++) {
+      for (c = videolevels->roi_x;
+          c < videolevels->roi_x + videolevels->roi_width; c++) {
         hist[GINT_CLAMP (data8[c + r * stride / 2] * factor, 0, nbins - 1)]++;
       }
     }
   }
 
   return TRUE;
+}
+
+
+void
+gst_videolevels_check_roi (GstVideoLevels * filt)
+{
+  GST_DEBUG_OBJECT (filt, "ROI before check is (%d, %d, %d, %d)", filt->roi_x,
+      filt->roi_y, filt->roi_width, filt->roi_height);
+
+  /* adjust ROI if defaults are set */
+  if (filt->roi_width <= 0) {
+    filt->roi_width = filt->width / 2;
+  }
+  if (filt->roi_height <= 0) {
+    filt->roi_height = filt->height / 2;
+  }
+  if (filt->roi_x <= -1) {
+    filt->roi_x = (filt->width - filt->roi_width) / 2;
+  }
+  if (filt->roi_y <= -1) {
+    filt->roi_y = (filt->height - filt->roi_height) / 2;
+  }
+
+  /* ensure ROI is within image */
+  filt->roi_x = GINT_CLAMP (filt->roi_x, 0, filt->width - 1);
+  filt->roi_y = GINT_CLAMP (filt->roi_y, 0, filt->height - 1);
+  filt->roi_width = GINT_CLAMP (filt->roi_width, 1, filt->width - filt->roi_x);
+  filt->roi_height =
+      GINT_CLAMP (filt->roi_height, 1, filt->height - filt->roi_y);
+
+  GST_DEBUG_OBJECT (filt, "ROI after check is (%d, %d, %d, %d)", filt->roi_x,
+      filt->roi_y, filt->roi_width, filt->roi_height);
 }
 
 /**
@@ -865,48 +963,54 @@ gst_videolevels_calculate_histogram (GstVideoLevels * videolevels,
 * Returns: TRUE on success
 */
 gboolean
-gst_videolevels_auto_adjust (GstVideoLevels * videolevels, guint16 * data)
+gst_videolevels_auto_adjust (GstVideoLevels * filt, guint16 * data)
 {
   guint npixsat;
   guint sum;
   gint i;
-  gint size;
+  gint pixel_count;
   gint minVal = 0;
-  gint maxVal = (1 << videolevels->bpp_in) - 1;
-  float factor = maxVal / (videolevels->nbins - 1.0f);
-  gst_videolevels_calculate_histogram (videolevels, data);
+  gint maxVal = (1 << filt->bpp_in) - 1;
+  float factor = maxVal / (filt->nbins - 1.0f);
 
-  size = videolevels->width * videolevels->height;
+  if (filt->check_roi) {
+    gst_videolevels_check_roi (filt);
+    filt->check_roi = FALSE;
+  }
+
+  gst_videolevels_calculate_histogram (filt, data);
+
+  pixel_count = filt->roi_width * filt->roi_height;
 
   /* pixels to saturate on low end */
-  npixsat = (guint) (videolevels->lower_pix_sat * size);
+  npixsat = (guint) (filt->lower_pix_sat * pixel_count);
   sum = 0;
-  for (i = 0; i < videolevels->nbins; i++) {
-    sum += videolevels->histogram[i];
+  for (i = 0; i < filt->nbins; i++) {
+    sum += filt->histogram[i];
     if (sum > npixsat) {
-      videolevels->lower_input = (gint) CLAMP (i * factor, minVal, maxVal);
+      filt->lower_input = (gint) CLAMP (i * factor, minVal, maxVal);
       break;
     }
   }
 
   /* pixels to saturate on high end */
-  npixsat = (guint) (videolevels->upper_pix_sat * size);
+  npixsat = (guint) (filt->upper_pix_sat * pixel_count);
   sum = 0;
-  for (i = videolevels->nbins - 1; i >= 0; i--) {
-    sum += videolevels->histogram[i];
+  for (i = filt->nbins - 1; i >= 0; i--) {
+    sum += filt->histogram[i];
     if (sum > npixsat) {
-      videolevels->upper_input = (gint) CLAMP (i * factor, minVal, maxVal);
+      filt->upper_input = (gint) CLAMP (i * factor, minVal, maxVal);
       break;
     }
   }
 
-  gst_videolevels_calculate_lut (videolevels);
+  gst_videolevels_calculate_lut (filt);
 
-  GST_LOG_OBJECT (videolevels, "Contrast stretch with npixsat=%d, (%d, %d)",
-      npixsat, videolevels->lower_input, videolevels->upper_input);
+  GST_LOG_OBJECT (filt, "Contrast stretch with npixsat=%d, (%d, %d)",
+      npixsat, filt->lower_input, filt->upper_input);
 
-  g_object_notify_by_pspec (G_OBJECT (videolevels), properties[PROP_LOWIN]);
-  g_object_notify_by_pspec (G_OBJECT (videolevels), properties[PROP_HIGHIN]);
+  g_object_notify_by_pspec (G_OBJECT (filt), properties[PROP_LOWIN]);
+  g_object_notify_by_pspec (G_OBJECT (filt), properties[PROP_HIGHIN]);
 
   return TRUE;
 }
