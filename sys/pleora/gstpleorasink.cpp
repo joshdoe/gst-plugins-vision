@@ -255,9 +255,6 @@ gst_pleorasink_init (GstPleoraSink * sink)
   sink->source = new GstStreamingChannelSource ();
   sink->source->SetSink (sink);
   sink->device = new PvSoftDeviceGEV ();
-
-  g_mutex_init (&sink->mutex);
-  g_cond_init (&sink->cond);
 }
 
 void
@@ -395,9 +392,6 @@ gst_pleorasink_dispose (GObject * object)
     delete sink->source;
     sink->source = NULL;
   }
-
-  g_mutex_clear (&sink->mutex);
-  g_cond_clear (&sink->cond);
 
   g_free (sink->address);
 
@@ -695,7 +689,6 @@ GstFlowReturn
 gst_pleorasink_render (GstBaseSink * basesink, GstBuffer * buffer)
 {
   GstPleoraSink *sink = GST_PLEORASINK (basesink);
-  GST_LOG_OBJECT (sink, "Rendering buffer");
 
   if (sink->stop_requested) {
     GST_DEBUG_OBJECT (sink, "stop requested, flushing");
@@ -713,10 +706,7 @@ gst_pleorasink_unlock (GstBaseSink * basesink)
 {
   GstPleoraSink *sink = GST_PLEORASINK (basesink);
 
-  g_mutex_lock (&sink->mutex);
   sink->stop_requested = TRUE;
-  g_cond_signal (&sink->cond);
-  g_mutex_unlock (&sink->mutex);
 
   return TRUE;
 }
