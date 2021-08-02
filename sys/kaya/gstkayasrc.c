@@ -799,11 +799,11 @@ gst_kayasrc_stream_buffer_callback (STREAM_BUFFER_HANDLE buffer_handle,
   GST_BUFFER_OFFSET (buf) = src->frame_count;
   src->frame_count++;
 
-  if (src->kaya_base == GST_CLOCK_TIME_NONE) {
-    /* assume delay between these two calls is negligible */
-    src->kaya_base = KYFG_GetGrabberValueInt (src->cam_handle, "Timestamp");
-    src->unix_base = g_get_real_time () * 1000;
-  }
+  //if (src->kaya_base == GST_CLOCK_TIME_NONE) {
+  // assume delay between these two calls is negligible
+  src->kaya_base = KYFG_GetGrabberValueInt (src->cam_handle, "Timestamp");
+  src->unix_base = g_get_real_time () * 1000;
+  //}
 #if GST_CHECK_VERSION(1,14,0)
   {
     GstClockTime unix_ts = src->unix_base + (timestamp - src->kaya_base);
