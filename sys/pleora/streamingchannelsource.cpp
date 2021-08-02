@@ -29,10 +29,24 @@ GST_DEBUG_CATEGORY_EXTERN (pleorasink_debug);
 #define KLV_CHUNKID 0xFEDC
 
 GstStreamingChannelSource::GstStreamingChannelSource ()
-:  mAcquisitionBuffer (NULL), mBufferCount (0), mBufferValid (FALSE),
-    mChunkModeActive(TRUE), mChunkKlvEnabled(TRUE), mKlvChunkSize(0)
+:  mBufferCount (0),
+    mChunkModeActive(TRUE), mChunkKlvEnabled(TRUE), mKlvChunkSize(0),
+    mStreamingStarted(false)
 {
+  mInputQueue = g_async_queue_new ();
+  mOutputQueue = g_async_queue_new ();
+}
 
+void GstStreamingChannelSource::OnStreamingStart()
+{
+  GST_DEBUG_OBJECT(mSink, "Controller has requested streaming start");
+  mStreamingStarted = true;
+}
+
+void GstStreamingChannelSource::OnStreamingStop()
+{
+  GST_DEBUG_OBJECT(mSink, "Controller has requested streaming stop");
+  mStreamingStarted = false;
 }
 
 void
@@ -128,8 +142,12 @@ gboolean GstStreamingChannelSource::GetKlvEnabled()
 PvBuffer * GstStreamingChannelSource::AllocBuffer ()
 {
   if (mBufferCount < mSink->num_internal_buffers) {
+    GST_LOG_OBJECT(mSink, "Allocating buffer #%d", mBufferCount);
+    PvBuffer *buf = new PvBuffer;
+    buf->SetID(mBufferCount);
     mBufferCount++;
-    return new PvBuffer;
+
+    return buf;
   }
   return NULL;
 }
@@ -142,39 +160,21 @@ void GstStreamingChannelSource::FreeBuffer (PvBuffer * aBuffer)
 
 PvResult GstStreamingChannelSource::QueueBuffer (PvBuffer * aBuffer)
 {
-  g_mutex_lock (&mSink->mutex);
-  if (mAcquisitionBuffer == NULL) {
-    // No buffer queued, accept it
-    mAcquisitionBuffer = aBuffer;
-    mBufferValid = FALSE;
-    g_mutex_unlock (&mSink->mutex);
-    return PvResult::Code::OK;
-  }
-  g_mutex_unlock (&mSink->mutex);
-  return PvResult::Code::BUSY;
+  GST_LOG_OBJECT(mSink, "Pushing buffer #%d to input queue", aBuffer->GetID());
+  g_async_queue_push(mInputQueue, aBuffer);
+  return PvResult::Code::OK;
 }
 
-PvResult GstStreamingChannelSource::RetrieveBuffer (PvBuffer ** aBuffer)
+PvResult GstStreamingChannelSource::RetrieveBuffer(PvBuffer** aBuffer)
 {
-  gint64 end_time;
-
-  g_mutex_lock (&mSink->mutex);
-  // WAIT for buffer
-  end_time = g_get_monotonic_time () + 50 * G_TIME_SPAN_MILLISECOND;
-  while ((mAcquisitionBuffer == NULL || !mBufferValid)
-      && !mSink->stop_requested) {
-    if (!g_cond_wait_until (&mSink->cond, &mSink->mutex, end_time)) {
-      // No buffer queued for acquisition
-      g_mutex_unlock (&mSink->mutex);
-      return PvResult::Code::NO_AVAILABLE_DATA;
-    }
+  guint64 timeout_ms = 50;
+  *aBuffer = (PvBuffer*)(g_async_queue_timeout_pop(mOutputQueue, timeout_ms * 1000));
+  if (!*aBuffer) {
+    GST_WARNING_OBJECT(mSink, "No buffers available in output queue after %llu ms, possibly slow video framerate", timeout_ms);
+    return PvResult::Code::NO_AVAILABLE_DATA;
   }
-  // Remove buffer from 1-deep pipeline
-  *aBuffer = mAcquisitionBuffer;
-  mAcquisitionBuffer = NULL;
-  mBufferValid = FALSE;
-  g_mutex_unlock (&mSink->mutex);
 
+  GST_LOG_OBJECT (mSink, "Returning buffer #%llu from output queue to GEV streaming thread", (*aBuffer)->GetID());
   return PvResult::Code::OK;
 }
 
@@ -237,22 +237,21 @@ GstStreamingChannelSource::SetBuffer (GstBuffer * buf)
 {
   GByteArray * klv_byte_array = NULL;
 
-  GST_LOG_OBJECT (mSink, "SetBuffer");
+  PvBuffer* pvBuffer;
 
-  g_mutex_lock (&mSink->mutex);
-
-  if (mAcquisitionBuffer == NULL) {
-    GST_WARNING_OBJECT (mSink, "No PvBuffer available to fill, dropping frame");
-    g_mutex_unlock (&mSink->mutex);
+  guint64 timeout_ms = 50;
+  pvBuffer = (PvBuffer*)(g_async_queue_timeout_pop (mInputQueue, timeout_ms * 1000));
+  if (!pvBuffer) {
+    if (mStreamingStarted) {
+      GST_WARNING_OBJECT(mSink, "No free buffers, dropping frame. No consumers connected, or insufficient network bandwidth. Try increasing num-internal-buffers and/or packet-size.");
+    }
+    else {
+      GST_LOG_OBJECT(mSink, "Dropping frame as no controller has requested streaming to start");
+    }
     return;
   }
 
-  if (mBufferValid) {
-    GST_WARNING_OBJECT (mSink,
-        "Buffer already filled, dropping incoming frame");
-    g_mutex_unlock (&mSink->mutex);
-    return;
-  }
+  GST_LOG_OBJECT(mSink, "Got buffer #%llu from input queue to fill with video data", pvBuffer->GetID());
 
   if (mChunkKlvEnabled) {
       klv_byte_array = GetKlvByteArray (buf);
@@ -263,31 +262,31 @@ GstStreamingChannelSource::SetBuffer (GstBuffer * buf)
       }
   }
 
-  ResizeBufferIfNeeded (mAcquisitionBuffer);
+  ResizeBufferIfNeeded (pvBuffer);
 
   /* TODO: avoid memcpy (when strides align) by attaching to PvBuffer */
   GstMapInfo minfo;
   gst_buffer_map (buf, &minfo, GST_MAP_READ);
 
 
-  guint8 *dst = mAcquisitionBuffer->GetDataPointer ();
+  guint8 *dst = pvBuffer->GetDataPointer ();
   if (!dst) {
     GST_ERROR_OBJECT (mSink, "Have buffer to fill, but data pointer is invalid");
-    g_mutex_unlock (&mSink->mutex);
+    //g_mutex_unlock (&mSink->mutex);
     return;
   }
-  g_assert (mAcquisitionBuffer->GetSize () >= minfo.size);
+  g_assert (pvBuffer->GetSize () >= minfo.size);
   /* TODO: fix stride if needed */
   memcpy (dst, minfo.data, minfo.size);
 
   gst_buffer_unmap (buf, &minfo);
 
-  mAcquisitionBuffer->ResetChunks();
-  mAcquisitionBuffer->SetChunkLayoutID(CHUNKLAYOUTID);
+  pvBuffer->ResetChunks();
+  pvBuffer->SetChunkLayoutID(CHUNKLAYOUTID);
 
   if (mChunkKlvEnabled && klv_byte_array && klv_byte_array->len > 0) {
     PvResult pvRes;
-    pvRes = mAcquisitionBuffer->AddChunk (KLV_CHUNKID, (uint8_t*)klv_byte_array->data, klv_byte_array->len);
+    pvRes = pvBuffer->AddChunk (KLV_CHUNKID, (uint8_t*)klv_byte_array->data, klv_byte_array->len);
     if (pvRes.IsOK ()) {
         GST_LOG_OBJECT (mSink, "Added KLV as chunk data (len=%d)", klv_byte_array->len);
     } else {
@@ -301,10 +300,8 @@ GstStreamingChannelSource::SetBuffer (GstBuffer * buf)
       g_byte_array_unref (klv_byte_array);
   }
 
-  mBufferValid = TRUE;
-  g_cond_signal (&mSink->cond);
-
-  g_mutex_unlock (&mSink->mutex);
+  GST_LOG_OBJECT(mSink, "Pushing buffer #%d to output queue", pvBuffer->GetID());
+  g_async_queue_push(mOutputQueue, pvBuffer);
 }
 
 GByteArray * GstStreamingChannelSource::GetKlvByteArray (GstBuffer * buf)

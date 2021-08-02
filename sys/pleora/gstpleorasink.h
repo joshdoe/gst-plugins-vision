@@ -62,8 +62,6 @@ struct _GstPleoraSink
   gboolean camera_connected;
   GstVideoInfo vinfo;
   
-  GMutex mutex;
-  GCond cond;
   gboolean acquisition_started;
   gboolean stop_requested;
 

@@ -26,6 +26,9 @@ class GstStreamingChannelSource:public PvStreamingChannelSourceDefault
 public:
     GstStreamingChannelSource ();
 
+    void OnStreamingStart();
+    void OnStreamingStop();
+
     void SetSink (GstPleoraSink * sink);
     void SetCaps (GstCaps * caps);
     void ResizeBufferIfNeeded (PvBuffer * aBuffer);
@@ -55,8 +58,8 @@ public:
 
 private:
     GstPleoraSink * mSink;
-    PvBuffer *mAcquisitionBuffer;
-    gboolean mBufferValid;
+    GAsyncQueue* mInputQueue;
+    GAsyncQueue* mOutputQueue;
     gint mBufferCount;
 
     gint mWidth;
@@ -67,4 +70,6 @@ private:
     bool mChunkKlvEnabled;
 
     gint mKlvChunkSize;
+
+    bool mStreamingStarted;
 };
