@@ -142,6 +142,7 @@ typedef enum _GST_PYLONSRC_PROP
   PROP_GAMMA,
   PROP_RESET,
   PROP_TESTIMAGE,
+  PROP_TESTIMAGESOURCE,
   PROP_CONTINUOUSMODE,
   PROP_PIXEL_FORMAT,
   PROP_USERID,
@@ -337,6 +338,7 @@ ascii_strdown (gchar * *str, gssize len)
 #define DEFAULT_PROP_GAMMA                            1.0
 #define DEFAULT_PROP_RESET                            "off"
 #define DEFAULT_PROP_TESTIMAGE                        0
+#define DEFAULT_PROP_TESTIMAGESOURCE                  ""
 #define DEFAULT_PROP_CONTINUOUSMODE                   TRUE
 #define DEFAULT_PROP_PIXEL_FORMAT                     "auto"
 #define DEFAULT_PROP_USERID                           ""
@@ -584,6 +586,11 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
           "(1-6) Specifies a test image to show instead of a video stream. Useful for debugging. Will be disabled by default.",
           0, 6, DEFAULT_PROP_TESTIMAGE,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+  g_object_class_install_property (gobject_class, PROP_TESTIMAGESOURCE,
+      g_param_spec_string ("testimagesource", "Test image source",
+          "Specifies a test image (or image directory) to show instead of a video stream. Useful for debugging. Will be disabled by default.",
+          DEFAULT_PROP_TESTIMAGESOURCE,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_CONTINUOUSMODE,
       g_param_spec_boolean ("continuous", "Continuous mode",
           "(true/false) Used to switch between triggered and continuous mode. To switch to triggered mode this parameter has to be switched to false.",
@@ -814,6 +821,7 @@ gst_pylonsrc_init (GstPylonSrc * src)
   src->cameraId = DEFAULT_PROP_CAMERA;
   src->maxBandwidth = DEFAULT_PROP_MAXBANDWIDTH;
   src->testImage = DEFAULT_PROP_TESTIMAGE;
+  src->testImageSource = g_strdup (DEFAULT_PROP_TESTIMAGESOURCE);
   src->sensorMode = g_strdup (DEFAULT_PROP_SENSORREADOUTMODE);
   src->lightsource = g_strdup (DEFAULT_PROP_LIGHTSOURCE);
 
@@ -981,6 +989,10 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
       break;
     case PROP_TESTIMAGE:
       src->testImage = g_value_get_int (value);
+      break;
+    case PROP_TESTIMAGESOURCE:
+      g_free (src->testImageSource);
+      src->testImageSource = g_value_dup_string (value);
       break;
     case PROP_SENSORREADOUTMODE:
       g_free (src->sensorMode);
@@ -1253,6 +1265,9 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_TESTIMAGE:
       g_value_set_int (value, src->testImage);
+      break;
+    case PROP_TESTIMAGESOURCE:
+      g_value_set_string (value, src->testImageSource);
       break;
     case PROP_SENSORREADOUTMODE:
       g_value_set_string (value, src->sensorMode);
@@ -2127,6 +2142,31 @@ gst_pylonsrc_set_test_image (GstPylonSrc * src)
       }
     }
     reset_prop (src, PROP_TESTIMAGE);
+  }
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gst_pylonsrc_set_test_image_source (GstPylonSrc * src)
+{
+  if (is_prop_implicit (src, PROP_TESTIMAGESOURCE)) {
+    // Set whether test image will be shown
+    if (feature_supported (src, "ImageFilename")) {
+      GENAPIC_RESULT res;
+      res = PylonDeviceFeatureFromString(src->deviceHandle, "TestImageSelector", "Off");
+      PYLONC_CHECK_ERROR(src, res);
+      /* Enable custom test images */
+      res = PylonDeviceFeatureFromString(src->deviceHandle, "ImageFileMode", "On");
+      PYLONC_CHECK_ERROR(src, res);
+
+      GST_DEBUG_OBJECT (src, "Test image source enabled and set to %s", src->testImageSource);
+      res = PylonDeviceFeatureFromString(src->deviceHandle, "ImageFilename", src->testImageSource);
+      PYLONC_CHECK_ERROR (src, res);
+    }
+    reset_prop (src, PROP_TESTIMAGESOURCE);
   }
   return TRUE;
 
@@ -3998,6 +4038,7 @@ gst_pylonsrc_set_properties (GstPylonSrc * src)
       gst_pylonsrc_set_reverse (src) &&
       gst_pylonsrc_set_pixel_format (src) &&
       gst_pylonsrc_set_test_image (src) &&
+      gst_pylonsrc_set_test_image_source (src) &&
       gst_pylonsrc_set_packetsize (src) &&
       gst_pylonsrc_set_interPacketDelay (src) &&
       gst_pylonsrc_set_frameTransDelay (src) &&
