@@ -108,7 +108,7 @@ struct _GstPylonSrc
   gint maxSize[2];
   gint offset[2];
   gchar *pixel_format, *sensorMode, *lightsource, *reset, *autoprofile,
-      *transformationselector, *userid;
+      *transformationselector, *userid, *testImageSource;
   gchar *autoFeature[GST_PYLONSRC_NUM_AUTO_FEATURES];
   gchar *configFile;
   GST_PYLONSRC_PROPERTY_STATE propFlags[GST_PYLONSRC_NUM_PROPS];
