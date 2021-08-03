@@ -2174,7 +2174,8 @@ error:
 static gboolean
 gst_pylonsrc_set_test_image_source (GstPylonSrc * src)
 {
-  if (!(is_prop_default (src, PROP_TESTIMAGESOURCE))) {
+  if (is_prop_implicit (src, PROP_TESTIMAGESOURCE) &&
+      !(is_prop_default (src, PROP_TESTIMAGESOURCE))) {
     // Set whether test image will be shown
     if (feature_supported (src, "ImageFilename")) {
       GENAPIC_RESULT res;
