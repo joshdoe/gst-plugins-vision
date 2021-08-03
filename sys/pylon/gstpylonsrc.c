@@ -4132,13 +4132,13 @@ gst_pylonsrc_create (GstPushSrc * psrc, GstBuffer ** buf)
     if (grabResult.Status != Grabbed) {
       src->failedFrames += 1;
       GST_WARNING_OBJECT (src,
-          "Failed capture count=%d. Status=%d, ErrorCode=%d", src->failedFrames,
+          "Failed capture count=%d. Status=%d, ErrorCode=0x%.8X", src->failedFrames,
           grabResult.Status, grabResult.ErrorCode);
     } else
       src->failedFrames = 0;
   } else {
     GST_ERROR_OBJECT (src,
-        "Error in the image processing loop. Status=%d, ErrorCode=%d",
+        "Error in the image processing loop. Status=%d, ErrorCode=0x%.8X",
         grabResult.Status, grabResult.ErrorCode);
     goto error;
   }
