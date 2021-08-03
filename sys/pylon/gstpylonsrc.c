@@ -4322,8 +4322,7 @@ pylonc_print_camera_info (GstPylonSrc * src, PYLON_DEVICE_HANDLE deviceHandle,
   size_t siz = 0;
   GENAPIC_RESULT res;
 
-  if (PylonDeviceFeatureIsReadable (deviceHandle, "DeviceModelName")
-      && PylonDeviceFeatureIsReadable (deviceHandle, "DeviceSerialNumber")) {
+  if (PylonDeviceFeatureIsAvailable (deviceHandle, "DeviceModelName")) {
     siz = sizeof (name);
     res =
         PylonDeviceFeatureToString (deviceHandle, "DeviceModelName", name,
