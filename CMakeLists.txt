@@ -117,6 +117,11 @@ macro_log_feature(SAPERA_FOUND "Teledyne DALSA Sapera" "Required to build Teledy
 find_package(XCLIB)
 macro_log_feature(XCLIB_FOUND "EPIX PIXCI" "Required to build EPIX PIXCI source element" "http://www.epixinc.com/" FALSE)
 
+if (WIN32)
+  # Windows distributions of GStreamer include ZLIB
+  set(ZLIB_ROOT ${GSTREAMER_ROOT})
+endif ()
+find_package(ZLIB)
 
 # Setup common environment
 include_directories(

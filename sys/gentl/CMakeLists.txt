@@ -23,7 +23,7 @@ target_link_libraries (${libname}
   ${GSTREAMER_LIBRARY}
   ${GSTREAMER_BASE_LIBRARY}
   ${GSTREAMER_VIDEO_LIBRARY}
-  ${GSTREAMER_INCLUDE_DIR}/../../lib/z.lib
+  ${ZLIB_LIBRARIES}
   )
 
 if (WIN32)
