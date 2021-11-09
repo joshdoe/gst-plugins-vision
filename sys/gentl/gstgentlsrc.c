@@ -417,8 +417,8 @@ gst_gentlsrc_class_init (GstGenTlSrcClass * klass)
 static void
 gst_gentlsrc_reset (GstGenTlSrc * src)
 {
-  src->gentl_latched_ticks = 0;
-  src->unix_latched_time = 0;
+  src->gentl_latched_ns = 0;
+  src->unix_latched_ns = 0;
 
   src->error_string[0] = 0;
   src->last_frame_count = 0;
@@ -915,8 +915,9 @@ gst_gentlsrc_src_latch_timestamps (GstGenTlSrc * src)
   gev_ts = gst_gentlsrc_get_gev_timestamp_ticks (src);
 
   if (gev_ts != 0) {
-    src->unix_latched_time = unix_ts;
-    src->gentl_latched_ticks = gev_ts;
+    src->unix_latched_ns = unix_ts;
+    src->gentl_latched_ns = ((gint64)
+      (gev_ts * ((double)GST_SECOND / src->tick_frequency)));;
   } else {
     GST_WARNING_OBJECT (src, "Failed to latch GEV time, using old latch value");
   }
@@ -1611,7 +1612,7 @@ gst_gentlsrc_get_buffer (GstGenTlSrc * src)
   guint8 *data_ptr;
   GstMapInfo minfo;
   GstClockTime unix_ts;
-  uint64_t buf_timestamp_ticks;
+  uint64_t buf_timestamp_ticks, buf_timestamp_ns;
 
 
   /* sometimes we get non-image payloads, try several times for an image */
@@ -1641,12 +1642,21 @@ gst_gentlsrc_get_buffer (GstGenTlSrc * src)
     goto error;
   }
 
-  datasize = sizeof (buf_timestamp_ticks);
+  datasize = sizeof (buf_timestamp_ns);
   ret =
       GTL_DSGetBufferInfo (src->hDS, new_buffer_data.BufferHandle,
-      BUFFER_INFO_TIMESTAMP, &datatype, &buf_timestamp_ticks, &datasize);
-  HANDLE_GTL_ERROR ("Failed to get buffer timestamp");
-  GST_LOG_OBJECT (src, "Buffer GentTL timestamp: %llu", buf_timestamp_ticks);
+      BUFFER_INFO_TIMESTAMP_NS, &datatype, &buf_timestamp_ns, &datasize);
+  if (ret == GC_ERR_SUCCESS) {
+    GST_LOG_OBJECT(src, "Buffer GentTL timestamp: %llu ns", buf_timestamp_ns);
+  } else {
+    ret =
+      GTL_DSGetBufferInfo(src->hDS, new_buffer_data.BufferHandle,
+        BUFFER_INFO_TIMESTAMP, &datatype, &buf_timestamp_ticks, &datasize);
+    HANDLE_GTL_ERROR("Failed to get buffer timestamp");
+    buf_timestamp_ns = (gint64)
+      (buf_timestamp_ticks * ((double)GST_SECOND / src->tick_frequency));
+    GST_LOG_OBJECT(src, "Buffer GentTL timestamp: %llu ticks, %llu ns", buf_timestamp_ticks, buf_timestamp_ns);
+  }
 
   datasize = sizeof (frame_id);
   ret =
@@ -1695,17 +1705,14 @@ gst_gentlsrc_get_buffer (GstGenTlSrc * src)
 
   if (src->tick_frequency) {
     gint64 nanoseconds_after_latch;
-    gint64 ticks_after_latch;
 
     /* resync system clock and buffer clock periodically */
-    if (GST_CLOCK_DIFF (src->unix_latched_time, get_unix_ns ()) > GST_SECOND) {
+    if (GST_CLOCK_DIFF (src->unix_latched_ns, get_unix_ns ()) > GST_SECOND) {
       gst_gentlsrc_src_latch_timestamps (src);
     }
 
-    ticks_after_latch = buf_timestamp_ticks - src->gentl_latched_ticks;
-    nanoseconds_after_latch = (gint64)
-        (ticks_after_latch * ((double) GST_SECOND / src->tick_frequency));
-    unix_ts = src->unix_latched_time + nanoseconds_after_latch;
+    nanoseconds_after_latch = buf_timestamp_ns - src->gentl_latched_ns;
+    unix_ts = src->unix_latched_ns + nanoseconds_after_latch;
     GST_LOG_OBJECT (src, "Adding Unix timestamp: %llu", unix_ts);
     gst_buffer_add_reference_timestamp_meta (buf,
         gst_static_caps_get (&unix_reference), unix_ts, GST_CLOCK_TIME_NONE);

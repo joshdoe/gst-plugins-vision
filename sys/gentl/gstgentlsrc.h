@@ -105,8 +105,8 @@ struct _GstGenTlSrc
   guint32 total_dropped_frames;
 
   guint64 tick_frequency;
-  guint64 unix_latched_time;
-  guint64 gentl_latched_ticks;
+  guint64 unix_latched_ns;
+  guint64 gentl_latched_ns;
 
   GstCaps *caps;
   gint height;
