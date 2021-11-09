@@ -45,6 +45,7 @@ struct _GstGenTlProducer
 {
   gchar* cti_path;
   guint32 acquisition_mode_value;
+  guint32 timestamp_control_latch_value;
 
   guint64 width;
   guint64 height;
@@ -55,9 +56,11 @@ struct _GstGenTlProducer
   guint64 acquisition_stop;
   guint64 tick_frequency_low;
   guint64 tick_frequency_high;
-  guint64 timestamp_control_latch;
-  guint64 timestamp_low;
-  guint64 timestamp_high;
+  guint64 timestamp_control_latch;  // GevTimestampControlLatch
+  guint64 timestamp;                // TimestampLatchValue
+  guint64 timestamp_low;            // GevTimestampValueLow
+  guint64 timestamp_high;           // GevTimestampValueHigh
+  guint16 port_endianness;
 };
 
 
@@ -71,6 +74,7 @@ struct _GstGenTlProducer
 typedef enum {
   GST_GENTLSRC_PRODUCER_BASLER,
   GST_GENTLSRC_PRODUCER_EVT,
+  GST_GENTLSRC_PRODUCER_FLIR,
 } GstGenTlSrcProducer;
 
 
