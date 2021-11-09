@@ -1512,7 +1512,6 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
     src->caps =
         gst_genicam_pixel_format_caps_from_pixel_format (genicam_pixfmt,
         G_LITTLE_ENDIAN, width, height, 30, 1, 1, 1);
-    gst_video_info_from_caps (&vinfo, src->caps);
     if (!src->caps) {
       GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
           ("Unknown or unsupported pixel format (%s).", genicam_pixfmt),
@@ -1520,8 +1519,11 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
       goto error;
     }
 
-    src->height = vinfo.height;
-    src->gst_stride = GST_VIDEO_INFO_COMP_STRIDE (&vinfo, 0);
+    src->height = height;
+    src->gst_stride =
+        gst_genicam_pixel_format_get_stride (genicam_pixfmt, G_LITTLE_ENDIAN,
+        width);
+    GST_DEBUG_OBJECT (src, "Height=%d, stride=%d", src->height, src->gst_stride);
   }
 
   if (!gst_gentlsrc_prepare_buffers (src)) {
@@ -1827,7 +1829,15 @@ gst_gentlsrc_get_buffer (GstGenTlSrc * src)
 
   // TODO: what if strides aren't same?
 
-  buf = gst_buffer_new_allocate (NULL, buffer_size, NULL);
+  guint64 image_size = (size_t) src->height * src->gst_stride;
+  if (buffer_size < image_size) {
+    GST_ELEMENT_ERROR (src, STREAM, TOO_LAZY,
+        ("Buffer size (%d) is smaller than expected image size (%llu)",
+            buffer_size, image_size), (NULL));
+    goto error;
+  }
+
+  buf = gst_buffer_new_allocate (NULL, image_size, NULL);
   if (!buf) {
     GST_ELEMENT_ERROR (src, STREAM, TOO_LAZY,
         ("Failed to allocate buffer"), (NULL));
