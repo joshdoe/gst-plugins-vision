@@ -1467,6 +1467,9 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
       case 0x01100005:
         genicam_pixfmt = "Mono12";
         break;
+      case 0x1100007:
+        genicam_pixfmt = "Mono16";
+        break;
       case 0x1100010:          // Basler Ace
         genicam_pixfmt = "BayerGR12";
         break;
@@ -1475,6 +1478,12 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
         break;
       case 0x01100011:
         genicam_pixfmt = "BayerRG12";
+        break;
+      case 0x0110002E:
+        genicam_pixfmt = "BayerGR16";
+        break;
+      case 0x0110002F:
+        genicam_pixfmt = "BayerRG16";
         break;
       case 0x02180014:
         genicam_pixfmt = "RGB8Packed";
@@ -1490,7 +1499,7 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
         break;
       default:
         GST_ELEMENT_ERROR (src, RESOURCE, TOO_LAZY,
-            ("Unrecognized PixelFormat enum value: %d", pixfmt_enum), (NULL));
+            ("Unrecognized PixelFormat enum value: 0x%x", pixfmt_enum), (NULL));
         goto error;
     }
 
