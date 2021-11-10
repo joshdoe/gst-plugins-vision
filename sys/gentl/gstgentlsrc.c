@@ -734,6 +734,7 @@ gst_gentl_print_device_info (GstGenTlSrc * src, uint32_t index)
   gint32 access_status;
   INFO_DATATYPE datatype;
 
+  str_size = GTL_MAX_STR_SIZE;
   ret = GTL_IFGetDeviceID (src->hIF, index, dev_id, &str_size);
   if (ret != GC_ERR_SUCCESS) {
     GST_WARNING_OBJECT (src, "Failed to get device id: %s",
@@ -1245,6 +1246,7 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
   ret = GTL_IFGetNumDevices (src->hIF, &num_devs);
   HANDLE_GTL_ERROR ("Failed to get number of devices");
   if (num_devs > 0) {
+    GST_DEBUG_OBJECT (src, "Found %d devices on interface", num_devs);
     for (i = 0; i < num_devs; ++i) {
       gst_gentl_print_device_info (src, i);
     }
@@ -1523,7 +1525,8 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
     src->gst_stride =
         gst_genicam_pixel_format_get_stride (genicam_pixfmt, G_LITTLE_ENDIAN,
         width);
-    GST_DEBUG_OBJECT (src, "Height=%d, stride=%d", src->height, src->gst_stride);
+    GST_DEBUG_OBJECT (src, "Height=%d, stride=%d", src->height,
+        src->gst_stride);
   }
 
   if (!gst_gentlsrc_prepare_buffers (src)) {
