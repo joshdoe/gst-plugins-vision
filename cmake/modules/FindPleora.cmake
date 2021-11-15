@@ -16,29 +16,34 @@ if (NOT Pleora_DIR)
     set (Pleora_DIR $ENV{PUREGEV_ROOT} CACHE PATH "Directory containing Pleora SDK includes and libraries")
 endif ()
 
-if (CMAKE_SIZEOF_VOID_P MATCHES "8")
+if (WIN32 AND CMAKE_SIZEOF_VOID_P MATCHES "8")
     set(_LIB_SUFFIX "64")
 else ()
     set(_LIB_SUFFIX "")
 endif ()
 
-set(_Pleora_PATHS PATHS
+set (_Pleora_PATHS PATHS
   "${Pleora_DIR}"
   "C:/Program Files/Pleora Technologies Inc/eBUS SDK/Includes"
   "C:/Program Files (x86)/Pleora Technologies Inc/eBUS SDK/Includes")
 
 find_path (Pleora_INCLUDE_DIR PvBase.h
     PATHS ${_Pleora_PATHS}
-    PATH_SUFFIXES Includes)
+    PATH_SUFFIXES Includes include)
+message (STATUS "Found Pleora include dir in ${Pleora_INCLUDE_DIR}")
 
-find_path (Pleora_LIBRARY_DIR PvBase${_LIB_SUFFIX}.lib
+find_path (Pleora_LIBRARY_DIR NAMES libPvBase.so "PvBase${_LIB_NAME}"
     PATHS ${_Pleora_PATHS}
-    PATH_SUFFIXES Libraries)
+    PATH_SUFFIXES Libraries lib)
 
-find_library (Pleora_LIBRARY_BASE PvBase${_LIB_SUFFIX} ${Pleora_LIBRARY_DIR})
-find_library (Pleora_LIBRARY_DEVICE PvDevice${_LIB_SUFFIX} ${Pleora_LIBRARY_DIR})
+message (STATUS "Found Pleora library in ${Pleora_LIBRARY_DIR}")
 
-set (Pleora_LIBRARIES ${Pleora_LIBRARY_BASE} ${Pleora_LIBRARY_DEVICE})
+find_library (Pleora_LIBRARY_BASE "PvBase${_LIB_SUFFIX}" ${Pleora_LIBRARY_DIR})
+find_library (Pleora_LIBRARY_DEVICE "PvDevice${_LIB_SUFFIX}" ${Pleora_LIBRARY_DIR})
+find_library (Pleora_LIBRARY_PERSISTENCE "PvPersistence${_LIB_SUFFIX}" ${Pleora_LIBRARY_DIR})
+find_library (Pleora_LIBRARY_VIRTUAL_DEVICE "PvVirtualDevice${_LIB_SUFFIX}" ${Pleora_LIBRARY_DIR})
+
+set (Pleora_LIBRARIES ${Pleora_LIBRARY_BASE} ${Pleora_LIBRARY_DEVICE} ${Pleora_LIBRARY_PERSISTENCE} ${Pleora_LIBRARY_VIRTUAL_DEVICE})
 
 if (Pleora_INCLUDE_DIR)
   file(STRINGS "${Pleora_INCLUDE_DIR}/PvVersion.h" _pleora_VERSION_CONTENTS REGEX "#define NVERSION_STRING")

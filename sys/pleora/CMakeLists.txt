@@ -2,6 +2,10 @@ if (ENABLE_KLV)
   add_definitions(-DGST_PLUGINS_VISION_ENABLE_KLV)
 endif ()
 
+if (UNIX)
+  add_definitions(-D_UNIX_)
+endif ()
+
 add_definitions(-D_XKEYCHECK_H)
 
 set (SOURCES
@@ -42,6 +46,7 @@ set (LIBRARIES
   ${GSTREAMER_LIBRARY}
   ${GSTREAMER_BASE_LIBRARY}
   ${GSTREAMER_VIDEO_LIBRARY}
+  ${Pleora_LIBRARIES}
   )
 
 if (ENABLE_KLV)
