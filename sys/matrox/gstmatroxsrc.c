@@ -510,8 +510,10 @@ gst_matroxsrc_start (GstBaseSrc * bsrc)
         &src->MilDigitizer);
   }
   if (ret == M_NULL) {
+    MIL_TEXT_CHAR err_msg[M_ERROR_MESSAGE_SIZE];
+    MappGetError (M_DEFAULT, M_CURRENT | M_MESSAGE, err_msg);
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-        ("Failed to allocate a MIL digitizer"), (NULL));
+        ("Failed to allocate a MIL digitizer: %s", err_msg), (NULL));
     goto error;
   }
 
