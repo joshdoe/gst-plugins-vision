@@ -98,6 +98,7 @@ struct _GstGenTlSrc
   gchar *interface_id;
   guint device_index;
   gchar *device_id;
+  gchar *device_user_id;
   guint stream_index;
   gchar *stream_id;
   guint num_capture_buffers;

@@ -171,6 +171,7 @@ enum
   PROP_INTERFACE_ID,
   PROP_DEVICE_INDEX,
   PROP_DEVICE_ID,
+  PROP_DEVICE_USER_ID,
   PROP_STREAM_INDEX,
   PROP_STREAM_ID,
   PROP_NUM_CAPTURE_BUFFERS,
@@ -183,6 +184,7 @@ enum
 #define DEFAULT_PROP_INTERFACE_ID ""
 #define DEFAULT_PROP_DEVICE_INDEX 0
 #define DEFAULT_PROP_DEVICE_ID ""
+#define DEFAULT_PROP_DEVICE_USER_ID ""
 #define DEFAULT_PROP_STREAM_INDEX 0
 #define DEFAULT_PROP_STREAM_ID ""
 #define DEFAULT_PROP_NUM_CAPTURE_BUFFERS 3
@@ -409,6 +411,12 @@ gst_gentlsrc_class_init (GstGenTlSrcClass * klass)
           DEFAULT_PROP_DEVICE_ID,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
               GST_PARAM_MUTABLE_READY)));
+  g_object_class_install_property (gobject_class, PROP_DEVICE_USER_ID,
+      g_param_spec_string ("device-user-id", "Device User ID",
+          "Device User ID, overrides all other interface/device properties",
+          DEFAULT_PROP_DEVICE_USER_ID,
+          (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+              GST_PARAM_MUTABLE_READY)));
   g_object_class_install_property (gobject_class, PROP_STREAM_INDEX,
       g_param_spec_uint ("stream-index", "Stream index",
           "Stream index number, zero-based, overridden by stream-id",
@@ -511,6 +519,10 @@ gst_gentlsrc_set_property (GObject * object, guint property_id,
       g_free (src->device_id);
       src->device_id = g_strdup (g_value_get_string (value));
       break;
+    case PROP_DEVICE_USER_ID:
+      g_free (src->device_user_id);
+      src->device_user_id = g_strdup (g_value_get_string (value));
+      break;
     case PROP_STREAM_INDEX:
       src->stream_index = g_value_get_uint (value);
       break;
@@ -559,6 +571,9 @@ gst_gentlsrc_get_property (GObject * object, guint property_id,
       break;
     case PROP_DEVICE_ID:
       g_value_set_string (value, src->device_id);
+      break;
+    case PROP_DEVICE_USER_ID:
+      g_value_set_string (value, src->device_user_id);
       break;
     case PROP_STREAM_INDEX:
       g_value_set_uint (value, src->stream_index);
@@ -731,6 +746,7 @@ gst_gentl_print_device_info (GstGenTlSrc * src, uint32_t index)
   char model[GTL_MAX_STR_SIZE];
   char tl_type[GTL_MAX_STR_SIZE];
   char display_name[GTL_MAX_STR_SIZE];
+  char user_defined_name[GTL_MAX_STR_SIZE];
   gint32 access_status;
   INFO_DATATYPE datatype;
 
@@ -757,13 +773,17 @@ gst_gentl_print_device_info (GstGenTlSrc * src, uint32_t index)
   str_size = GTL_MAX_STR_SIZE;
   GTL_IFGetDeviceInfo (src->hIF, dev_id, DEVICE_INFO_DISPLAYNAME, &datatype,
       display_name, &str_size);
+  str_size = GTL_MAX_STR_SIZE;
+  GTL_IFGetDeviceInfo (src->hIF, dev_id, DEVICE_INFO_USER_DEFINED_NAME,
+      &datatype, user_defined_name, &str_size);
   str_size = sizeof (access_status);
   GTL_IFGetDeviceInfo (src->hIF, dev_id, DEVICE_INFO_ACCESS_STATUS, &datatype,
       &access_status, &str_size);
 
   GST_DEBUG_OBJECT (src,
-      "Device %d: ID=%s, Vendor=%s, Model=%s, TL_Type=%s, Display_Name=%s, Access_Status=%d",
-      index, id, vendor, model, tl_type, display_name, access_status);
+      "Device %d: ID=%s, Vendor=%s, Model=%s, TL_Type=%s, Display_Name=%s, User_Name=%s, Access_Status=%d",
+      index, id, vendor, model, tl_type, display_name, user_defined_name,
+      access_status);
 }
 
 //void gst_gentl_print_stream_info (GstGenTlSrc * src)
@@ -1196,6 +1216,104 @@ error:
   return FALSE;
 }
 
+static void
+gst_gentlsrc_close_interface (GstGenTlSrc * src)
+{
+  if (src->hIF) {
+    GTL_IFClose (src->hIF);
+    src->hIF = NULL;
+  }
+}
+
+static void
+get_gentlsrc_select_user_id (GstGenTlSrc * src)
+{
+  GstGenTlSrcClass *klass = GST_GENTL_SRC_GET_CLASS (src);
+  GC_ERROR ret;
+  uint32_t num_ifaces, num_devs;
+  char dev_id[GTL_MAX_STR_SIZE];
+
+  ret = GTL_TLGetNumInterfaces (src->hTL, &num_ifaces);
+  HANDLE_GTL_ERROR ("Failed to get number of interfaces");
+
+  GST_DEBUG_OBJECT (src,
+      "Trying to find device-user-id='%s' on all %d interfaces",
+      src->device_user_id, num_ifaces);
+
+  for (src->interface_index = 0; src->interface_index < num_ifaces;
+      src->interface_index++) {
+    size_t id_size;
+    GST_DEBUG_OBJECT (src, "Trying to find interface ID at index %d",
+        src->interface_index);
+
+    ret = GTL_TLGetInterfaceID (src->hTL, src->interface_index, NULL, &id_size);
+    HANDLE_GTL_ERROR ("Failed to get interface ID at specified index");
+    if (src->interface_id) {
+      g_free (src->interface_id);
+    }
+    src->interface_id = (gchar *) g_malloc (id_size);
+    ret =
+        GTL_TLGetInterfaceID (src->hTL, src->interface_index, src->interface_id,
+        &id_size);
+    HANDLE_GTL_ERROR ("Failed to get interface ID at specified index");
+    GST_DEBUG_OBJECT (src, "Trying to open interface '%s'", src->interface_id);
+    ret = GTL_TLOpenInterface (src->hTL, src->interface_id, &src->hIF);
+    if (ret != GC_ERR_SUCCESS) {
+      GST_WARNING_OBJECT (src, "Interface failed to open");
+      continue;
+    }
+
+    ret = GTL_IFUpdateDeviceList (src->hIF, NULL, src->timeout);
+    HANDLE_GTL_ERROR ("Failed to update device list within timeout");
+
+    ret = GTL_IFGetNumDevices (src->hIF, &num_devs);
+    HANDLE_GTL_ERROR ("Failed to get number of devices");
+    if (num_devs == 0) {
+      gst_gentlsrc_close_interface (src);
+      continue;
+    }
+    GST_DEBUG_OBJECT (src, "Found %d devices on interface", num_devs);
+    for (src->device_index = 0; src->device_index < num_devs;
+        ++src->device_index) {
+      size_t str_size;
+      char user_defined_name[GTL_MAX_STR_SIZE];
+      INFO_DATATYPE datatype;
+
+      str_size = GTL_MAX_STR_SIZE;
+      ret = GTL_IFGetDeviceID (src->hIF, src->device_index, dev_id, &str_size);
+      if (ret != GC_ERR_SUCCESS) {
+        GST_WARNING_OBJECT (src, "Failed to get device id: %s",
+            gst_gentlsrc_get_error_string (src));
+        return;
+      }
+
+      str_size = GTL_MAX_STR_SIZE;
+      GTL_IFGetDeviceInfo (src->hIF, dev_id, DEVICE_INFO_USER_DEFINED_NAME,
+          &datatype, user_defined_name, &str_size);
+
+      GST_DEBUG_OBJECT (src, "Comparing specified user ID='%s', to '%s'",
+          src->device_user_id, user_defined_name);
+
+      if (g_strcmp0 (src->device_user_id, user_defined_name) == 0) {
+        GST_DEBUG_OBJECT (src, "Device matches!");
+        gst_gentlsrc_close_interface (src);
+        return;
+      } else {
+        GST_DEBUG_OBJECT (src, "Device doesn't match, continuing");
+      }
+    }                           // looping over devices
+    gst_gentlsrc_close_interface (src);
+  }                             // looping over interfaces
+
+  GST_ELEMENT_ERROR (src, RESOURCE, TOO_LAZY,
+      ("Failed to find device using device-user-id='%s'", src->device_user_id),
+      (NULL));
+  return;
+
+error:
+  return;
+}
+
 static gboolean
 gst_gentlsrc_start (GstBaseSrc * bsrc)
 {
@@ -1230,6 +1348,10 @@ gst_gentlsrc_start (GstBaseSrc * bsrc)
   if (!gst_gentlsrc_open_tl (src)) {
     g_mutex_unlock (&klass->tl_mutex);
     goto error;
+  }
+
+  if (src->device_user_id && src->device_user_id[0] != 0) {
+    get_gentlsrc_select_user_id (src);
   }
 
   if (!gst_gentlsrc_open_interface (src)) {
@@ -1584,10 +1706,7 @@ error:
     src->hDEV = NULL;
   }
 
-  if (src->hIF) {
-    GTL_IFClose (src->hIF);
-    src->hIF = NULL;
-  }
+  gst_gentlsrc_close_interface (src);
 
   gst_gentlsrc_cleanup_tl (src);
 
