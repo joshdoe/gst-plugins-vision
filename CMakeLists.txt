@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION "1.0.0")
+cmake_minimum_required(VERSION "2.8.0")
 
 project(gst-plugins-vision-adlink)
 
