@@ -1,6 +1,6 @@
-cmake_minimum_required(VERSION "2.8.0")
+cmake_minimum_required(VERSION "1.0.0")
 
-project(gst-plugins-vision)
+project(gst-plugins-vision-adlink)
 
 option(ENABLE_KLV "Whether to enable KLV support" OFF)
 
@@ -39,17 +39,17 @@ include(CPack)
 include(MacroLogFeature)
 
 find_package(GStreamer REQUIRED COMPONENTS base)
-macro_log_feature(GSTREAMER_FOUND "GStreamer" "Required to build gst-plugins-vision" "http://gstreamer.freedesktop.org/" TRUE "1.2.0")
+macro_log_feature(GSTREAMER_FOUND "GStreamer" "Required to build gst-plugins-vision-adlink" "http://gstreamer.freedesktop.org/" TRUE "1.2.0")
 macro_log_feature(GSTREAMER_BASE_LIBRARY_FOUND "GStreamer base library" "Required to build most plugins" "http://gstreamer.freedesktop.org/" FALSE "1.2.0")
 
 find_package(GStreamerPluginsBase COMPONENTS video)
 macro_log_feature(GSTREAMER_VIDEO_LIBRARY_FOUND "GStreamer video library" "Required to build several video plugins" "http://gstreamer.freedesktop.org/" FALSE "1.2.0")
 
 find_package(GLIB2 REQUIRED)
-macro_log_feature(GLIB2_FOUND "GLib" "Required to build gst-plugins-vision" "http://www.gtk.org/" TRUE)
+macro_log_feature(GLIB2_FOUND "GLib" "Required to build gst-plugins-vision-adlink" "http://www.gtk.org/" TRUE)
 
 find_package(GObject REQUIRED)
-macro_log_feature(GOBJECT_FOUND "GObject" "Required to build gst-plugins-vision" "http://www.gtk.org/" TRUE)
+macro_log_feature(GOBJECT_FOUND "GObject" "Required to build gst-plugins-vision-adlink" "http://www.gtk.org/" TRUE)
 
 find_package(Orc REQUIRED)
 macro_log_feature(ORC_FOUND "Orc" "Required library to improve performance" "http://code.entropywave.com/orc/" TRUE)
