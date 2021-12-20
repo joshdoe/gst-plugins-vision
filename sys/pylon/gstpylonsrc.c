@@ -2282,6 +2282,12 @@ gst_pylonsrc_set_lightsource (GstPylonSrc * src)
         res =
             PylonDeviceFeatureFromString (src->deviceHandle,
             preset, "Tungsten2800K");
+        if (res!= GENAPI_E_OK)
+        {
+          res = 
+           PylonDeviceFeatureFromString(src->deviceHandle,
+           preset, "Tungsten");
+        }
         PYLONC_CHECK_ERROR (src, res);
       } else if (strcmp (src->lightsource, "5000k") == 0) {
         GST_DEBUG_OBJECT (src,
@@ -2289,6 +2295,12 @@ gst_pylonsrc_set_lightsource (GstPylonSrc * src)
         res =
             PylonDeviceFeatureFromString (src->deviceHandle,
             preset, "Daylight5000K");
+        if (res != GENAPI_E_OK)
+        {
+          res = 
+           PylonDeviceFeatureFromString (src->deviceHandle,
+           preset, "Daylight");
+        }
         PYLONC_CHECK_ERROR (src, res);
       } else if (strcmp (src->lightsource, "6500k") == 0) {
         GST_DEBUG_OBJECT (src,
