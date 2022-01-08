@@ -106,7 +106,7 @@ static gchar *read_string_feature (GstPylonSrc * src, const char *feature);
 typedef enum _GST_PYLONSRC_PROP
 {
   PROP_0,
-  PROP_CAMERA,
+  PROP_SERIALNUMBER,
   PROP_HEIGHT,
   PROP_WIDTH,
   PROP_BINNINGH,
@@ -319,7 +319,8 @@ ascii_strdown (gchar * *str, gssize len)
   *str = temp;
 }
 
-#define DEFAULT_PROP_CAMERA                           0
+#define DEFAULT_PROP_CAMERAID                         0
+#define DEFAULT_PROP_SERIALNUMBER                     0
 #define DEFAULT_PROP_SIZE                             0
 #define DEFAULT_PROP_BINNING                          1
 #define DEFAULT_PROP_LIMITBANDWIDTH                   TRUE
@@ -403,10 +404,10 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
 
   push_src_class->create = GST_DEBUG_FUNCPTR (gst_pylonsrc_create);
 
-  g_object_class_install_property (gobject_class, PROP_CAMERA,
-      g_param_spec_int ("camera", "camera",
-          "(Number) Camera ID as defined by Basler's API. If only one camera is connected this parameter will be ignored and the lone camera will be used. If there are multiple cameras and this parameter isn't defined, the plugin will output a list of available cameras and their IDs. Note that if there are multiple cameras available to the API and the camera parameter isn't defined then this plugin will not run.",
-          0, 100, DEFAULT_PROP_CAMERA,
+  g_object_class_install_property (gobject_class, PROP_SERIALNUMBER,
+      g_param_spec_int ("serialnumber", "serialnumber",
+          "(Number) Serial number of camera obtained from Pylon viewer (or found on the camera). If only one camera is connected this parameter will be ignored and the lone camera will be used. If there are multiple cameras available, a connection to a camera will only be established if a camera with matching serial number is found. This plugin will not run if there are multiple cameras available and serial number parameter isn't defined.",
+          0, 2147483647, DEFAULT_PROP_SERIALNUMBER,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_HEIGHT,
       g_param_spec_int ("height", "height",
@@ -811,7 +812,8 @@ gst_pylonsrc_init (GstPylonSrc * src)
     src->maxSize[i] = G_MAXINT;
   }
 
-  src->cameraId = DEFAULT_PROP_CAMERA;
+  src->cameraId = DEFAULT_PROP_CAMERAID;
+  src->serialNumb = DEFAULT_PROP_SERIALNUMBER;
   src->maxBandwidth = DEFAULT_PROP_MAXBANDWIDTH;
   src->testImage = DEFAULT_PROP_TESTIMAGE;
   src->sensorMode = g_strdup (DEFAULT_PROP_SENSORREADOUTMODE);
@@ -958,8 +960,8 @@ gst_pylonsrc_set_property (GObject * object, guint property_id,
   GST_DEBUG_OBJECT (src, "Setting a property: %u", property_id);
 
   switch (property_id) {
-    case PROP_CAMERA:
-      src->cameraId = g_value_get_int (value);
+    case PROP_SERIALNUMBER:
+      src->serialNumb = g_value_get_int (value);
       break;
     case PROP_HEIGHT:
       src->size[AXIS_Y] = g_value_get_int (value);
@@ -1230,8 +1232,8 @@ gst_pylonsrc_get_property (GObject * object, guint property_id,
   GST_DEBUG_OBJECT (src, "Getting a property.");
 
   switch (property_id) {
-    case PROP_CAMERA:
-      g_value_set_int (value, src->cameraId);
+    case PROP_SERIALNUMBER:
+      g_value_set_int (value, src->serialNumb);
       break;
     case PROP_HEIGHT:
       g_value_set_int (value, src->size[AXIS_Y]);
@@ -1732,56 +1734,50 @@ gst_pylonsrc_select_device (GstPylonSrc * src)
 
   res = PylonEnumerateDevices (&numDevices);
   PYLONC_CHECK_ERROR (src, res);
-  GST_DEBUG_OBJECT (src, "src: found %i Basler device(s).", (int) numDevices);
+  GST_DEBUG_OBJECT (src, "Found %i Basler device(s).", (int) numDevices);
   if (numDevices == 0) {
     GST_ERROR_OBJECT (src, "No devices connected, canceling initialisation.");
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Failed to initialise the camera"), ("No camera connected"));
     goto error;
   } else if (numDevices == 1) {
-    if (is_prop_set (src, PROP_CAMERA) && src->cameraId != 0) {
+    if (is_prop_set (src, PROP_SERIALNUMBER) && src->serialNumb != 0) {
       GST_DEBUG_OBJECT (src,
-          "Camera id was set, but was ignored as only one camera was found.");
+          "Serial number was set, but was ignored as only one camera was found.");
       src->cameraId = 0;
     }
-  } else if (numDevices > 1 && !is_prop_set (src, PROP_CAMERA)) {
-    GST_DEBUG_OBJECT (src,
-        "Multiple cameras found, and the user didn't specify which camera to use.");
-    GST_DEBUG_OBJECT (src,
-        "Please specify the camera using the CAMERA property.");
-    GST_DEBUG_OBJECT (src, "The camera IDs are as follows: ");
-
+  } else if (numDevices > 1) {
+    PylonDeviceInfo_t di;
     for (i = 0; i < numDevices; i++) {
-      PYLON_DEVICE_HANDLE deviceHandle;
-      res = PylonCreateDeviceByIndex (i, &deviceHandle);
-
-      if (res == GENAPI_E_OK) {
-        res =
-            PylonDeviceOpen (deviceHandle,
-            PYLONC_ACCESS_MODE_CONTROL | PYLONC_ACCESS_MODE_STREAM);
-        PYLONC_CHECK_ERROR (src, res);
-
-        pylonc_print_camera_info (src, deviceHandle, i);
-      } else {
-        GST_DEBUG_OBJECT (src,
-            "ID:%i, Name: Unavailable, Serial No: Unavailable, Status: In use?",
-            i);
-      }
-
-      PylonDeviceClose (deviceHandle);
-      PylonDestroyDevice (deviceHandle);
+      res = PylonGetDeviceInfo (i, &di);
+      PYLONC_CHECK_ERROR (src, res);
+      GST_DEBUG_OBJECT (src, "Index: %d. Model Name: %s. Serial Number: %s", i, di.ModelName, di.SerialNumber);
     }
+    if (!is_prop_set (src, PROP_SERIALNUMBER)) {
+      GST_DEBUG_OBJECT (src,
+          "Multiple cameras found, and the user didn't define serial number to specify which camera to use.");
+      GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+          ("Failed to initialise the camera"), ("No camera selected"));
+      goto error;
+    }
+    for (i = 0; i < numDevices; i++) {
+      res = PylonGetDeviceInfo (i, &di);
+      PYLONC_CHECK_ERROR (src, res);
 
-    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-        ("Failed to initialise the camera"), ("No camera selected"));
-    goto error;
-  } else if (is_prop_set (src, PROP_CAMERA) && src->cameraId >= numDevices) {
-    GST_DEBUG_OBJECT (src, "No camera found with id %i.", src->cameraId);
-    GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-        ("Failed to initialise the camera"), ("No camera connected"));
-    goto error;
+      if (atoi(di.SerialNumber) == src->serialNumb)
+      {
+        src->cameraId = i;
+        break;
+      }
+      if (i == numDevices - 1)
+      {
+        GST_DEBUG_OBJECT (src, "No camera found with serial number %i.", src->serialNumb);
+        GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
+            ("Failed to initialise the camera"), ("No camera connected"));
+        goto error;
+      }
+    }
   }
-
   return TRUE;
 
 error:
@@ -2282,10 +2278,10 @@ gst_pylonsrc_set_lightsource (GstPylonSrc * src)
         res =
             PylonDeviceFeatureFromString (src->deviceHandle,
             preset, "Tungsten2800K");
-        if (res!= GENAPI_E_OK)
+        if (res != GENAPI_E_OK)
         {
           res = 
-           PylonDeviceFeatureFromString(src->deviceHandle,
+           PylonDeviceFeatureFromString (src->deviceHandle,
            preset, "Tungsten");
         }
         PYLONC_CHECK_ERROR (src, res);
@@ -4248,7 +4244,7 @@ _Bool
 pylonc_connect_camera (GstPylonSrc * src)
 {
   GENAPIC_RESULT res;
-  GST_DEBUG_OBJECT (src, "Connecting to the camera (index=%d)...",
+  GST_DEBUG_OBJECT (src, "Connecting to the camera (Index: %d)...",
       src->cameraId);
 
   res = PylonCreateDeviceByIndex (src->cameraId, &src->deviceHandle);
@@ -4309,14 +4305,10 @@ pylonc_print_camera_info (GstPylonSrc * src, PYLON_DEVICE_HANDLE deviceHandle,
       g_strdup ("None");
     }
 
-    if (src->cameraId != deviceId) {    // We're listing cameras
-      GST_LOG_OBJECT (src,
-          "ID:%i, Name:%s, Serial No:%s, Status: Available. Custom ID: %s",
-          deviceId, name, serial, id);
-    } else {                    // We've connected to a camera
-      GST_LOG_OBJECT (src,
-          "Status: Using camera \"%s\" (serial number: %s, id: %i). Custom ID: %s",
-          name, serial, deviceId, id);
+    if (src->cameraId == deviceId) {                    // We've connected to a camera
+      GST_DEBUG_OBJECT (src,
+          "Using camera \"%s\" (Index: %i, Serial Number: %s)",
+          name, deviceId, serial);
     }
   } else {
   error:
