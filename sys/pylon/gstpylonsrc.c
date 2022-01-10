@@ -406,7 +406,7 @@ gst_pylonsrc_class_init (GstPylonSrcClass * klass)
 
   g_object_class_install_property (gobject_class, PROP_SERIALNUMBER,
       g_param_spec_int ("serialnumber", "serialnumber",
-          "(Number) Serial number of camera obtained from Pylon viewer (or found on the camera). If only one camera is connected this parameter will be ignored and the lone camera will be used. If there are multiple cameras available, a connection to a camera will only be established if a camera with matching serial number is found. This plugin will not run if there are multiple cameras available and serial number parameter isn't defined.",
+          "(Number) Serial number of camera (found on the camera or obtained from Pylon viewer). If specified a camera with a matching serial number must be found or the plugin will not run. If only one camera is connected and this parameter is not specified the lone camera will be used. This plugin will not run if there are multiple cameras available and serial number parameter isn't defined.",
           0, 2147483647, DEFAULT_PROP_SERIALNUMBER,
           (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_HEIGHT,
@@ -1740,13 +1740,11 @@ gst_pylonsrc_select_device (GstPylonSrc * src)
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
         ("Failed to initialise the camera"), ("No camera connected"));
     goto error;
-  } else if (numDevices == 1) {
-    if (is_prop_set (src, PROP_SERIALNUMBER) && src->serialNumb != 0) {
-      GST_DEBUG_OBJECT (src,
-          "Serial number was set, but was ignored as only one camera was found.");
-      src->cameraId = 0;
-    }
-  } else if (numDevices > 1) {
+  } else if (numDevices == 1 && !is_prop_set (src, PROP_SERIALNUMBER)) {
+    GST_DEBUG_OBJECT (src,
+       "Only one camera found and no serial number specified. Connecting to camera.");
+    src->cameraId = 0;
+  } else {
     PylonDeviceInfo_t di;
     for (i = 0; i < numDevices; i++) {
       res = PylonGetDeviceInfo (i, &di);
