@@ -39,7 +39,7 @@ enum
   GST_PYLONSRC_NUM_CAPTURE_BUFFERS = 10,
   GST_PYLONSRC_NUM_AUTO_FEATURES = 3,
   GST_PYLONSRC_NUM_LIMITED_FEATURES = 2,
-  GST_PYLONSRC_NUM_PROPS = 74
+  GST_PYLONSRC_NUM_PROPS = 75
 };
 
 typedef enum _GST_PYLONSRC_PROPERTY_STATE
@@ -101,7 +101,8 @@ struct _GstPylonSrc
   GstPylonSrcLimitedFeature limitedFeature[GST_PYLONSRC_NUM_LIMITED_FEATURES];
 
   gint maxBandwidth, testImage, frameDropLimit, grabtimeout, packetSize,
-      interPacketDelay, frameTransDelay, bandwidthReserve, bandwidthReserveAcc;
+      interPacketDelay, frameTransDelay, bandwidthReserve, bandwidthReserveAcc,
+      maxTransferSize;
   gint size[2];
   gint binning[2];
   gint maxSize[2];
