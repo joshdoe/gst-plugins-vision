@@ -72,6 +72,7 @@ struct _GstPylonSrc
   GstCaps *caps;
 
   gint cameraId;
+  gint serialNumb;
   PYLON_DEVICE_HANDLE deviceHandle;     // Handle for the camera.
   PYLON_STREAMGRABBER_HANDLE streamGrabber;     // Handler for camera's streams.
   PYLON_WAITOBJECT_HANDLE waitObject;   // Handles timing out in the main loop.
