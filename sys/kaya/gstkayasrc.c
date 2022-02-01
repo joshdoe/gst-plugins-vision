@@ -41,6 +41,7 @@
 #include <gst/base/gstpushsrc.h>
 #include <gst/video/video.h>
 
+#include "get_unix_ns.h"
 #include "gstkayasrc.h"
 #include "genicampixelformat.h"
 
@@ -223,6 +224,7 @@ gst_kayasrc_cleanup (GstKayaSrc * src)
   src->stop_requested = FALSE;
   src->acquisition_started = FALSE;
   src->kaya_base = GST_CLOCK_TIME_NONE;
+  src->unix_base = 0;
 
   if (src->caps) {
     gst_caps_unref (src->caps);
@@ -799,11 +801,13 @@ gst_kayasrc_stream_buffer_callback (STREAM_BUFFER_HANDLE buffer_handle,
   GST_BUFFER_OFFSET (buf) = src->frame_count;
   src->frame_count++;
 
-  //if (src->kaya_base == GST_CLOCK_TIME_NONE) {
-  // assume delay between these two calls is negligible
+  guint64 cur_time = get_unix_ns();
+  if (cur_time - src->unix_base > GST_SECOND) {
+  // assume delay between these two calls is negligible (one measurement showed <100ns)
   src->kaya_base = KYFG_GetGrabberValueInt (src->cam_handle, "Timestamp");
-  src->unix_base = g_get_real_time () * 1000;
-  //}
+  src->unix_base = get_unix_ns ();
+  }
+
 #if GST_CHECK_VERSION(1,14,0)
   {
     GstClockTime unix_ts = src->unix_base + (timestamp - src->kaya_base);
