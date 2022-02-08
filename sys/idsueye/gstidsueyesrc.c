@@ -446,7 +446,7 @@ char_to_ids_unicode (const char *str)
 void *
 char_to_ids_unicode (const char *str)
 {
-  return g_utf8_to_ucs4 (src->config_file, -1, NULL, NULL, NULL);
+  return g_utf8_to_ucs4 (str, -1, NULL, NULL, NULL);
 }
 #endif
 
