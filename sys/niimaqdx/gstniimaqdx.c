@@ -153,16 +153,28 @@ static GstStaticCaps unix_reference = GST_STATIC_CAPS ("timestamp/x-unix");
   "framerate = " GST_VIDEO_FPS_RANGE
 
 /* TODO: handle the format mappings more intelligently */
+/* All pixel format names below have no spaces, as when comparing spaces
+   will be removed */
 ImaqDxCapsInfo imaq_dx_caps_infos[] = {
   {"Mono8", 0, GST_VIDEO_CAPS_MAKE ("GRAY8"), 8, 8, 4}
   ,
+  {"8BitMonochrome", 0, GST_VIDEO_CAPS_MAKE("GRAY8"), 8, 8, 4}
+  ,
   {"Mono10", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 10, 16, 4}
+  ,
+  {"10BitMonochrome", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE("GRAY16_LE"), 10, 16, 4}
   ,
   {"Mono10", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_BE"), 10, 16, 4}
   ,
+  {"10BitMonochrome", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE("GRAY16_BE"), 10, 16, 4}
+  ,
   {"Mono12", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 12, 16, 4}
   ,
+  {"12BitMonochrome", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE("GRAY16_LE"), 12, 16, 4}
+  ,
   {"Mono12", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_BE"), 12, 16, 4}
+  ,
+  {"12BitMonochrome", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE("GRAY16_BE"), 12, 16, 4}
   ,
   {"Mono14", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 14, 16, 4}
   ,
