@@ -32,7 +32,7 @@ find_path (Pleora_INCLUDE_DIR PvBase.h
     PATH_SUFFIXES Includes include)
 message (STATUS "Found Pleora include dir in ${Pleora_INCLUDE_DIR}")
 
-find_path (Pleora_LIBRARY_DIR NAMES libPvBase.so "PvBase${_LIB_NAME}"
+find_path (Pleora_LIBRARY_DIR NAMES libPvBase.so "PvBase${_LIB_SUFFIX}.lib"
     PATHS ${_Pleora_PATHS}
     PATH_SUFFIXES Libraries lib)
 
