@@ -189,7 +189,6 @@ gst_xirissrc_set_property (GObject * object, guint property_id,
 
   switch (property_id) {
     case PROP_SERIAL_NUMBER:
-      // g_free (src->serial_number);
       src->serial_number = g_value_dup_string (value);
       break;
     case PROP_SHUTTER_MODE:
