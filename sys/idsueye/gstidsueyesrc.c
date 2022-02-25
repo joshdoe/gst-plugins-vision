@@ -504,7 +504,7 @@ gst_idsueyesrc_start (GstBaseSrc * bsrc)
     if (!g_file_test (src->config_file, G_FILE_TEST_EXISTS)) {
       GST_ELEMENT_ERROR (src, RESOURCE, NOT_FOUND,
           ("Camera file does not exist: %s", src->config_file), (NULL));
-      return FALSE;
+      goto error;
     }
 
     /* function requires Unicode */
@@ -533,7 +533,7 @@ gst_idsueyesrc_start (GstBaseSrc * bsrc)
       }
       GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
           ("Failed to load parameter file: %s", src->config_file), (NULL));
-      return FALSE;
+      goto error;
     }
   } else {
     ret =
@@ -542,37 +542,42 @@ gst_idsueyesrc_start (GstBaseSrc * bsrc)
     if (ret != IS_SUCCESS) {
       GST_ELEMENT_ERROR (src, RESOURCE, OPEN_READ,
           ("Failed to load parameters from EEPROM"), (NULL));
-      return FALSE;
+      goto error;
     }
   }
 
   gst_idsueyesrc_set_caps_from_camera (src);
   if (!src->caps) {
-    return FALSE;
+    goto error;
   }
 
   if (!gst_idsueyesrc_alloc_memory (src)) {
     /* element error already sent */
-    return FALSE;
+    goto error;
   }
 
   ret = is_SetDisplayMode (src->hCam, IS_SET_DM_DIB);
   if (ret != IS_SUCCESS) {
     GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
         ("Failed to set display mode"), (NULL));
-    return FALSE;
+    goto error;
   }
 
   ret = is_InitImageQueue (src->hCam, 0);
   if (ret != IS_SUCCESS) {
     GST_ELEMENT_ERROR (src, STREAM, WRONG_TYPE,
         ("Failed to init image queue"), (NULL));
-    return FALSE;
+    goto error;
   }
 
   gst_idsueyesrc_set_framerate_exposure (src);
 
   return TRUE;
+
+error:
+  ret = is_ExitCamera (src->hCam);
+
+  return FALSE;
 }
 
 static gboolean
