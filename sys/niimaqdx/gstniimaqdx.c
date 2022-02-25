@@ -93,6 +93,19 @@ static gboolean gst_niimaqdxsrc_close_interface (GstNiImaqDxSrc * src);
 static void gst_niimaqdxsrc_reset (GstNiImaqDxSrc * src);
 static void gst_niimaqdxsrc_set_dx_attributes (GstNiImaqDxSrc * src);
 
+const char *
+gst_niimaqdxsrc_get_imaq_error_str (IMAQdxError code)
+{
+  static char imaqdx_error_string[IMAQDX_MAX_API_STRING_LENGTH];
+  if (code) {
+    IMAQdxGetErrorString (code, imaqdx_error_string,
+        IMAQDX_MAX_API_STRING_LENGTH);
+    return imaqdx_error_string;
+  } else {
+    return "No IMAQdx error";
+  }
+}
+
 IMAQdxError
 gst_niimaqdxsrc_report_imaq_error (IMAQdxError code)
 {
@@ -158,23 +171,25 @@ static GstStaticCaps unix_reference = GST_STATIC_CAPS ("timestamp/x-unix");
 ImaqDxCapsInfo imaq_dx_caps_infos[] = {
   {"Mono8", 0, GST_VIDEO_CAPS_MAKE ("GRAY8"), 8, 8, 4}
   ,
-  {"8BitMonochrome", 0, GST_VIDEO_CAPS_MAKE("GRAY8"), 8, 8, 4}
+  {"8BitMonochrome", 0, GST_VIDEO_CAPS_MAKE ("GRAY8"), 8, 8, 4}
   ,
   {"Mono10", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 10, 16, 4}
   ,
-  {"10BitMonochrome", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE("GRAY16_LE"), 10, 16, 4}
+  {"10BitMonochrome", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 10,
+      16, 4}
   ,
   {"Mono10", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_BE"), 10, 16, 4}
   ,
-  {"10BitMonochrome", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE("GRAY16_BE"), 10, 16, 4}
+  {"10BitMonochrome", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_BE"), 10, 16, 4}
   ,
   {"Mono12", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 12, 16, 4}
   ,
-  {"12BitMonochrome", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE("GRAY16_LE"), 12, 16, 4}
+  {"12BitMonochrome", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 12,
+      16, 4}
   ,
   {"Mono12", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_BE"), 12, 16, 4}
   ,
-  {"12BitMonochrome", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE("GRAY16_BE"), 12, 16, 4}
+  {"12BitMonochrome", G_BIG_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_BE"), 12, 16, 4}
   ,
   {"Mono14", G_LITTLE_ENDIAN, GST_VIDEO_CAPS_MAKE ("GRAY16_LE"), 14, 16, 4}
   ,
@@ -699,7 +714,7 @@ gst_niimaqdxsrc_fill (GstPushSrc * psrc, GstBuffer * buf)
 
     if (!gst_niimaqdxsrc_start_acquisition (src)) {
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          ("Unable to start acquisition."), (NULL));
+          ("Unable to start acquisition"), (NULL));
       return GST_FLOW_ERROR;
     }
 
@@ -740,7 +755,8 @@ gst_niimaqdxsrc_fill (GstPushSrc * psrc, GstBuffer * buf)
   if (rval) {
     gst_niimaqdxsrc_report_imaq_error (rval);
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-        ("failed to copy buffer %d", src->cumbufnum), (NULL));
+        ("failed to copy buffer %d: %s", src->cumbufnum,
+            gst_niimaqdxsrc_get_imaq_error_str (rval)), (NULL));
     return GST_FLOW_ERROR;
   }
 
@@ -950,7 +966,8 @@ gst_niimaqdxsrc_get_cam_caps (GstNiImaqDxSrc * src)
 
   if (rval) {
     GST_ELEMENT_ERROR (src, STREAM, FAILED,
-        ("attempt to read attributes failed"),
+        ("attempt to read attributes failed: %s",
+            gst_niimaqdxsrc_get_imaq_error_str (rval)),
         ("attempt to read attributes failed"));
     goto error;
   }
@@ -1083,7 +1100,8 @@ gst_niimaqdxsrc_start (GstBaseSrc * bsrc)
     if (rval != IMAQdxErrorSuccess) {
       gst_niimaqdxsrc_report_imaq_error (rval);
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          ("Failed to open IMAQdx interface"),
+          ("Failed to open IMAQdx interface %s: %s", src->device_name,
+              gst_niimaqdxsrc_get_imaq_error_str (rval)),
           ("Failed to open camera interface %s", src->device_name));
       goto error;
     }
@@ -1097,7 +1115,8 @@ gst_niimaqdxsrc_start (GstBaseSrc * bsrc)
   if (rval) {
     gst_niimaqdxsrc_report_imaq_error (rval);
     GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-        ("Failed to create ring buffer"),
+        ("Failed to create ring buffer: %s",
+            gst_niimaqdxsrc_get_imaq_error_str (rval)),
         ("Failed to create ring buffer with %d buffers",
             src->ringbuffer_count));
     goto error;
@@ -1113,7 +1132,8 @@ gst_niimaqdxsrc_start (GstBaseSrc * bsrc)
     if (rval) {
       gst_niimaqdxsrc_report_imaq_error (rval);
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          ("Failed to register callback(s)"), (NULL));
+          ("Failed to register callback(s): %s",
+              gst_niimaqdxsrc_get_imaq_error_str (rval)), (NULL));
       goto error;
     }
   }
@@ -1150,7 +1170,8 @@ gst_niimaqdxsrc_stop (GstBaseSrc * bsrc)
     if (rval != IMAQdxErrorSuccess) {
       gst_niimaqdxsrc_report_imaq_error (rval);
       GST_ELEMENT_ERROR (src, RESOURCE, FAILED,
-          ("Unable to stop acquisition"), (NULL));
+          ("Unable to stop acquisition: %s",
+              gst_niimaqdxsrc_get_imaq_error_str (rval)), (NULL));
       result = FALSE;
     }
     src->session_started = FALSE;
