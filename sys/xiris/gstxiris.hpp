@@ -34,17 +34,22 @@ GST_DEBUG_CATEGORY_STATIC (gst_xirissrc_debug_category);
 
 bool gCameraReady = false;
 bool gBufferReady = false;
+bool gIsConnected = false;
+bool gIsMatched = true;
+std::string gSerialNumber;
 
 class DemoCameraEventSink : public WeldCamera, public CameraEventSink
 {
+  private:
+    std::string _macAddr;
   public:
+    std::string mSerialNumber;
     ShutterModes mShutterMode;
     float mGlobalExposure;
     float mGlobalFrameRateLimit;
     bool mGlobalFrameRateLimitEnabled;
     double mRollingFrameRate;
     PixelDepths mPixelDepth;
-    std::string _macAddr;
     XImage mCapturedImage;
 
     DemoCameraEventSink(std::string mac):_macAddr(mac)
@@ -54,7 +59,7 @@ class DemoCameraEventSink : public WeldCamera, public CameraEventSink
 
     virtual void OnCameraReady(CameraReadyEventArgs args) override
     {
-      if (args.IsReady)
+      if (args.IsReady && gIsMatched)
       {
         gCameraReady = true;
 
@@ -83,7 +88,7 @@ class DemoCameraEventSink : public WeldCamera, public CameraEventSink
     virtual void OnBufferReady(BufferReadyEventArgs args) override
     {
       gBufferReady = true;
-      mCapturedImage = *args.RawImage;
+      mCapturedImage = *args.Image;
     }
 };
 
@@ -91,8 +96,14 @@ DemoCameraEventSink* gWeldCamera = nullptr;
 
 void ConnectToCamera(std::string macAddr, std::string ipAddr, WeldSDK::CameraClass cameraClass)
 {
-  gWeldCamera = new DemoCameraEventSink(macAddr);;
+  gWeldCamera = new DemoCameraEventSink(macAddr);
+  
   gWeldCamera->Connect(ipAddr, cameraClass);
+  if (gSerialNumber.compare(gWeldCamera->getSerialNumber()) != 0)
+  {
+    gIsMatched = false;
+    GST_DEBUG("Failed to match serial number '%s' with a camera!", gSerialNumber.c_str());
+  }
 }
 
 class DemoCameraDetectorEventSink : public CameraDetectorEventSink

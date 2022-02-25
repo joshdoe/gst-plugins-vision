@@ -61,6 +61,7 @@ static GstFlowReturn gst_xirissrc_create (GstPushSrc * bsrc, GstBuffer ** buf);
 typedef enum GST_XIRISSRC_PROP
 {
   PROP_0,
+  PROP_SERIAL_NUMBER,
   PROP_SHUTTER_MODE,
   PROP_GS_EXPOSURE,
   PROP_GS_FRAME_RATE_LIMIT,
@@ -69,13 +70,13 @@ typedef enum GST_XIRISSRC_PROP
   PROP_PIXEL_DEPTH,
 } GST_XIRISSRC_PROP;
 
+#define DEFAULT_SERIAL_NUMBER                       ""
 #define DEFAULT_SHUTTER_MODE                        "global"
 #define DEFAULT_PROP_GS_EXPOSURE                    15998.674805
 #define DEFAULT_PROP_GS_FRAME_RATE_LIMIT            30
 #define DEFAULT_PROP_GS_FRAME_RATE_LIMIT_ENABLED    false
 #define DEFAULT_PROP_RS_FRAME_RATE                  55
-#define DEFAULT_PROP_PIXEL_DEPTH                    "Bpp8"
-#define orc_memcpy(a,b,c) memcpy(a,b,c)
+#define DEFAULT_PROP_PIXEL_DEPTH                    "Bpp12"
 
 /* pad templates */
 static GstStaticPadTemplate gst_xirissrc_src_template =
@@ -118,6 +119,11 @@ gst_xirissrc_class_init (GstXirisSrcClass * klass)
   push_src_class->create = GST_DEBUG_FUNCPTR (gst_xirissrc_create);
 
   /* Install GOject properties */
+  g_object_class_install_property (gobject_class, PROP_SERIAL_NUMBER,
+    g_param_spec_string ("serial-number", "Serial number",
+      "Serial number of camera (found on the camera). If specified, a camera with a matching serial number must be found or the plugin will not run.",
+      DEFAULT_SERIAL_NUMBER,
+      (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (gobject_class, PROP_SHUTTER_MODE,
     g_param_spec_string ("shutter-mode", "Shutter mode",
       "(global/rolling) Specifies the shutter mode of the camera. Default to 'Global'.",
@@ -160,6 +166,7 @@ gst_xirissrc_init (GstXirisSrc *src)
   src->caps = NULL;
 
   // Default parameter values
+  src->serial_number = g_strup (DEFAULT_SERIAL_NUMBER);
   src->shutter_mode = g_strdup (DEFAULT_SHUTTER_MODE);
   src->global_exposure = DEFAULT_PROP_GS_EXPOSURE;
   src->global_frame_rate_limit = DEFAULT_PROP_GS_FRAME_RATE_LIMIT;
@@ -181,6 +188,10 @@ gst_xirissrc_set_property (GObject * object, guint property_id,
   GST_DEBUG_OBJECT (src, "Setting a property: %u", property_id);
 
   switch (property_id) {
+    case PROP_SERIAL_NUMBER:
+      // g_free (src->serial_number);
+      src->serial_number = g_value_dup_string (value);
+      break;
     case PROP_SHUTTER_MODE:
       g_free (src->shutter_mode);
       src->shutter_mode = g_value_dup_string (value);
@@ -216,6 +227,9 @@ gst_xirissrc_get_property (GObject * object, guint property_id,
   GST_DEBUG_OBJECT (src, "Getting a property.");
 
   switch (property_id) {
+    case PROP_SERIAL_NUMBER:
+      g_value_set_string (value, src->serial_number);
+      break;
     case PROP_SHUTTER_MODE:
       g_value_set_string (value, src->shutter_mode);
       break;
@@ -310,33 +324,29 @@ gst_xirissrc_start (GstBaseSrc * bsrc)
 {
   GstXirisSrc *src = GST_XIRISSRC (bsrc);
 
-  try
-  {
-    GST_DEBUG_OBJECT (src, "Starting Camera Detector...");
+  GST_DEBUG_OBJECT (src, "Starting Camera Detector...");
 
-    CameraDetector::GetInstance()->AttachEventSink(src->detectorEvents);
+  CameraDetector::GetInstance()->AttachEventSink(src->detectorEvents);
+  gSerialNumber = src->serial_number;
 
-    while(!gCameraReady);
-    gWeldCamera->mShutterMode = gst_xirissrc_get_shutter_mode_enum(src->shutter_mode);
-    gWeldCamera->mGlobalExposure = src->global_exposure;
-    gWeldCamera->mGlobalFrameRateLimit = src->global_frame_rate_limit;
-    gWeldCamera->mGlobalFrameRateLimitEnabled = src->global_frame_rate_limit_enabled;
-    gWeldCamera->mRollingFrameRate = src->rolling_frame_rate;
-    gWeldCamera->mPixelDepth = gst_xirissrc_get_pixel_depth_enum(src->pixel_depth);
+  while(!gCameraReady)
+  {
+    if(!gIsMatched)
+    {
+      gWeldCamera->Disconnect();
+      return FALSE;
+    }
+  };
+  gWeldCamera->mShutterMode = gst_xirissrc_get_shutter_mode_enum(src->shutter_mode);
+  gWeldCamera->mGlobalExposure = src->global_exposure;
+  gWeldCamera->mGlobalFrameRateLimit = src->global_frame_rate_limit;
+  gWeldCamera->mGlobalFrameRateLimitEnabled = src->global_frame_rate_limit_enabled;
+  gWeldCamera->mRollingFrameRate = src->rolling_frame_rate;
+  gWeldCamera->mPixelDepth = gst_xirissrc_get_pixel_depth_enum(src->pixel_depth);
 
-    while(!gBufferReady);
-    src->camera_connected = gWeldCamera->IsConnected();
-    src->pixel_type = gWeldCamera->mCapturedImage.pixelType;
-  }
-  catch (const std::exception& e)
-  {
-    GST_DEBUG_OBJECT (src, "An exception occurred: %s", e.what());
-    gWeldCamera->Disconnect();
-  }
-  catch (...)
-  {
-    GST_DEBUG_OBJECT (src, "Failed to start camera!");
-  }
+  while(!gBufferReady);
+  src->camera_connected = gWeldCamera->IsConnected();
+  src->pixel_type = gWeldCamera->mCapturedImage.pixelType;
 
   return TRUE;
 }
@@ -365,19 +375,11 @@ gst_xirissrc_create (GstPushSrc * psrc, GstBuffer ** buf)
   GstXirisSrc *src = GST_XIRISSRC (psrc);
   GstMapInfo mapInfo;
 
-  try
-  {
-    gint sizeInBytes = gWeldCamera->mCapturedImage.widthStep * gWeldCamera->mCapturedImage.height;
-    *buf = gst_buffer_new_and_alloc(sizeInBytes);
-    gst_buffer_map(*buf, &mapInfo, GST_MAP_WRITE);
-    orc_memcpy(mapInfo.data, gWeldCamera->mCapturedImage.data, mapInfo.size);
-    gst_buffer_unmap(*buf, &mapInfo);
-  }
-  catch (const std::exception& e)
-  {
-    GST_DEBUG_OBJECT (src, "An exception occurred: %s", e.what());
-    gWeldCamera->Disconnect();
-  }
+  gint sizeInBytes = gWeldCamera->mCapturedImage.widthStep * gWeldCamera->mCapturedImage.height;
+  *buf = gst_buffer_new_and_alloc(sizeInBytes);
+  gst_buffer_map(*buf, &mapInfo, GST_MAP_WRITE);
+  memcpy(mapInfo.data, gWeldCamera->mCapturedImage.data, mapInfo.size);
+  gst_buffer_unmap(*buf, &mapInfo);
 
   return GST_FLOW_OK;
 }
