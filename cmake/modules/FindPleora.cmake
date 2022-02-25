@@ -24,8 +24,8 @@ endif ()
 
 set (_Pleora_PATHS PATHS
   "${Pleora_DIR}"
-  "C:/Program Files/Pleora Technologies Inc/eBUS SDK/Includes"
-  "C:/Program Files (x86)/Pleora Technologies Inc/eBUS SDK/Includes")
+  "C:/Program Files/Pleora Technologies Inc/eBUS SDK"
+  "C:/Program Files (x86)/Pleora Technologies Inc/eBUS SDK")
 
 find_path (Pleora_INCLUDE_DIR PvBase.h
     PATHS ${_Pleora_PATHS}
