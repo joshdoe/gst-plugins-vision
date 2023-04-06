@@ -8,44 +8,55 @@
 # Redistribution and use is allowed according to the terms of the BSD license.
 # For details see the accompanying COPYING-CMAKE-SCRIPTS file.
 
-# TODO: properly handle Linux
-
 if (NOT XCLIB_DIR)
-    # 32-bit dir on win32
-    file(TO_CMAKE_PATH "$ENV{ProgramFiles}" _PROG_FILES)
-    # 32-bit dir on win64
-    set(_PROG_FILES_X86 "ProgramFiles(x86)")
-    file(TO_CMAKE_PATH "$ENV{${_PROG_FILES_X86}}" _PROG_FILES_X86)
-    # 64-bit dir on win64
-    file(TO_CMAKE_PATH "$ENV{ProgramW6432}" _PROG_FILES_W6432)
-    
-    if (CMAKE_SIZEOF_VOID_P MATCHES "8")
-        set(_PROGFILESDIR "${_PROG_FILES_W6432}")
-    else ()
-        if (_PROG_FILES_X86)
-            set(_PROGFILESDIR "${_PROG_FILES_X86}")
+    if (WIN32)
+        # 32-bit dir on win32
+        file(TO_CMAKE_PATH "$ENV{ProgramFiles}" _PROG_FILES)
+        # 32-bit dir on win64
+        set(_PROG_FILES_X86 "ProgramFiles(x86)")
+        file(TO_CMAKE_PATH "$ENV{${_PROG_FILES_X86}}" _PROG_FILES_X86)
+        # 64-bit dir on win64
+        file(TO_CMAKE_PATH "$ENV{ProgramW6432}" _PROG_FILES_W6432)
+        
+        if (CMAKE_SIZEOF_VOID_P MATCHES "8")
+            set(_PROGFILESDIR "${_PROG_FILES_W6432}")
         else ()
-            set(_PROGFILESDIR "${_PROG_FILES}")
+            if (_PROG_FILES_X86)
+                set(_PROGFILESDIR "${_PROG_FILES_X86}")
+            else ()
+                set(_PROGFILESDIR "${_PROG_FILES}")
+            endif ()
         endif ()
-    endif ()
 
-    set (XCLIB_DIR "${_PROGFILESDIR}/EPIX/XCLIB" CACHE PATH "Directory containing EPIX PIXCI XCLIB includes and libraries")
+        set (XCLIB_DIR "${_PROGFILESDIR}/EPIX/XCLIB" CACHE PATH "Directory containing EPIX PIXCI XCLIB includes and libraries")
+    endif (WIN32)
+
+    if (UNIX)
+        find_path(XCLIB_DIR
+            "inc/xclibver.h"
+            HINTS
+            "/usr/local/xclib" 
+            DOC "Directory containing EPIX PIXCI XCLIB includes and libraries")        
+    endif (UNIX)
 endif (NOT XCLIB_DIR)
 
 find_path (XCLIB_INCLUDE_DIR xcliball.h
-    PATHS
+    HINTS
     "${XCLIB_DIR}"
+    "${XCLIB_DIR}/inc"
     DOC "Directory containing xcliball.h include file")
 
 if (CMAKE_SIZEOF_VOID_P MATCHES "8")
-    find_library (XCLIB_LIBRARIES NAMES XCLIBW64
-        PATHS
+    find_library (XCLIB_LIBRARIES NAMES XCLIBW64 xclib_x86_64_pic.a xclib_aarch64_pic.a
+        HINTS
         "${XCLIB_DIR}"
+        "${XCLIB_DIR}/lib"
         DOC "XCLIB 64-bit library to link with")
 else ()
-    find_library (XCLIB_LIBRARIES NAMES XCLIBWNT
-        PATHS
+    find_library (XCLIB_LIBRARIES NAMES XCLIBWNT xclib_i386_pic.a
+        HINTS
         "${XCLIB_DIR}"
+        "${XCLIB_DIR}/lib"
         DOC "XCLIB 32-bit library to link with")
 endif ()
 

@@ -22,7 +22,9 @@
 
 #include <gst/base/gstpushsrc.h>
 
+#ifdef WIN32
 #include <windows.h>
+#endif
 #include <xcliball.h>
 
 G_BEGIN_DECLS
@@ -44,9 +46,11 @@ typedef struct _GstPixciSrcClass GstPixciSrcClass;
 *
 * Identifies the connector that the camera is connected to.
 */
+#ifndef __GNUC__
 typedef enum {
   
 } GstPixciSrcConnector;
+#endif
 
 typedef enum {
     GST_PIXCI_VIDEO_FORMAT_CCIR,
